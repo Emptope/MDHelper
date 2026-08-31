@@ -77,9 +77,11 @@ The `mdhelper/` root contains only `__init__.py`, `__main__.py`, and `version.py
 `bootstrap/portable.py` sends an argument-free `mdhelper` invocation to GUI when available and
 falls back to TUI. Explicit `gui`, `tui`, and `cli` modes remain presentation-separated; other
 arguments go to CLI. Every frozen distribution selects its colocated `config.toml` unless the user
-explicitly selected another configuration. The Windows build contains one GUI-subsystem launcher,
-so default GUI startup does not create a console. Explicit terminal modes attach to their parent
-console or allocate one when needed.
+explicitly selected another configuration. The Windows build contains one console-subsystem
+launcher so PowerShell and other shells wait for terminal modes and keep their standard streams
+connected. GUI startup creates an independent detached application process and then ends the
+console launcher, allowing a temporary Windows Terminal host to close before the Qt main window
+continues. Terminal modes keep their inherited console or allocate one when needed.
 
 `app/facade.py` is the composition root. `ApplicationService` creates the context and exposes
 analysis, inspection, project, integration, and template use cases. Readers and registries are injectable,

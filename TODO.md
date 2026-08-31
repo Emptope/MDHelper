@@ -11,6 +11,8 @@
 
 ## 已完成
 
+- [x] 修复 Windows 终端启动 TUI，并在 GUI 启动后仅保留主窗口。
+
 ## 完成标准（每轮改动后需重新确认）
 
 - Linux 全部测试通过；Windows `.venv-windows` 全部测试通过。

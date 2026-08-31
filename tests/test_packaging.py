@@ -123,8 +123,8 @@ def test_windows_spec_builds_one_application_without_bulk_collection() -> None:
     assert len(_calls(path, "Analysis")) == 1
     assert len(_calls(path, "EXE")) == 1
     assert "collect_all" not in source
-    assert 'console=False' in source
-    assert "hide_console" not in source
+    assert 'console=True' in source
+    assert 'hide_console="hide-early"' in source
     assert '"MDAnalysis.lib._transformations"' in source
     assert len(list(WINDOWS.glob("*entry.py"))) == 1
 
@@ -182,15 +182,15 @@ def test_frozen_payload_policy_rejects_duplicate_runtime_weight() -> None:
     assert module.missing_options([], "linux") == []
 
 
-def test_windows_frozen_audit_requires_gui_subsystem(tmp_path: Path) -> None:
+def test_windows_frozen_audit_requires_console_subsystem(tmp_path: Path) -> None:
     module = _audit_module()
     application = tmp_path / "application.exe"
-    _write_pe(application, module.WINDOWS_GUI_SUBSYSTEM)
+    _write_pe(application, module.WINDOWS_CONSOLE_SUBSYSTEM)
 
     module.check_subsystem(application, "windows")
-    _write_pe(application, 3)
+    _write_pe(application, 2)
 
-    with pytest.raises(SystemExit, match="must use the GUI subsystem"):
+    with pytest.raises(SystemExit, match="must use the console subsystem"):
         module.check_subsystem(application, "windows")
 
 
@@ -276,6 +276,7 @@ def test_windows_smoke_rejects_additional_executables() -> None:
     smoke = (WINDOWS / "smoke.ps1").read_text(encoding="utf-8")
 
     assert '$_.Name -ne "mdhelper.exe"' in smoke
+    assert '$env:MDHELPER_GUI_PROCESS = "1"' in smoke
     assert "& $application gui --smoke-test | Out-Host" in smoke
 
 

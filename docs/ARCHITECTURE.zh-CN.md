@@ -93,8 +93,10 @@ src/mdhelper/
 | `bootstrap/portable.py` | 处理便携配置位置和统一界面分派。 |
 
 无参数调用优先进入 GUI，不可用时降级到 TUI；显式 `gui`、`tui`、`cli` 模式仍保持表现层
-分离，其他参数进入 CLI。Windows 只构建一个 GUI 子系统启动器，默认 GUI 启动时不会创建
-控制台；显式终端模式会连接父控制台，必要时自行创建。所有冻结程序都把配置定位到可执行文件旁；显式
+分离，其他参数进入 CLI。Windows 只构建一个控制台子系统启动器，使 PowerShell 等终端在
+TUI/CLI 运行期间保持等待并连接标准流。GUI 启动会创建独立的无控制台应用进程，随后结束外层
+启动进程，使临时 Windows Terminal 窗口在 Qt 主窗口继续运行前关闭。终端模式保留继承的
+控制台，必要时自行创建。所有冻结程序都把配置定位到可执行文件旁；显式
 `MDHELPER_CONFIG` 仍优先。便携逻辑只决定位置，不绕过配置校验。
 
 真正的组合根是 `app/facade.py` 中的 `ApplicationService`。它创建应用上下文和用例

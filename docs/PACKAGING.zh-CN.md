@@ -54,8 +54,9 @@ uv sync --frozen --group dev
 
 解压后 `config.toml` 和 `mdhelper.exe` 必须放在一起。无参数时优先进入
 GUI，GUI 不可用时降级到 TUI；可用 `gui`、`tui`、`cli` 显式选定模式。启动 GUI 时不会
-创建控制台；显式终端模式会连接已有控制台，必要时自行创建。所有冻结程序都自动使用同目录
-`config.toml`。显式 `--config` 或
+保留控制台窗口：外层控制台启动器创建独立的无控制台 GUI 进程后退出。显式终端模式会保持
+连接到启动它的终端，必要时自行创建。所有冻结程序都自动使用同目录 `config.toml`。显式
+`--config` 或
 `MDHELPER_CONFIG` 仍优先。
 
 ## Linux 验证

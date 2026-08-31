@@ -1,4 +1,4 @@
-"""Windows console support for terminal modes in the frozen launcher."""
+"""Windows console lifecycle support for the frozen launcher."""
 
 from __future__ import annotations
 
@@ -85,3 +85,12 @@ def show() -> None:
     if window:
         windll.user32.ShowWindow(window, 5)
     _restore_streams(kernel)
+
+
+def detach() -> None:
+    import ctypes
+
+    windll = getattr(ctypes, "windll", None)
+    if windll is None:
+        return
+    windll.kernel32.FreeConsole()

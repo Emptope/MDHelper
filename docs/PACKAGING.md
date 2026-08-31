@@ -67,9 +67,10 @@ GROMACS.
 After extraction, `config.toml` and `mdhelper.exe` must remain together.
 Without arguments the application opens the GUI when available and otherwise falls back to TUI.
 Use `mdhelper.exe gui`, `mdhelper.exe tui`, or `mdhelper.exe cli` to select a mode. GUI startup does
-not create a console; explicit terminal modes attach to one or create one as needed. Every frozen
-application selects its colocated configuration automatically. An explicit `--config` CLI argument or
-`MDHELPER_CONFIG` environment variable still takes precedence.
+not keep a console window: the console launcher starts the GUI as an independent detached process
+and exits. Explicit terminal modes remain connected to their launching shell or create a console
+when needed. Every frozen application selects its colocated configuration automatically. An
+explicit `--config` CLI argument or `MDHELPER_CONFIG` environment variable still takes precedence.
 
 ## Linux validation
 

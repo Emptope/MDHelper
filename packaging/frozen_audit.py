@@ -45,7 +45,7 @@ FORBIDDEN_LINUX_MODULES = {
     "mdhelper.bootstrap.windows_console",
 }
 REQUIRED_OPTIONS = {"windows": set(), "linux": set()}
-WINDOWS_GUI_SUBSYSTEM = 2
+WINDOWS_CONSOLE_SUBSYSTEM = 3
 
 
 def violations(entries: list[str], platform: str) -> list[str]:
@@ -123,9 +123,10 @@ def check_subsystem(application: Path, platform: str) -> None:
         subsystem = windows_subsystem(application)
     except (OSError, ValueError) as exc:
         raise SystemExit(f"Could not read the Windows PE subsystem: {application}") from exc
-    if subsystem != WINDOWS_GUI_SUBSYSTEM:
+    if subsystem != WINDOWS_CONSOLE_SUBSYSTEM:
         raise SystemExit(
-            f"Windows application must use the GUI subsystem, found {subsystem}: {application}"
+            f"Windows application must use the console subsystem, found {subsystem}: "
+            f"{application}"
         )
 
 
