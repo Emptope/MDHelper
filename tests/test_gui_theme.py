@@ -11,6 +11,7 @@ pytest.importorskip("PySide6", reason="GUI dependencies are not installed")
 
 from PySide6.QtCore import QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QFont, QFontDatabase, QPalette, QWheelEvent
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -52,6 +53,17 @@ from mdhelper.integrations.models import IntegrationConfig, IntegrationStatus
 from mdhelper.services.config import UserConfig, load_config
 
 _QT_APPLICATION = QApplication.instance() or QApplication([])
+
+
+@pytest.fixture(autouse=True)
+def _immediate_integration_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "mdhelper.app.integrations.IntegrationUseCases.detect",
+        lambda _self, name, _override=None, _config=None: IntegrationStatus(
+            name,
+            False,
+        ),
+    )
 
 
 def _contrast(palette: QPalette) -> tuple[int, int]:
@@ -176,11 +188,19 @@ def test_main_window_maps_gromacs_capabilities_to_independent_choices(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "mdhelper.app.integrations.IntegrationUseCases.supports",
-        lambda _self, _name, *capabilities: capabilities == ("energy",),
+        "mdhelper.app.integrations.IntegrationUseCases.detect",
+        lambda _self, name, _override=None, _config=None: IntegrationStatus(
+            name,
+            False,
+        ),
     )
 
     window = MainWindow()
+    for _attempt in range(100):
+        QApplication.processEvents()
+        if not choice_enabled(window.load.inputs.backend, "gromacs"):
+            break
+        QTest.qWait(1)
 
     assert not choice_enabled(window.load.inputs.backend, "gromacs")
     assert choice_enabled(window.analysis.parameters.analysis_choice, "energy")
@@ -883,7 +903,8 @@ def test_about_dialog_shows_developer_affiliation(
             "<br><br>"
             "Developer: Tuo Yao (Shanghai Jiao Tong University)"
             "<br><br>"
-            "License: GNU General Public License v2.0 (GPL-2.0)<br>"
+            "License: GNU General Public License v2.0 (GPL-2.0)"
+            "<br><br>"
             "MDHelper is free software: you are free to use, study, share, "
             "and modify it under the terms of the GNU General Public License.",
         )

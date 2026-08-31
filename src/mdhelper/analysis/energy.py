@@ -6,14 +6,16 @@ import re
 import tempfile
 from pathlib import Path
 from threading import Event
-
-from MDAnalysis.auxiliary.EDR import EDRReader
+from typing import TYPE_CHECKING
 
 from mdhelper.analysis.common import check_cancel
 from mdhelper.core.analysis import AnalysisResult
 from mdhelper.core.errors import BackendError, FormatError, InputFileError
 from mdhelper.integrations.manager import IntegrationManager
 from mdhelper.plugins.analysis import AnalysisInput
+
+if TYPE_CHECKING:
+    from MDAnalysis.auxiliary.EDR import EDRReader
 
 METHOD_VERSION = "1.0.0"
 _TERM_PAIR = re.compile(r"(?:^|\s)(\d+)\s+([^\s]+)")
@@ -92,6 +94,8 @@ def _energy_source(energy_file: str | Path) -> Path:
 
 def _edr_reader(source: Path) -> EDRReader:
     try:
+        from MDAnalysis.auxiliary.EDR import EDRReader
+
         return EDRReader(str(source), convert_units=False)
     except ImportError as exc:
         raise BackendError(

@@ -4,6 +4,7 @@ import os
 import time
 from importlib import import_module
 from pathlib import Path
+from threading import Event, get_ident
 
 import pytest
 
@@ -27,8 +28,55 @@ from mdhelper.app import InputCandidates
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.gui.projects import NewProjectDialog
 from mdhelper.gui.window import MainWindow
+from mdhelper.integrations.models import IntegrationStatus
 
 gui_main_module = import_module("mdhelper.gui.main")
+
+
+@pytest.fixture(autouse=True)
+def _immediate_integration_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "mdhelper.app.integrations.IntegrationUseCases.detect",
+        lambda _self, name, _override=None, _config=None: IntegrationStatus(
+            name,
+            False,
+        ),
+    )
+
+
+def test_gui_detects_integrations_outside_the_main_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    QApplication.instance() or QApplication([])
+    started = Event()
+    release = Event()
+    threads: list[int] = []
+
+    def detect(
+        _self: object,
+        name: str,
+        _override: object = None,
+        _config: object = None,
+    ) -> IntegrationStatus:
+        threads.append(get_ident())
+        started.set()
+        release.wait(5)
+        return IntegrationStatus(name, False)
+
+    monkeypatch.setattr(
+        "mdhelper.app.integrations.IntegrationUseCases.detect",
+        detect,
+    )
+    main_thread = get_ident()
+    window = MainWindow()
+    try:
+        assert started.wait(1)
+        assert len(threads) == 1
+        assert threads[0] != main_thread
+    finally:
+        release.set()
+        QTest.qWait(10)
+        window.close()
 
 
 def test_gui_startup_reports_configuration_errors_without_traceback(

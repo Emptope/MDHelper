@@ -93,7 +93,8 @@ def install_menu(
             "<br><br>"
             f"Developer: {DEVELOPER}"
             "<br><br>"
-            "License: GNU General Public License v2.0 (GPL-2.0)<br>"
+            "License: GNU General Public License v2.0 (GPL-2.0)"
+            "<br><br>"
             "MDHelper is free software: you are free to use, study, share, "
             "and modify it under the terms of the GNU General Public License.",
         )

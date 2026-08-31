@@ -32,7 +32,7 @@ from mdhelper.gui.menu import install_menu
 from mdhelper.gui.projects import NewProjectDialog
 from mdhelper.gui.results import ResultPanel
 from mdhelper.gui.session import ProjectSession
-from mdhelper.gui.tasks import AnalysisTasks
+from mdhelper.gui.tasks import AnalysisTasks, DetectionTasks
 from mdhelper.gui.templates import TemplatesDialog
 from mdhelper.gui.theme import theme_controller
 from mdhelper.runtime.logging import configure_logging, record_error
@@ -58,6 +58,7 @@ class MainWindow(QMainWindow):
         self.theme.apply(self.application.config.gui.theme)
         self.session = ProjectSession(self.application)
         self.task_controller = AnalysisTasks(self.application, self)
+        self.detection_tasks = DetectionTasks(self.application, self)
         self.role_suggestions: dict[str, SpeciesRoleSuggestion] = {}
         self.role_provenance: dict[str, Any] = {}
         self._applying_roles = False
@@ -77,7 +78,7 @@ class MainWindow(QMainWindow):
         self.load = LoadPanel()
         self.analysis = AnalysisPanel()
         self.results = ResultPanel()
-        self._sync_gromacs_availability()
+        self.load.inputs.set_gromacs_pending()
         self._connect_panels()
         self.menu_actions = install_menu(
             self,
@@ -101,6 +102,7 @@ class MainWindow(QMainWindow):
         status = self.statusBar()
         status.setSizeGripEnabled(False)
         status.showMessage("Ready")
+        self._detect_gromacs_availability()
 
     def _open_terminal(self) -> None:
         from mdhelper.gui.main import start_tui
@@ -133,6 +135,8 @@ class MainWindow(QMainWindow):
         self.task_controller.completed.connect(self._task_completed)
         self.task_controller.failed.connect(self._task_failed)
         self.task_controller.running_changed.connect(self.analysis.set_running)
+        self.detection_tasks.completed.connect(self._integration_detected)
+        self.detection_tasks.failed.connect(self._integration_detection_failed)
 
     def _load_energy_terms(self, path: str) -> None:
         backend = self.load.inputs.backend_value()
@@ -155,10 +159,17 @@ class MainWindow(QMainWindow):
         if Path(path).expanduser().is_file():
             self._load_energy_terms(path)
 
-    def _sync_gromacs_availability(self) -> None:
-        self.load.inputs.set_gromacs_available(
-            self.application.integrations.supports("gromacs")
-        )
+    def _detect_gromacs_availability(self) -> None:
+        self.load.inputs.set_gromacs_pending()
+        self.detection_tasks.submit("gromacs")
+
+    def _integration_detected(self, name: str, status: object) -> None:
+        if name == "gromacs":
+            self.load.inputs.set_gromacs_available(bool(getattr(status, "available", False)))
+
+    def _integration_detection_failed(self, name: str, _error: object) -> None:
+        if name == "gromacs":
+            self.load.inputs.set_gromacs_available(False)
 
     def _system_input_changed(self) -> None:
         if self._suspend_auto_inspect:
@@ -385,7 +396,7 @@ class MainWindow(QMainWindow):
                 "Cancel the running analysis before opening another project.",
             )
             return
-        directory = QFileDialog.getExistingDirectory(self, "Open MDHelper project")
+        directory = QFileDialog.getExistingDirectory(self, "Open MDHelper Project")
         if not directory:
             return
         try:
@@ -586,7 +597,7 @@ class MainWindow(QMainWindow):
 
     def _integrations(self) -> None:
         IntegrationsDialog(self.application, self).exec()
-        self._sync_gromacs_availability()
+        self._detect_gromacs_availability()
 
     def _templates(self) -> None:
         TemplatesDialog(self.application, self).exec()
@@ -641,5 +652,6 @@ class MainWindow(QMainWindow):
         if self.task_controller.running:
             self.task_controller.cancel()
         self.task_controller.shutdown()
+        self.detection_tasks.shutdown()
         self.results.close_plot_windows()
         event.accept()

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QCloseEvent, QDoubleValidator
 from PySide6.QtWidgets import (
@@ -47,7 +47,12 @@ from mdhelper.gui.formatting import (
     result_summary_html,
 )
 from mdhelper.gui.layout import ActionBar, page_layout
-from mdhelper.gui.plot_window import PlotWindow
+
+if TYPE_CHECKING:
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+    from matplotlib.figure import Figure
+
+    from mdhelper.gui.plot_window import PlotWindow
 
 _RESULT_ROLE = int(Qt.ItemDataRole.UserRole)
 _SERIES_ROLE = _RESULT_ROLE + 1
@@ -70,12 +75,7 @@ class ResultPanel(QWidget):
         self._plot_titles: tuple[str, ...] = ()
         self._restoring = False
         self.project_available = False
-        self._plot_windows = [PlotWindow()]
-        self.plot_window = self._plot_windows[0]
-        # Keep these attributes available to callers that inspect or export the
-        # current figure; the canvas itself lives in the standalone window.
-        self.figure = self.plot_window.figure
-        self.canvas = self.plot_window.canvas
+        self._plot_windows: list[PlotWindow] = []
         layout = page_layout(self)
         history = QHBoxLayout()
         history.addWidget(QLabel("Saved results"))
@@ -266,7 +266,23 @@ class ResultPanel(QWidget):
             window.activateWindow()
 
     @property
+    def plot_window(self) -> PlotWindow:
+        if not self._plot_windows:
+            self._resize_plot_windows(1)
+        return self._plot_windows[0]
+
+    @property
+    def figure(self) -> Figure:
+        return self.plot_window.figure
+
+    @property
+    def canvas(self) -> FigureCanvasQTAgg:
+        return self.plot_window.canvas
+
+    @property
     def plot_windows(self) -> tuple[PlotWindow, ...]:
+        if not self._plot_windows:
+            self._resize_plot_windows(1)
         return tuple(self._plot_windows)
 
     def close_plot_windows(self) -> None:
@@ -374,10 +390,11 @@ class ResultPanel(QWidget):
         self.plot_series.blockSignals(False)
         self.text.clear()
         self.close_plot_windows()
-        self._resize_plot_windows(1)
-        self.figure.clear()
-        self.figure.set_facecolor("white")
-        self.canvas.draw_idle()
+        if self._plot_windows:
+            self._resize_plot_windows(1)
+            self.figure.clear()
+            self.figure.set_facecolor("white")
+            self.canvas.draw_idle()
         self.export_button.setEnabled(False)
         self.project_button.setEnabled(False)
         self.open_plot_button.setEnabled(False)
@@ -444,10 +461,11 @@ class ResultPanel(QWidget):
         self.plot_series.setRowCount(0)
         self.plot_series.blockSignals(False)
         self.close_plot_windows()
-        self._resize_plot_windows(1)
-        self.figure.clear()
-        self.figure.set_facecolor("white")
-        self.canvas.draw_idle()
+        if self._plot_windows:
+            self._resize_plot_windows(1)
+            self.figure.clear()
+            self.figure.set_facecolor("white")
+            self.canvas.draw_idle()
         self.open_plot_button.setEnabled(False)
         self._plot_rows = ()
         self._plot_titles = ()
@@ -804,7 +822,8 @@ class ResultPanel(QWidget):
             for model in models
         )
         self._plot_titles = tuple(model.title for model in models)
-        self._resize_plot_windows(max(1, len(models)))
+        if models or self._plot_windows:
+            self._resize_plot_windows(max(1, len(models)))
         for index, window in enumerate(self._plot_windows):
             figure = window.figure
             figure.clear()
@@ -825,6 +844,9 @@ class ResultPanel(QWidget):
                 window.raise_()
 
     def _resize_plot_windows(self, count: int) -> None:
+        if len(self._plot_windows) < count:
+            from mdhelper.gui.plot_window import PlotWindow
+
         while len(self._plot_windows) < count:
             self._plot_windows.append(PlotWindow())
         while len(self._plot_windows) > count:

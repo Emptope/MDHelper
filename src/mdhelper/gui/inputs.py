@@ -92,6 +92,11 @@ class InputPanel(QGroupBox):
         label = "GROMACS (local gmx)" if available else "GROMACS (local gmx) - Unavailable"
         self.backend.setItemText(index, label)
 
+    def set_gromacs_pending(self) -> None:
+        set_choice_enabled(self.backend, "gromacs", True, "auto")
+        index = self.backend.findData("gromacs")
+        self.backend.setItemText(index, "GROMACS (local gmx) - Checking...")
+
     def apply_request(self, request: AnalysisRequest) -> None:
         self.topology.edit.setText(request.topology)
         self.trajectory.edit.setText(request.trajectory)
