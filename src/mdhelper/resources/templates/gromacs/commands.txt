@@ -1,0 +1,16 @@
+GROMACS quick command reference
+
+Create or edit index groups:
+  gmx make_ndx -f topol.tpr -o index.ndx
+
+Inspect a trajectory:
+  gmx check -f trajectory.xtc
+
+Center and make molecules whole:
+  gmx trjconv -s topol.tpr -f trajectory.xtc -o centered.xtc -pbc mol -center
+
+Compute an RDF with GROMACS:
+  gmx rdf -s topol.tpr -f trajectory.xtc -n index.ndx -o rdf.xvg
+
+Extract a frame:
+  gmx trjconv -s topol.tpr -f trajectory.xtc -o frame.gro -dump TIME_PS

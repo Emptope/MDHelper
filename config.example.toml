@@ -1,0 +1,31 @@
+# MDHelper user configuration
+# Schema documentation: docs/CONFIGURATION.md
+schema_version = 1
+
+[gui]
+# "system" follows the operating system; "light" and "dark" are explicit overrides.
+theme = "system"
+# GUI font size in points (6-32).
+font_size = 11.0
+
+[resources]
+# Bounds temporary pair arrays; increase only after profiling.
+max_pairs_per_chunk = 500000
+
+[integrations.gromacs]
+enabled = true
+# Full executable path, for example C:/Program Files/GROMACS/bin/gmx.exe
+# Leave empty to use environment variables, PATH, and known candidate paths.
+path = ""
+search_paths = []
+use_environment = true
+detect_timeout_seconds = 10.0
+run_timeout_seconds = 3600.0
+
+[integrations.vmd]
+enabled = true
+path = ""
+search_paths = []
+use_environment = true
+detect_timeout_seconds = 10.0
+run_timeout_seconds = 3600.0

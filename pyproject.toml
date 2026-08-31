@@ -1,0 +1,86 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mdhelper"
+version = "0.1.0"
+description = "Reproducible GROMACS trajectory analysis for RDF, cumulative coordination, and energy"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "GPL-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "MDHelper contributors" }]
+keywords = ["molecular-dynamics", "gromacs", "rdf", "coordination"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = [
+  "filelock>=3.13,<4",
+  "MDAnalysis>=2.8,<3",
+  "matplotlib>=3.8,<4",
+  "numpy>=1.26,<3",
+  "platformdirs>=4.2,<5",
+  "pyedr>=0.8,<1",
+  "tomli-w>=1.1,<2",
+  "PySide6>=6.7,<7; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.7,<7"]
+
+[dependency-groups]
+dev = [
+  "jsonschema>=4.23,<5",
+  "mypy>=1.11,<2",
+  "packaging>=24,<27",
+  "pytest>=8.3,<9",
+  "referencing>=0.35,<1",
+  "ruff>=0.8,<1",
+  "pyinstaller>=6.11,<7",
+]
+
+[project.scripts]
+mdhelper = "mdhelper.bootstrap.portable:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mdhelper = ["resources/templates/**/*"]
+
+[tool.setuptools.data-files]
+"share/mdhelper" = ["config.example.toml", "README.md", "README.zh-CN.md"]
+"share/mdhelper/schemas" = ["schemas/*.json"]
+"share/mdhelper/methods" = ["docs/methods/*.md"]
+"share/mdhelper/validation" = ["docs/validation/*.md"]
+"share/mdhelper/docs" = ["docs/*.md"]
+
+[tool.uv]
+link-mode = "copy"
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+filterwarnings = [
+  "ignore:Unknown masses are set to 0.0:PendingDeprecationWarning",
+]
+
+[tool.ruff]
+extend-exclude = [".uv-cache", ".venv", ".venv-windows", "build", "dist"]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+warn_return_any = true
+check_untyped_defs = true
+ignore_missing_imports = true

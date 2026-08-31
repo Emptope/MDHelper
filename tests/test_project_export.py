@@ -1,0 +1,328 @@
+from __future__ import annotations
+
+import copy
+import json
+from pathlib import Path
+from uuid import uuid4
+
+import pytest
+from jsonschema import Draft202012Validator, FormatChecker
+from referencing import Registry, Resource
+
+import mdhelper.project.inputs as input_module
+import mdhelper.project.manifests as manifest_module
+from mdhelper.app import ApplicationService
+from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.core.errors import ConfigurationError, InputFileError
+from mdhelper.io.export import export_result
+from mdhelper.project import Project
+from mdhelper.services.config import UserConfig
+
+SCHEMA_ROOT = Path(__file__).parents[1] / "schemas"
+
+
+def _validate_schema(value: dict[str, object], schema_name: str) -> None:
+    registry = Registry()
+    schemas: dict[str, dict[str, object]] = {}
+    for path in SCHEMA_ROOT.glob("*.schema.json"):
+        schema = json.loads(path.read_text(encoding="utf-8"))
+        schemas[path.name] = schema
+        registry = registry.with_resource(schema["$id"], Resource.from_contents(schema))
+    Draft202012Validator(
+        schemas[schema_name],
+        registry=registry,
+        format_checker=FormatChecker(),
+    ).validate(value)
+
+
+def test_project_result_commit_is_atomic_and_verified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    topology = tmp_path / "topology"
+    trajectory = tmp_path / "trajectory"
+    topology.write_bytes(b"topology")
+    trajectory.write_bytes(b"trajectory")
+    project = Project.create(tmp_path / "project", topology, trajectory)
+    request = AnalysisRequest(
+        analysis_type="rdf",
+        topology=str(topology),
+        trajectory=str(trajectory),
+        reference="reference",
+        selection="selection",
+    )
+    input_files = {
+        "topology": str(topology.resolve()),
+        "trajectory": str(trajectory.resolve()),
+    }
+    result = AnalysisResult(
+        analysis_type="rdf",
+        data={"radius_nm": [0.1], "g_r": [1.0]},
+        parameters={},
+        units={"radius_nm": "nm", "g_r": "dimensionless"},
+        uncertainty={},
+        diagnostics={},
+        provenance={
+            "input_files": input_files,
+            "input_sha256": {
+                value: project.manifest["inputs"][role]["sha256"]
+                for role, value in input_files.items()
+            },
+        },
+        request=request.to_dict(),
+    )
+    result_path = project.commit_result(request, result)
+    entry = project.manifest["analyses"][0]
+    stored_path = project.root / entry["result"]
+    assert result_path.is_file()
+    assert stored_path == result_path
+    assert json.loads(stored_path.read_text(encoding="utf-8"))["data"] == result.data
+
+    failed = copy.deepcopy(result)
+    failed.analysis_id = str(uuid4())
+    original_atomic_json = manifest_module.atomic_json
+
+    def fail_manifest(path: Path, value: dict[str, object]) -> None:
+        if path == project.manifest_path:
+            raise ConfigurationError("simulated interrupted manifest commit")
+        original_atomic_json(path, value)
+
+    monkeypatch.setattr(manifest_module, "atomic_json", fail_manifest)
+    with pytest.raises(ConfigurationError, match="simulated interrupted"):
+        project.commit_result(request, failed)
+    assert not (project.root / "results" / "data" / f"{failed.analysis_id}.json").exists()
+    monkeypatch.setattr(manifest_module, "atomic_json", original_atomic_json)
+
+    reopened = Project.open(project.root)
+    stored_path.write_text(stored_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    with pytest.raises(ConfigurationError, match="result fingerprint changed"):
+        reopened.load_result(result.analysis_id)
+
+
+def test_export_removes_binary_float_artifacts(tmp_path: Path) -> None:
+    request = AnalysisRequest(
+        analysis_type="rdf",
+        topology="topology",
+        trajectory="trajectory",
+        reference="A",
+        selection="B",
+        r_max_nm=0.01,
+        bin_width_nm=0.002,
+    )
+    result = AnalysisResult(
+        analysis_type="rdf",
+        data={
+            "radius_nm": [0.009000000000000001],
+            "g_r": [1.2000000000000002],
+        },
+        parameters={"r_max_nm": 0.01, "bin_width_nm": 0.002},
+        units={"radius_nm": "nm", "g_r": "dimensionless"},
+        uncertainty={},
+        diagnostics={},
+        provenance={},
+        request=request.to_dict(),
+    )
+
+    export_result(result, tmp_path, include_figures=False)
+
+    metadata = (tmp_path / "result.json").read_text(encoding="utf-8")
+    table = (tmp_path / "rdf.csv").read_text(encoding="utf-8")
+    assert "0.009000000000000001" not in metadata
+    assert "1.2000000000000002" not in metadata
+    assert json.loads(metadata)["data"] == {"radius_nm": [0.009], "g_r": [1.2]}
+    assert table.splitlines() == ["radius_nm,g_r", "0.009,1.2"]
+
+
+def test_project_use_cases_ensure_in_place_without_weakening_create(
+    tmp_path: Path,
+) -> None:
+    topology = tmp_path / "topology.dat"
+    trajectory = tmp_path / "trajectory.dat"
+    topology.write_text("topology\n", encoding="ascii")
+    trajectory.write_text("trajectory\n", encoding="ascii")
+
+    with pytest.raises(ConfigurationError, match="not empty"):
+        Project.create(tmp_path, topology, trajectory)
+
+    application = ApplicationService(UserConfig())
+    project, created = application.projects.ensure(tmp_path, topology, trajectory)
+
+    assert created is True
+    assert project.root == tmp_path.resolve()
+    assert (tmp_path / "mdhelper-project.json").is_file()
+    assert (tmp_path / "results").is_dir()
+    assert (tmp_path / "figures").is_dir()
+
+    reopened, created = application.projects.ensure(tmp_path, topology, trajectory)
+
+    assert created is False
+    assert reopened.root == project.root
+
+
+def test_project_input_discovery_is_direct_case_insensitive_and_sorted(
+    tmp_path: Path,
+) -> None:
+    for name in (
+        "a.tpr",
+        "B.GRO",
+        "m.TRR",
+        "n.tng",
+        "groups.NDX",
+        "z.XTC",
+        "notes.txt",
+        "backup.gro.bak",
+    ):
+        (tmp_path / name).write_text("input\n", encoding="ascii")
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (nested / "hidden.gro").write_text("input\n", encoding="ascii")
+
+    application = ApplicationService(UserConfig())
+    candidates = application.projects.discover_inputs(tmp_path)
+
+    assert candidates.root == tmp_path.resolve()
+    assert [path.name for path in candidates.topology] == ["a.tpr", "B.GRO"]
+    assert [path.name for path in candidates.trajectory] == [
+        "B.GRO",
+        "m.TRR",
+        "z.XTC",
+    ]
+    assert [path.name for path in candidates.index] == ["groups.NDX"]
+
+
+@pytest.mark.parametrize("trajectory_name", ["run.xtc", "run.trr"])
+def test_project_input_discovery_accepts_supported_md_files(
+    tmp_path: Path, trajectory_name: str
+) -> None:
+    topology = tmp_path / "system.tpr"
+    trajectory = tmp_path / trajectory_name
+    topology.write_text("topology\n", encoding="ascii")
+    trajectory.write_text("trajectory\n", encoding="ascii")
+
+    candidates = ApplicationService(UserConfig()).projects.discover_inputs(tmp_path)
+
+    assert candidates.topology == (topology,)
+    assert candidates.trajectory == (trajectory,)
+
+
+def test_project_input_discovery_reports_missing_roles(tmp_path: Path) -> None:
+    application = ApplicationService(UserConfig())
+    topology_only = tmp_path / "topology-only"
+    topology_only.mkdir()
+    (topology_only / "system.tpr").write_text("input\n", encoding="ascii")
+    trajectory_only = tmp_path / "trajectory-only"
+    trajectory_only.mkdir()
+    (trajectory_only / "run.xtc").write_text("input\n", encoding="ascii")
+
+    with pytest.raises(InputFileError, match="trajectory"):
+        application.projects.discover_inputs(topology_only)
+    with pytest.raises(InputFileError, match="topology"):
+        application.projects.discover_inputs(trajectory_only)
+    with pytest.raises(InputFileError, match="not a directory"):
+        application.projects.discover_inputs(tmp_path / "missing")
+
+
+def test_project_open_accepts_manifest_path_and_ensure_rejects_other_inputs(
+    tmp_path: Path,
+) -> None:
+    topology = tmp_path / "topology.dat"
+    trajectory = tmp_path / "trajectory.dat"
+    other = tmp_path / "other.dat"
+    topology.write_text("topology\n", encoding="ascii")
+    trajectory.write_text("trajectory\n", encoding="ascii")
+    other.write_text("different\n", encoding="ascii")
+    application = ApplicationService(UserConfig())
+    project = application.projects.create(tmp_path / "project", topology, trajectory)
+
+    assert application.projects.exists(project.root)
+    assert not application.projects.exists(tmp_path / "not-a-project")
+    reopened = application.projects.open(project.manifest_path)
+
+    assert reopened.root == project.root
+    with pytest.raises(ConfigurationError, match="different simulation inputs"):
+        application.projects.ensure(project.root, topology, other)
+
+
+def test_project_accepts_input_without_a_cross_volume_relative_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    topology = tmp_path / "topology"
+    trajectory = tmp_path / "trajectory"
+    topology.write_text("topology", encoding="utf-8")
+    trajectory.write_text("trajectory", encoding="utf-8")
+    original_relpath = input_module.os.path.relpath
+
+    def unavailable(path: object, start: object) -> str:
+        raise ValueError(f"No relative path from {start!r} to {path!r}")
+
+    monkeypatch.setattr(input_module.os.path, "relpath", unavailable)
+    project = Project.create(tmp_path / "cross-volume", topology, trajectory)
+    monkeypatch.setattr(input_module.os.path, "relpath", original_relpath)
+
+    assert project.manifest["inputs"]["topology"]["relative_path"] is None
+    _validate_schema(project.manifest, "project-v1.schema.json")
+    assert Project.open(project.root).resolve_inputs()["topology"] == topology.resolve()
+
+
+@pytest.mark.parametrize(
+    "mutate, message",
+    [
+        (lambda value: value.update({"unknown": True}), "unknown members"),
+        (lambda value: value.pop("inputs"), "missing required members"),
+        (lambda value: value.update({"inputs": []}), "must be an object"),
+        (
+            lambda value: value["inputs"]["topology"].update({"sha256": "invalid"}),
+            "SHA-256",
+        ),
+        (lambda value: value.update({"created_at": "not-a-date"}), "date-time"),
+    ],
+)
+def test_project_open_rejects_invalid_manifest_structure(
+    tmp_path: Path, mutate: object, message: str
+) -> None:
+    topology = tmp_path / "topology"
+    trajectory = tmp_path / "trajectory"
+    topology.write_text("topology", encoding="utf-8")
+    trajectory.write_text("trajectory", encoding="utf-8")
+    project = Project.create(tmp_path / "project", topology, trajectory)
+    value = json.loads(project.manifest_path.read_text(encoding="utf-8"))
+    mutate(value)  # type: ignore[operator]
+    project.manifest_path.write_text(json.dumps(value), encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match=message):
+        Project.open(project.root, verify_inputs=False)
+
+
+def test_project_open_rejects_unknown_request_fields(tmp_path: Path) -> None:
+    topology = tmp_path / "topology"
+    trajectory = tmp_path / "trajectory"
+    topology.write_text("topology", encoding="utf-8")
+    trajectory.write_text("trajectory", encoding="utf-8")
+    project = Project.create(tmp_path / "invalid-project", topology, trajectory)
+
+    request = AnalysisRequest(
+        analysis_type="rdf",
+        topology=str(topology),
+        trajectory=str(trajectory),
+        reference="resname REF",
+        selection="resname LIGA",
+        r_max_nm=0.5,
+        bin_width_nm=0.005,
+    ).to_dict()
+    request["bins"] = 100
+    manifest = json.loads(project.manifest_path.read_text(encoding="utf-8"))
+    manifest["analyses"].append(
+        {
+            "analysis_id": "invalid-analysis",
+            "analysis_type": "rdf",
+            "method_version": "1.0.0",
+            "status": "completed",
+            "request": request,
+            "result": "results/data/invalid-analysis.json",
+            "result_sha256": "0" * 64,
+            "committed_at": manifest["created_at"],
+        }
+    )
+    project.manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="not a valid analysis request"):
+        Project.open(project.root, verify_inputs=False)

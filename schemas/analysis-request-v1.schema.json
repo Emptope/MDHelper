@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdhelper.local/schemas/analysis-request-v1.schema.json",
+  "title": "MDHelper analysis request schema v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "analysis_type",
+    "topology",
+    "trajectory",
+    "reference",
+    "index_file",
+    "selection",
+    "r_max_nm",
+    "bin_width_nm",
+    "energy_file",
+    "energy_terms",
+    "frames",
+    "backend",
+    "species_roles",
+    "parameter_provenance",
+    "schema_version"
+  ],
+  "properties": {
+    "analysis_type": {"enum": ["rdf", "cumulative_rdf", "energy"]},
+    "topology": {"type": "string"},
+    "trajectory": {"type": "string"},
+    "reference": {"type": "string"},
+    "index_file": {"type": ["string", "null"]},
+    "selection": {"type": ["string", "null"]},
+    "r_max_nm": {"type": "number", "exclusiveMinimum": 0},
+    "bin_width_nm": {"type": "number", "exclusiveMinimum": 0},
+    "energy_file": {"type": ["string", "null"]},
+    "energy_terms": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "frames": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "stop", "stride"],
+      "properties": {
+        "start": {"type": "integer", "minimum": 0},
+        "stop": {"type": ["integer", "null"], "minimum": 0},
+        "stride": {"type": "integer", "minimum": 1}
+      }
+    },
+    "backend": {"enum": ["auto", "native", "mdanalysis", "gromacs"]},
+    "species_roles": {
+      "type": "object",
+      "additionalProperties": {
+        "enum": ["cation", "anion", "solvent", "additive", "polymer", "surface", "other"]
+      }
+    },
+    "parameter_provenance": {"type": "object"},
+    "schema_version": {"const": 1}
+  }
+}

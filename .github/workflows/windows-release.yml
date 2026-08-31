@@ -1,0 +1,31 @@
+name: Windows release candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-validate:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Install locked development environment
+        run: |
+          python -m pip install uv==0.12.6
+          uv sync --frozen --group dev
+      - name: Build and validate Windows archive
+        shell: pwsh
+        run: |
+          .\packaging\windows\build.ps1 `
+            -Python ".venv\Scripts\python.exe"
+      - name: Upload Windows release candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: mdhelper-0.1.0-windows-x64
+          path: dist/windows/MDHelper-*-Windows-x64.zip
+          if-no-files-found: error

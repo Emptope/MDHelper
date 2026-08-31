@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdhelper.local/schemas/project-v1.schema.json",
+  "title": "MDHelper project manifest schema v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "mdhelper_version",
+    "created_at",
+    "inputs",
+    "species_roles",
+    "integration_preferences",
+    "integration_runs",
+    "plot",
+    "analyses"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "mdhelper_version": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topology", "trajectory"],
+      "properties": {
+        "topology": {"$ref": "#/$defs/input"},
+        "trajectory": {"$ref": "#/$defs/input"},
+        "index": {"$ref": "#/$defs/input"},
+        "energy": {"$ref": "#/$defs/input"}
+      }
+    },
+    "species_roles": {
+      "type": "object",
+      "additionalProperties": {
+        "enum": ["cation", "anion", "solvent", "additive", "polymer", "surface", "other"]
+      }
+    },
+    "integration_preferences": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/integration_preference"}
+    },
+    "integration_runs": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/integration_run"}
+    },
+    "plot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "selections", "scheme", "limits"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "selections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "result_id", "label", "visible", "color_id", "series", "group", "title"
+            ],
+            "properties": {
+              "result_id": {"type": "string", "minLength": 1},
+              "label": {"type": "string"},
+              "visible": {"type": "boolean"},
+              "color_id": {"type": "integer", "minimum": 0, "maximum": 16},
+              "series": {"type": "string"},
+              "group": {"type": "string"},
+              "title": {"type": "string", "maxLength": 120}
+            }
+          }
+        },
+        "scheme": {"enum": ["residue_name", "fixed"]},
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x_min", "x_max", "y_min", "y_max", "y2_min", "y2_max"],
+          "properties": {
+            "x_min": {"type": ["number", "null"]},
+            "x_max": {"type": ["number", "null"]},
+            "y_min": {"type": ["number", "null"]},
+            "y_max": {"type": ["number", "null"]},
+            "y2_min": {"type": ["number", "null"]},
+            "y2_max": {"type": ["number", "null"]}
+          }
+        }
+      }
+    },
+    "analyses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "analysis_id",
+          "analysis_type",
+          "method_version",
+          "status",
+          "request",
+          "result",
+          "result_sha256",
+          "committed_at"
+        ],
+        "properties": {
+          "analysis_id": {"type": "string", "minLength": 1},
+          "analysis_type": {"enum": ["rdf", "cumulative_rdf", "energy"]},
+          "method_version": {"type": "string", "minLength": 1},
+          "status": {"const": "completed"},
+          "request": {"$ref": "analysis-request-v1.schema.json"},
+          "result": {"type": "string", "minLength": 1},
+          "result_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "committed_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "integration_preference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preferred", "required_capabilities"],
+      "properties": {
+        "preferred": {"type": "boolean"},
+        "required_capabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["absolute_path", "relative_path", "sha256"],
+      "properties": {
+        "absolute_path": {"type": "string", "minLength": 1},
+        "relative_path": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "Portable path relative to the project, or null across Windows volumes."
+        },
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "integration_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name", "path", "version", "arguments", "working_directory",
+        "environment_summary", "exit_code", "stdout", "stderr", "started_at",
+        "output_fingerprints", "elapsed_seconds", "status"
+      ],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "arguments": {"type": "array", "items": {"type": "string"}},
+        "working_directory": {"type": "string", "minLength": 1},
+        "environment_summary": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        },
+        "exit_code": {"type": "integer"},
+        "stdout": {"type": "string"},
+        "stderr": {"type": "string"},
+        "started_at": {"type": "string", "format": "date-time"},
+        "output_fingerprints": {
+          "type": "object",
+          "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        },
+        "elapsed_seconds": {"type": "number", "minimum": 0},
+        "status": {"enum": ["completed", "failed", "cancelled", "timed_out"]}
+      }
+    }
+  }
+}

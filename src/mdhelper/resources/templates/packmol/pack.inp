@@ -1,0 +1,16 @@
+# Packmol solution box template
+# Replace the uppercase placeholders before running packmol.
+
+tolerance 2.0
+filetype pdb
+output PACKED_OUTPUT.pdb
+
+structure SOLUTE.pdb
+  number SOLUTE_COUNT
+  inside box 0. 0. 0. BOX_X BOX_Y BOX_Z
+end structure
+
+structure SOLVENT.pdb
+  number SOLVENT_COUNT
+  inside box 0. 0. 0. BOX_X BOX_Y BOX_Z
+end structure
