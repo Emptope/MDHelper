@@ -14,38 +14,36 @@ from mdhelper.gui.species import SpeciesPanel
 
 
 class LoadPanel(QWidget):
-    selection_source_changed = Signal(str, object)
+    selection_inputs_changed = Signal(bool, object)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.inputs = InputPanel()
         self.species = SpeciesPanel()
         self.index_groups: dict[str, int] = {}
-        self.inputs.selection_source.currentIndexChanged.connect(
-            self._selection_source_changed
-        )
+        self.inputs.index_changed.connect(lambda: self.set_index_groups({}))
         sections = QSplitter(Qt.Orientation.Vertical)
         sections.setChildrenCollapsible(False)
         sections.addWidget(self.inputs)
         sections.addWidget(self.species)
         sections.setStretchFactor(0, 0)
         sections.setStretchFactor(1, 1)
-        sections.setSizes((260, 520))
+        sections.setSizes((self.inputs.sizeHint().height(), 1))
         layout = page_layout(self)
         layout.addWidget(sections, 1)
         self.sections = sections
-        self._selection_source_changed()
+        self._selection_inputs_changed()
 
-    def _selection_source_changed(self) -> None:
-        self.selection_source_changed.emit(
-            str(self.inputs.selection_source.currentData()),
+    def _selection_inputs_changed(self) -> None:
+        self.selection_inputs_changed.emit(
+            self.inputs.index_value() is not None,
             dict(self.index_groups),
         )
 
     def set_index_groups(self, groups: dict[str, int]) -> None:
         self.index_groups = dict(groups)
         self.inputs.set_index_groups(groups)
-        self._selection_source_changed()
+        self._selection_inputs_changed()
 
     def common(
         self,
@@ -56,7 +54,7 @@ class LoadPanel(QWidget):
         return {
             "topology": self.inputs.topology.edit.text().strip(),
             "trajectory": self.inputs.trajectory.edit.text().strip(),
-            "index_file": self.inputs.index_path(required=require_selections),
+            "index_file": self.inputs.index_value(),
             "frames": frames,
             "species_roles": self.species.roles(require_all=require_selections),
             "parameter_provenance": {"species_roles": dict(role_provenance)},

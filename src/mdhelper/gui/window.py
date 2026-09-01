@@ -127,7 +127,7 @@ class MainWindow(QMainWindow):
         self.load.inputs.index_changed.connect(self._index_input_changed)
         self.load.species.suggestions_requested.connect(self._apply_role_suggestions)
         self.load.species.save_requested.connect(self._save_roles)
-        self.load.selection_source_changed.connect(self.analysis.parameters.set_selection_source)
+        self.load.selection_inputs_changed.connect(self.analysis.parameters.set_selection_groups)
         self.analysis.run_requested.connect(self._run)
         self.analysis.cancel_requested.connect(self._cancel)
         self.analysis.parameters.energy_terms_requested.connect(self._load_energy_terms)
@@ -171,7 +171,6 @@ class MainWindow(QMainWindow):
 
     def _backend_changed(self) -> None:
         parameters = self.analysis.parameters
-        self.load.inputs.set_analysis_backend(parameters.analysis_backend_value())
         path = parameters.energy_file.edit.text().strip()
         parameters.set_energy_terms("", ())
         if Path(path).expanduser().is_file():
@@ -237,7 +236,6 @@ class MainWindow(QMainWindow):
         roles = self.load.species.roles()
         if roles:
             self._pending_roles = roles
-        self.load.set_index_groups({})
         self._inspection_timer.start()
 
     def _auto_inspect(self) -> None:
@@ -352,20 +350,18 @@ class MainWindow(QMainWindow):
     def _run(self) -> None:
         if (
             self.analysis.parameters.requires_selections()
-            and self.load.inputs.selection_source.currentData() == "index"
-            and not self.load.inputs.index_path()
+            and self.analysis.parameters.analysis_backend_value() == "native"
+            and self.load.inputs.index_value() is None
         ):
             answer = QMessageBox.question(
                 self,
-                "No GROMACS Index File",
-                "No .ndx file was provided. Use backend-specific selection expressions instead?",
+                "Native Requires Index File",
+                "No .ndx file was provided. Use MDAnalysis selection expressions instead?",
             )
             if answer != QMessageBox.StandardButton.Yes:
                 self.statusBar().showMessage("Select a GROMACS index file to continue.", 10000)
                 return
-            if self.analysis.parameters.analysis_backend_value() == "native":
-                self.analysis.parameters.set_analysis_backend("mdanalysis")
-            self.load.inputs.selection_source.setCurrentIndex(1)
+            self.analysis.parameters.set_analysis_backend("mdanalysis")
         try:
             runs = list(
                 self.analysis.request_series(
@@ -472,7 +468,6 @@ class MainWindow(QMainWindow):
         self.load.inputs.topology.edit.setText(str(topology))
         self.load.inputs.trajectory.edit.setText(str(trajectory))
         self.load.inputs.index_file.edit.setText("" if index_file is None else str(index_file))
-        self.load.inputs.selection_source.setCurrentIndex(0 if index_file is not None else 1)
         _project, created = self.session.ensure(
             directory,
             topology,
@@ -489,7 +484,6 @@ class MainWindow(QMainWindow):
         self.load.inputs.topology.edit.setText(str(inputs["topology"]))
         self.load.inputs.trajectory.edit.setText(str(inputs["trajectory"]))
         self.load.inputs.index_file.edit.setText(str(inputs.get("index", "")))
-        self.load.inputs.selection_source.setCurrentIndex(0 if "index" in inputs else 1)
         self._inspect()
         self._project_ready("opened")
 

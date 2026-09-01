@@ -36,9 +36,8 @@ results leave NDX parsing to `gmx` and record the group names, resolved file pat
 command. The index remains a fingerprinted project input.
 
 After the topology, trajectory, and optional index files are selected, the GUI automatically loads
-the parsed groups. RDF and Cumulative Coordination Number selections become group pickers.
-Switching to the expression source restores free-form expression editors; switching back restores
-the selected index groups.
+the parsed groups. RDF and Cumulative Coordination Number selections become group pickers when an
+index file is present and remain free-form expression editors otherwise.
 
 ## Expression syntax by backend
 

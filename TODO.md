@@ -11,10 +11,8 @@
 
 ## 已完成
 
-- [x] [BugFix] 修复 Selection Hint 的 NDX 显隐、官方语法链接和 GROMACS RDF 失败诊断。
-- [x] [Feature] 明确选用 GROMACS 后端时 Reference 和 Selection 的选择语句，并提供与 MDAnalysis 后端类似的 Hint 按钮。
-- [x] [Feature] TUI 界面将 RDF + CN 分析放置在 CN 分析下方，Energy 分析上方。
-- [x] [BugFix] TUI Templates 界面无编号。
+- [x] [BugFix] 删除 GUI Load 页面 Simulation Inputs 下方空白。
+- [x] [Feature] 删除 GUI Load 页面的 Selection source，根据 Index file 自动确定选择输入。
 
 ## 完成标准（每轮改动后需重新确认）
 

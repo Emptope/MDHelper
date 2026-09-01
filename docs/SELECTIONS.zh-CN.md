@@ -37,8 +37,8 @@ NDX 使用一基编号，MDHelper 转为内部零基索引。组名大小写敏�
 直接 GROMACS 结果把 NDX 解析交给 `gmx`，记录组名、解析文件路径和原生命令。index 仍是
 项目的指纹输入。
 
-选择 topology、trajectory 和可选 index 文件后，GUI 会自动加载解析出的组。RDF 和
-Cumulative Coordination Number 使用组选择器。切换到 expression source 会恢复自由表达式编辑器。
+选择 topology、trajectory 和可选 index 文件后，GUI 会自动加载解析出的组。存在 index
+文件时，RDF 和 Cumulative Coordination Number 使用组选择器；否则使用自由表达式编辑器。
 
 ## 按 Backend 选择 expression syntax
 

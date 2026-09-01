@@ -53,7 +53,6 @@ class ParameterPanel(QGroupBox):
     def __init__(self, parent: QWidget | None = None):
         super().__init__("Analysis Settings", parent)
         self._energy_source = ""
-        self._selection_source = "expression"
         self._hint_dialog: SelectionHintDialog | None = None
         self._gromacs_configured = False
         self._gromacs_available = False
@@ -376,8 +375,8 @@ class ParameterPanel(QGroupBox):
             self.cn_max.blockSignals(False)
             self.cn_bin_width.blockSignals(False)
 
-    def set_selection_source(self, source: str, groups: dict[str, int]) -> None:
-        self._selection_source = source
+    def set_selection_groups(self, use_index: bool, groups: dict[str, int]) -> None:
+        source = "index" if use_index else "expression"
         for control in (
             self.rdf_reference,
             self.rdf_selection,
@@ -389,7 +388,7 @@ class ParameterPanel(QGroupBox):
 
     def _sync_selection_hints(self) -> None:
         backend = self.analysis_backend_value()
-        expression = self._selection_source == "expression"
+        expression = self.rdf_reference.source == "expression"
         visible = expression and backend in {"auto", "mdanalysis", "gromacs"}
         self.rdf_inputs.set_hint_visible(visible)
         self.cn_inputs.set_hint_visible(visible)

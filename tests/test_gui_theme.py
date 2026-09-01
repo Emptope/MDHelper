@@ -123,6 +123,7 @@ def test_input_and_rdf_labels_use_public_terminology() -> None:
     assert isinstance(form, QFormLayout)
     assert form.labelForField(inputs.index_file).text() == "Index file"
     assert not hasattr(inputs, "backend")
+    assert not hasattr(inputs, "selection_source")
     assert all(
         button.text() != "Inspect loaded system" for button in inputs.findChildren(QPushButton)
     )
@@ -159,15 +160,15 @@ def test_input_and_rdf_labels_use_public_terminology() -> None:
     assert species.table.horizontalHeaderItem(2).text() == "Role"
 
 
-def test_selection_hints_follow_expression_source_and_use_a_table() -> None:
+def test_selection_hints_follow_index_file_and_use_a_table() -> None:
     parameters = ParameterPanel()
 
     assert not parameters.rdf_inputs.hint_button.isHidden()
     assert not parameters.cn_inputs.hint_button.isHidden()
-    parameters.set_selection_source("index", {"System": 10})
+    parameters.set_selection_groups(True, {"System": 10})
     assert parameters.rdf_inputs.hint_button.isHidden()
     assert parameters.cn_inputs.hint_button.isHidden()
-    parameters.set_selection_source("expression", {})
+    parameters.set_selection_groups(False, {})
     assert not parameters.rdf_inputs.hint_button.isHidden()
     assert not parameters.cn_inputs.hint_button.isHidden()
 
@@ -198,7 +199,7 @@ def test_selection_hints_follow_expression_source_and_use_a_table() -> None:
     assert dialog.documentation.openExternalLinks()
     assert SELECTION_DOCUMENTATION["gromacs"] in dialog.documentation.text()
 
-    parameters.set_selection_source("index", {"System": 10})
+    parameters.set_selection_groups(True, {"System": 10})
     assert parameters.rdf_inputs.hint_button.isHidden()
     assert parameters.cn_inputs.hint_button.isHidden()
     assert parameters.rdf_inputs.reference_label.text() == "Reference (-ref)"
@@ -212,7 +213,7 @@ def test_selection_hints_follow_expression_source_and_use_a_table() -> None:
     assert parameters.rdf_inputs.reference_label.text() == "Reference"
     assert parameters.rdf_inputs.selection_label.text() == "Selection"
 
-    parameters.set_selection_source("expression", {})
+    parameters.set_selection_groups(False, {})
     assert not parameters.rdf_inputs.hint_button.isHidden()
     assert not parameters.cn_inputs.hint_button.isHidden()
 
@@ -232,31 +233,6 @@ def test_selection_hints_follow_expression_source_and_use_a_table() -> None:
     assert dialog.table.item(4, 2).text() == "resname SOL"
     assert SELECTION_DOCUMENTATION["mdanalysis"] in dialog.documentation.text()
     dialog.close()
-
-
-def test_selection_source_language_follows_the_complete_backend() -> None:
-    inputs = InputPanel()
-
-    assert inputs.selection_source.currentData() == "expression"
-
-    inputs.set_analysis_backend("mdanalysis")
-    expression = inputs.selection_source.findData("expression")
-    assert inputs.selection_source.itemText(expression) == (
-        "MDAnalysis selection expressions"
-    )
-    assert choice_enabled(inputs.selection_source, "expression")
-
-    inputs.set_analysis_backend("gromacs")
-    assert inputs.selection_source.itemText(expression) == (
-        "GROMACS selection expressions"
-    )
-    assert choice_enabled(inputs.selection_source, "expression")
-
-    inputs.selection_source.setCurrentIndex(expression)
-    inputs.set_analysis_backend("native")
-    assert not choice_enabled(inputs.selection_source, "expression")
-    assert inputs.selection_source.currentData() == "index"
-    inputs.close()
 
 
 def test_gromacs_backend_availability_does_not_hide_energy_analysis() -> None:
@@ -330,7 +306,6 @@ def test_appearance_menu_applies_and_persists_theme(
         application.processEvents()
         for control in (
             window.analysis.run_button,
-            window.load.inputs.selection_source,
             window.analysis.parameters.analysis_choice,
         ):
             assert _tone_pixels(control, light=True) > 3
@@ -344,7 +319,6 @@ def test_appearance_menu_applies_and_persists_theme(
         application.processEvents()
         for control in (
             window.analysis.run_button,
-            window.load.inputs.selection_source,
             window.analysis.parameters.analysis_choice,
         ):
             assert _rendered_contrast(control, control.rect()) > 40
@@ -935,6 +909,9 @@ def test_main_window_separates_load_and_analysis_settings() -> None:
     ]
     assert window.load.sections.orientation() == Qt.Orientation.Vertical
     assert window.load.sections.count() == 2
+    window.show()
+    _application.processEvents()
+    assert window.load.inputs.height() <= window.load.inputs.sizeHint().height() + 1
     opened: list[bool] = []
     window.results.open_plot_window = lambda: opened.append(True)
     window._task_completed(_rdf_result("A", "B"))
@@ -1494,7 +1471,6 @@ def test_gui_analysis_initializes_project_in_trajectory_directory(
         selection="B",
     )
     submitted: list[bool] = []
-    window.load.inputs.selection_source.setCurrentIndex(1)
     monkeypatch.setattr(window.load, "common", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         window.analysis,

@@ -197,7 +197,6 @@ def test_gui_completes_coordination_on_generic_system(tmp_path: Path) -> None:
     window.load.inputs.topology.edit.setText(str(trajectory))
     window.load.inputs.trajectory.edit.setText(str(trajectory))
     window.analysis.parameters.set_analysis_backend("mdanalysis")
-    window.load.inputs.selection_source.setCurrentIndex(1)
     window._inspect()
     for row in range(window.load.species.table.rowCount()):
         role = window.load.species.table.cellWidget(row, 2)
@@ -344,7 +343,7 @@ def test_gui_backend_does_not_reload_system_or_control_species_detection(
     window.close()
 
 
-def test_gui_gromacs_without_index_uses_expression_inputs() -> None:
+def test_gui_derives_selection_inputs_from_index_file() -> None:
     QApplication.instance() or QApplication([])
     window = MainWindow()
     window.analysis.parameters.set_gromacs_configured(True)
@@ -353,18 +352,15 @@ def test_gui_gromacs_without_index_uses_expression_inputs() -> None:
 
     parameters = window.analysis.parameters
     assert window.load.inputs.index_value() is None
-    assert window.load.inputs.selection_source.currentData() == "expression"
+    assert not hasattr(window.load.inputs, "selection_source")
     assert parameters.rdf_reference.currentWidget() is parameters.rdf_reference.expression
     assert parameters.rdf_selection.currentWidget() is parameters.rdf_selection.expression
     assert parameters.rdf_inputs.reference_label.text() == "Reference (-ref)"
     assert parameters.rdf_inputs.selection_label.text() == "Selection (-sel)"
     assert not parameters.rdf_inputs.hint_button.isHidden()
-    assert not choice_enabled(window.load.inputs.selection_source, "index")
 
     window.load.inputs.index_file.edit.setText("missing.ndx")
-    assert choice_enabled(window.load.inputs.selection_source, "index")
-    window.load.inputs.selection_source.setCurrentIndex(0)
-    assert window.load.inputs.selection_source.currentData() == "index"
+    assert window.load.common({}, object(), require_selections=False)["index_file"] == "missing.ndx"
     assert parameters.rdf_reference.currentWidget() is parameters.rdf_reference.group
     assert parameters.rdf_reference.group.count() == 1
     assert parameters.rdf_reference.group.currentData() is None
@@ -372,7 +368,8 @@ def test_gui_gromacs_without_index_uses_expression_inputs() -> None:
     assert parameters.rdf_inputs.hint_button.isHidden()
 
     window.load.inputs.index_file.edit.clear()
-    assert window.load.inputs.selection_source.currentData() == "expression"
+    assert window.load.common({}, object(), require_selections=False)["index_file"] is None
+    assert parameters.rdf_reference.currentWidget() is parameters.rdf_reference.expression
     assert not parameters.rdf_inputs.hint_button.isHidden()
     window.task_controller.shutdown()
     window.close()
