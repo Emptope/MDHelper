@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
 
 import mdhelper.gui.window as window_module
 from mdhelper.app import ApplicationService
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import InputError
 from mdhelper.core.plotting import PlotLimits
 from mdhelper.core.system import FrameRange
@@ -101,6 +101,9 @@ def test_input_and_rdf_labels_use_public_terminology() -> None:
     form = inputs.layout()
     assert isinstance(form, QFormLayout)
     assert form.labelForField(inputs.index_file).text() == "Index file"
+    assert [
+        inputs.backend.itemText(index) for index in range(inputs.backend.count())
+    ][:3] == ["Auto", "MDHelper GRO Reader", "MDAnalysis"]
     inputs.set_backend("mdanalysis")
     assert inputs.backend.currentText() == "MDAnalysis"
     assert inputs.backend_value() == "mdanalysis"
@@ -343,7 +346,7 @@ def test_configured_font_size_is_applied(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
 
 def _rdf_result(reference: str, selection: str) -> AnalysisResult:
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type="rdf",
         topology="topology",
         trajectory="trajectory",
@@ -358,7 +361,6 @@ def _rdf_result(reference: str, selection: str) -> AnalysisResult:
         },
         parameters={},
         units={},
-        uncertainty={},
         diagnostics={},
         provenance={},
         request=request.to_dict(),
@@ -366,7 +368,7 @@ def _rdf_result(reference: str, selection: str) -> AnalysisResult:
 
 
 def _cumulative_rdf_result(reference: str, selection: str) -> AnalysisResult:
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type="cumulative_rdf",
         topology="topology",
         trajectory="trajectory",
@@ -381,7 +383,6 @@ def _cumulative_rdf_result(reference: str, selection: str) -> AnalysisResult:
         },
         parameters={},
         units={},
-        uncertainty={},
         diagnostics={},
         provenance={},
         request=request.to_dict(),
@@ -601,7 +602,7 @@ def test_frame_controls_use_exclusive_gui_stop_and_round_trip_requests() -> None
     panel.stride.setValue(2)
     assert panel.frame_range() == FrameRange(start=2, stop=7, stride=2)
 
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type="rdf",
         topology="topology",
         trajectory="trajectory",
@@ -1212,7 +1213,7 @@ def test_gui_analysis_initializes_project_in_trajectory_directory(
     trajectory = tmp_path / "trajectory.dat"
     topology.write_text("topology\n", encoding="ascii")
     trajectory.write_text("trajectory\n", encoding="ascii")
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type="rdf",
         topology=str(topology),
         trajectory=str(trajectory),

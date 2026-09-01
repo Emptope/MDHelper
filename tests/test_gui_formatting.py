@@ -7,12 +7,12 @@ from mdhelper.app.reports import (
     Report,
     report_for,
 )
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.core.analysis import AnalysisResult, EnergyRequest, RadialRequest
 from mdhelper.gui.formatting import result_label, result_summary, result_summary_html
 
 
 def _rdf_result() -> AnalysisResult:
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type="rdf",
         topology="topology",
         trajectory="trajectory",
@@ -29,7 +29,6 @@ def _rdf_result() -> AnalysisResult:
         },
         parameters={"r_max_nm": 0.8, "bin_width_nm": 0.1},
         units={},
-        uncertainty={},
         diagnostics={
             "n_frames": 20,
             "first_shell_suggestion": {
@@ -75,11 +74,8 @@ def test_result_summary_html_keeps_technical_metadata_last() -> None:
 
 
 def test_result_summary_reports_every_integration_command_and_backend() -> None:
-    request = AnalysisRequest(
+    request = EnergyRequest(
         analysis_type="energy",
-        topology="",
-        trajectory="",
-        reference="",
         energy_file="energy.edr",
         energy_terms=("Potential",),
         backend="gromacs",
@@ -89,7 +85,6 @@ def test_result_summary_reports_every_integration_command_and_backend() -> None:
         data={"time_ps": [0.0], "series": {"Potential": [-1.0]}},
         parameters={"analysis_backend": "gromacs"},
         units={"time_ps": "ps", "series": "Energy"},
-        uncertainty={},
         diagnostics={"n_samples": 1},
         provenance={
             "analysis_backend": {
@@ -121,7 +116,7 @@ def test_result_summary_reports_every_integration_command_and_backend() -> None:
 
 
 def test_coordination_summary_reports_first_shell_instead_of_curve_extrema() -> None:
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type="cumulative_rdf",
         topology="topology",
         trajectory="trajectory",
@@ -138,7 +133,6 @@ def test_coordination_summary_reports_first_shell_instead_of_curve_extrema() -> 
         },
         parameters={"r_max_nm": 1.0, "bin_width_nm": 0.1},
         units={},
-        uncertainty={},
         diagnostics={
             "first_shell_suggestion": {
                 "available": True,

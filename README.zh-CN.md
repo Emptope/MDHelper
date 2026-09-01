@@ -13,7 +13,7 @@ energy 数据提取。
 
 - TUI、CLI 和 GUI 共用同一套分析实现；
 - 以流式方式分析大型轨迹，并限制成对距离计算的内存占用；
-- 原生支持单帧和多帧 GRO，可通过 MDAnalysis 读取 TPR/GRO 与 XTC/TRR，也可选用
+- MDHelper GRO Reader 支持单帧和多帧 GRO，可通过 MDAnalysis 读取 TPR/GRO 与 XTC/TRR，也可选用
   GROMACS 原生 trajectory、RDF/CN 和 Energy 后端；
 - 支持精确的 GROMACS NDX 组或显式的静态 MDAnalysis 选择表达式；
 - 支持正交和三斜周期性边界条件；
@@ -135,7 +135,7 @@ capability 时才回退到 GROMACS。用户从可选列表将 term 加入有序�
 
 ## 输入与选择
 
-原生读取器支持单帧或多帧 `.gro` 文件。MDAnalysis 支持以 `.tpr` 或 `.gro` 为拓扑、
+MDHelper GRO Reader 支持单帧或多帧 `.gro` 文件。MDAnalysis 支持以 `.tpr` 或 `.gro` 为拓扑、
 以 `.xtc` 或 `.trr` 为轨迹。可选的 `gromacs` 轨迹后端通过 Integrations 运行
 `gmx trjconv`，转换为标准多帧 GRO 后复用原生读取器。格式兼容性可能取决于安装的
 MDAnalysis 或 GROMACS 版本；例如较新的 TPR 可能需要兼容的 GRO 拓扑快照。

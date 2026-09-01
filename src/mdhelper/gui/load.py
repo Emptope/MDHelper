@@ -7,7 +7,7 @@ from typing import Any
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QSplitter, QWidget
 
-from mdhelper.core.analysis import AnalysisRequest
+from mdhelper.core.analysis import AnalysisRequest, RadialRequest
 from mdhelper.gui.inputs import InputPanel
 from mdhelper.gui.layout import page_layout
 from mdhelper.gui.species import SpeciesPanel
@@ -68,4 +68,5 @@ class LoadPanel(QWidget):
             self.inputs.apply_request(request)
         else:
             self.inputs.set_backend(request.backend)
-        self.species.apply_roles(request.species_roles)
+        if isinstance(request, RadialRequest):
+            self.species.apply_roles(request.species_roles)

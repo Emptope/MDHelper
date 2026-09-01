@@ -7,6 +7,7 @@ backend objects are deliberately excluded so projects remain portable across bac
 from __future__ import annotations
 
 import math
+from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from dataclasses import fields as dataclass_fields
 from datetime import UTC, datetime
@@ -41,6 +42,7 @@ def _json_issue(value: object, path: str) -> str | None:
 
 
 AnalysisType = Literal["rdf", "cumulative_rdf", "energy"]
+Backend = Literal["auto", "native", "mdanalysis", "gromacs"]
 
 ANALYSIS_LABELS: dict[str, str] = {
     "rdf": "Radial Distribution Function (RDF)",
@@ -55,21 +57,10 @@ def analysis_label(analysis_type: str) -> str:
     return ANALYSIS_LABELS.get(analysis_type, analysis_type.replace("_", " ").title())
 
 
-@dataclass(frozen=True)
-class AnalysisRequest:
+@dataclass(frozen=True, kw_only=True)
+class AnalysisRequest(ABC):
     analysis_type: AnalysisType
-    topology: str
-    trajectory: str
-    reference: str
-    index_file: str | None = None
-    selection: str | None = None
-    r_max_nm: float = 1.0
-    bin_width_nm: float = 0.002
-    energy_file: str | None = None
-    energy_terms: tuple[str, ...] = ()
-    frames: FrameRange = field(default_factory=FrameRange)
-    backend: Literal["auto", "native", "mdanalysis", "gromacs"] = "auto"
-    species_roles: dict[str, str] = field(default_factory=dict)
+    backend: Backend = "auto"
     parameter_provenance: dict[str, Any] = field(default_factory=dict)
     schema_version: int = 1
 
@@ -81,19 +72,117 @@ class AnalysisRequest:
             )
         if self.analysis_type not in {"rdf", "cumulative_rdf", "energy"}:
             raise InputError(f"Unknown analysis type: {self.analysis_type}")
-        if not isinstance(self.topology, str):
-            raise InputError("topology must be a string.")
-        if not isinstance(self.trajectory, str):
-            raise InputError("trajectory must be a string.")
-        if not isinstance(self.reference, str):
-            raise InputError("reference must be a string.")
-        if self.analysis_type != "energy":
-            if not self.topology.strip():
-                raise InputError("A non-empty topology path is required.")
-            if not self.trajectory.strip():
-                raise InputError("Both topology and trajectory are required.")
-            if not self.reference.strip():
-                raise InputError("The reference selection cannot be empty.")
+        if self.backend not in {"auto", "native", "mdanalysis", "gromacs"}:
+            raise InputError(f"Unknown backend: {self.backend!r}.")
+        if not isinstance(self.parameter_provenance, dict):
+            raise InputError("parameter_provenance must be an object.")
+        issue = _json_issue(self.parameter_provenance, "parameter_provenance")
+        if issue:
+            raise InputError(issue)
+
+    @abstractmethod
+    def to_dict(self) -> dict[str, Any]:
+        """Return the strict analysis-specific JSON object."""
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> AnalysisRequest:
+        if not isinstance(value, dict):
+            raise ConfigurationError("An analysis request must be a JSON object.")
+        data = dict(value)
+        analysis_type = data.get("analysis_type")
+        common = {"analysis_type", "backend", "schema_version"}
+        optional = {"parameter_provenance"}
+        if analysis_type in {"rdf", "cumulative_rdf"}:
+            required = common | {
+                "topology",
+                "trajectory",
+                "reference",
+                "selection",
+                "r_max_nm",
+                "bin_width_nm",
+                "frames",
+            }
+            optional |= {"index_file", "species_roles"}
+        elif analysis_type == "energy":
+            required = common | {"energy_file", "energy_terms"}
+        else:
+            raise ConfigurationError(
+                "The analysis request does not match the supported schema.",
+                details={"analysis_type": analysis_type},
+            )
+        missing = sorted(required - set(data))
+        unknown = sorted(set(data) - required - optional)
+        if missing and unknown:
+            raise ConfigurationError(
+                "The analysis request contains missing or unknown fields.",
+                details={"missing_fields": missing, "unknown_fields": unknown},
+            )
+        if missing:
+            raise ConfigurationError(
+                "The analysis request contains missing fields.",
+                details={"missing_fields": missing},
+            )
+        if unknown:
+            raise ConfigurationError(
+                "The analysis request contains unknown fields.",
+                details={"unknown_fields": unknown},
+            )
+        data.setdefault("parameter_provenance", {})
+        if analysis_type == "energy":
+            energy_terms = data["energy_terms"]
+            if not isinstance(energy_terms, (list, tuple)) or any(
+                not isinstance(item, str) for item in energy_terms
+            ):
+                raise ConfigurationError(
+                    "Analysis request field 'energy_terms' must be an array of strings."
+                )
+            data["energy_terms"] = tuple(energy_terms)
+        else:
+            frames = data["frames"]
+            if not isinstance(frames, dict):
+                raise ConfigurationError("Analysis request field 'frames' must be an object.")
+            frame_fields = {item.name for item in dataclass_fields(FrameRange)}
+            if set(frames) != frame_fields:
+                raise ConfigurationError(
+                    "Analysis request field 'frames' contains missing or unknown fields."
+                )
+            data["frames"] = FrameRange(**frames)
+        try:
+            request_type = EnergyRequest if analysis_type == "energy" else RadialRequest
+            request = request_type(**data)
+            request.validate()
+        except (InputError, TypeError, ValueError) as exc:
+            raise ConfigurationError(
+                "The analysis request does not match the supported schema.",
+                details={"exception": f"{type(exc).__name__}: {exc}"},
+            ) from exc
+        return request
+
+
+@dataclass(frozen=True, kw_only=True)
+class RadialRequest(AnalysisRequest):
+    topology: str
+    trajectory: str
+    reference: str
+    selection: str
+    index_file: str | None = None
+    r_max_nm: float = 1.0
+    bin_width_nm: float = 0.002
+    frames: FrameRange = field(default_factory=FrameRange)
+    species_roles: dict[str, str] = field(default_factory=dict)
+
+    def validate(self) -> None:
+        super().validate()
+        if self.analysis_type not in {"rdf", "cumulative_rdf"}:
+            raise InputError(f"Unknown radial analysis type: {self.analysis_type}")
+        for name, value in (
+            ("topology", self.topology),
+            ("trajectory", self.trajectory),
+            ("reference", self.reference),
+            ("selection", self.selection),
+        ):
+            if not isinstance(value, str) or not value.strip():
+                raise InputError(f"{name} must be a non-empty string.")
         if self.index_file is not None and (
             not isinstance(self.index_file, str) or not self.index_file.strip()
         ):
@@ -103,10 +192,6 @@ class AnalysisRequest:
         if not isinstance(self.frames, FrameRange):
             raise InputError("frames must be a FrameRange object.")
         self.frames.validate()
-        if self.backend not in {"auto", "native", "mdanalysis", "gromacs"}:
-            raise InputError(f"Unknown backend: {self.backend!r}.")
-        if self.selection is not None and not isinstance(self.selection, str):
-            raise InputError("selection must be a string or null.")
         if (
             isinstance(self.r_max_nm, bool)
             or not isinstance(self.r_max_nm, (int, float))
@@ -129,111 +214,77 @@ class AnalysisRequest:
                 "The radial grid exceeds one million bins.",
                 "Increase bin_width_nm or reduce r_max_nm.",
             )
-        if self.energy_file is not None and (
-            not isinstance(self.energy_file, str) or not self.energy_file.strip()
-        ):
-            raise InputError("energy_file must be a non-empty string or null.")
+        validate_species_roles(self.species_roles)
+
+    def to_dict(self) -> dict[str, Any]:
+        self.validate()
+        value: dict[str, Any] = {
+            "analysis_type": self.analysis_type,
+            "topology": self.topology,
+            "trajectory": self.trajectory,
+            "reference": self.reference,
+            "selection": self.selection,
+            "r_max_nm": self.r_max_nm,
+            "bin_width_nm": self.bin_width_nm,
+            "frames": asdict(self.frames),
+            "backend": self.backend,
+            "schema_version": self.schema_version,
+        }
+        if self.index_file is not None:
+            value["index_file"] = self.index_file
+        if self.species_roles:
+            value["species_roles"] = self.species_roles
+        if self.parameter_provenance:
+            value["parameter_provenance"] = self.parameter_provenance
+        return value
+
+    def radial_bin_count(self) -> int:
+        return (self.radial_fine_bin_count() + 1) // 2
+
+    def cumulative_bin_count(self) -> int:
+        return self.radial_fine_bin_count() // 2
+
+    def radial_fine_bin_count(self) -> int:
+        ratio = 2.0 * self.r_max_nm / self.bin_width_nm
+        return max(1, math.floor(ratio + 0.5))
+
+
+@dataclass(frozen=True, kw_only=True)
+class EnergyRequest(AnalysisRequest):
+    energy_file: str
+    energy_terms: tuple[str, ...]
+
+    def validate(self) -> None:
+        super().validate()
+        if self.analysis_type != "energy":
+            raise InputError(f"Unknown energy analysis type: {self.analysis_type}")
+        if self.backend not in {"auto", "gromacs", "mdanalysis"}:
+            raise InputError(
+                "Energy analysis requires the GROMACS or MDAnalysis backend."
+            )
+        if not isinstance(self.energy_file, str) or not self.energy_file.strip():
+            raise InputError("Energy analysis requires a non-empty energy_file.")
         if not isinstance(self.energy_terms, tuple) or any(
             not isinstance(term, str) or not term.strip() for term in self.energy_terms
         ):
             raise InputError("energy_terms must contain non-empty strings.")
+        if not self.energy_terms:
+            raise InputError("Energy analysis requires at least one energy term.")
         if len(set(self.energy_terms)) != len(self.energy_terms):
             raise InputError("energy_terms cannot contain duplicates.")
-        if not isinstance(self.parameter_provenance, dict):
-            raise InputError("parameter_provenance must be an object.")
-        issue = _json_issue(self.parameter_provenance, "parameter_provenance")
-        if issue:
-            raise InputError(issue)
-        validate_species_roles(self.species_roles)
-        if self.analysis_type == "rdf":
-            if not isinstance(self.selection, str) or not self.selection.strip():
-                raise InputError("RDF analysis requires a selection.")
-        elif self.analysis_type == "cumulative_rdf":
-            if not isinstance(self.selection, str) or not self.selection.strip():
-                raise InputError("Cumulative RDF analysis requires a selection.")
-        elif self.analysis_type == "energy":
-            if self.backend not in {"auto", "gromacs", "mdanalysis"}:
-                raise InputError(
-                    "Energy analysis requires the GROMACS or MDAnalysis backend."
-                )
-            if self.energy_file is None:
-                raise InputError("Energy analysis requires energy_file.")
-            if not self.energy_terms:
-                raise InputError("Energy analysis requires at least one energy term.")
-            if self.selection is not None:
-                raise InputError("Energy analysis does not accept atom selections.")
 
     def to_dict(self) -> dict[str, Any]:
         self.validate()
-        value = asdict(self)
-        value["energy_terms"] = list(self.energy_terms)
+        value: dict[str, Any] = {
+            "analysis_type": self.analysis_type,
+            "energy_file": self.energy_file,
+            "energy_terms": list(self.energy_terms),
+            "backend": self.backend,
+            "schema_version": self.schema_version,
+        }
+        if self.parameter_provenance:
+            value["parameter_provenance"] = self.parameter_provenance
         return value
-
-    def radial_bin_count(self) -> int:
-        """Return the number of integer-centered RDF samples."""
-
-        return (self.radial_fine_bin_count() + 1) // 2
-
-    def cumulative_bin_count(self) -> int:
-        """Return the number of edge-aligned cumulative samples."""
-
-        return self.radial_fine_bin_count() // 2
-
-    def radial_fine_bin_count(self) -> int:
-        """Return the shared half-width histogram size."""
-
-        ratio = 2.0 * self.r_max_nm / self.bin_width_nm
-        return max(1, math.floor(ratio + 0.5))
-
-    @classmethod
-    def from_dict(cls, value: dict[str, Any]) -> AnalysisRequest:
-        if not isinstance(value, dict):
-            raise ConfigurationError("An analysis request must be a JSON object.")
-        data = dict(value)
-        expected = {item.name for item in dataclass_fields(cls)}
-        missing = sorted(expected - set(data))
-        unknown = sorted(set(data) - expected)
-        if missing and unknown:
-            raise ConfigurationError(
-                "The analysis request contains missing or unknown fields.",
-                details={"missing_fields": missing, "unknown_fields": unknown},
-            )
-        if missing:
-            raise ConfigurationError(
-                "The analysis request contains missing fields.",
-                details={"missing_fields": missing},
-            )
-        if unknown:
-            raise ConfigurationError(
-                "The analysis request contains unknown fields.",
-                details={"unknown_fields": unknown},
-            )
-        frames = data["frames"]
-        energy_terms = data["energy_terms"]
-        if not isinstance(frames, dict):
-            raise ConfigurationError("Analysis request field 'frames' must be an object.")
-        frame_fields = {item.name for item in dataclass_fields(FrameRange)}
-        if set(frames) != frame_fields:
-            raise ConfigurationError(
-                "Analysis request field 'frames' contains missing or unknown fields."
-            )
-        if not isinstance(energy_terms, (list, tuple)) or any(
-            not isinstance(item, str) for item in energy_terms
-        ):
-            raise ConfigurationError(
-                "Analysis request field 'energy_terms' must be an array of strings."
-            )
-        try:
-            data["frames"] = FrameRange(**frames)
-            data["energy_terms"] = tuple(energy_terms)
-            request = cls(**data)
-            request.validate()
-        except (InputError, TypeError, ValueError) as exc:
-            raise ConfigurationError(
-                "The analysis request does not match the supported schema.",
-                details={"exception": f"{type(exc).__name__}: {exc}"},
-            ) from exc
-        return request
 
 
 @dataclass
@@ -242,7 +293,6 @@ class AnalysisResult:
     data: dict[str, Any]
     parameters: dict[str, Any]
     units: dict[str, str]
-    uncertainty: dict[str, Any]
     diagnostics: dict[str, Any]
     provenance: dict[str, Any]
     request: dict[str, Any] = field(default_factory=dict)
@@ -251,7 +301,6 @@ class AnalysisResult:
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     method_version: str = "1.0.0"
     schema_version: int = 1
-    status: Literal["completed"] = "completed"
 
     def to_dict(self) -> dict[str, Any]:
         self.validate()
@@ -262,10 +311,6 @@ class AnalysisResult:
             raise ConfigurationError(
                 f"Analysis result schema version {self.schema_version} is not supported.",
                 "Use schema_version = 1.",
-            )
-        if self.status != "completed":
-            raise ConfigurationError(
-                f"Analysis result status {self.status!r} is not loadable as a completed result."
             )
         if self.analysis_type not in {"rdf", "cumulative_rdf", "energy"}:
             raise ConfigurationError(
@@ -289,7 +334,6 @@ class AnalysisResult:
             "data": self.data,
             "parameters": self.parameters,
             "units": self.units,
-            "uncertainty": self.uncertainty,
             "diagnostics": self.diagnostics,
             "provenance": self.provenance,
         }
@@ -330,6 +374,10 @@ class AnalysisResult:
                 },
             )
         if self.analysis_type == "energy":
+            if not isinstance(request, EnergyRequest):
+                raise ConfigurationError(
+                    "Energy result does not contain an energy request."
+                )
             if set(self.data) != {"time_ps", "series"}:
                 raise ConfigurationError(
                     "Energy result data contains missing or unknown fields."

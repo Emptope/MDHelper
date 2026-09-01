@@ -9,6 +9,7 @@ import pytest
 from mdhelper.analysis.common import selected_frame_count
 from mdhelper.backends.gro import GroTrajectorySource
 from mdhelper.backends.mdanalysis import MDAnalysisTrajectorySource
+from mdhelper.backends.trajectory import load_trajectory
 from mdhelper.core.errors import FormatError, TopologyError, TrajectoryError
 from mdhelper.core.species import role_decision
 from mdhelper.core.system import Atom, FrameRange
@@ -49,6 +50,23 @@ def test_native_gro_reader_accepts_extended_coordinate_precision(tmp_path: Path)
     assert frame.positions_nm == pytest.approx(
         np.asarray(((0.123456, 1.234567, 2.345678),))
     )
+
+
+def test_explicit_in_process_backends_select_distinct_trajectory_adapters(
+    tmp_path: Path,
+) -> None:
+    from test_synthetic_system import _write_trajectory
+
+    trajectory = tmp_path / "trajectory.gro"
+    _write_trajectory(trajectory)
+
+    native = load_trajectory(trajectory, trajectory, "native")
+    mdanalysis = load_trajectory(trajectory, trajectory, "mdanalysis")
+
+    assert isinstance(native, GroTrajectorySource)
+    assert native.backend_name == "native-gro"
+    assert isinstance(mdanalysis, MDAnalysisTrajectorySource)
+    assert mdanalysis.backend_name == "mdanalysis"
 
 
 def test_species_role_suggestions_use_topology_evidence_not_names() -> None:

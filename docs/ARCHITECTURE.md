@@ -93,8 +93,10 @@ text.
 
 ## 5. Core contracts
 
-`core/analysis.py` defines `AnalysisRequest` and `AnalysisResult`. Every frontend
-must build a request before an analysis runs; analysis code never reads presentation state.
+`core/analysis.py` defines the shared `AnalysisRequest` boundary plus disjoint
+`RadialRequest` and `EnergyRequest` records. Every frontend must build the matching request before
+an analysis runs; analysis code never reads presentation state. Serialized requests contain only
+fields used by that analysis family.
 Arrays are stored in result `data`, explanation in `diagnostics`, and reproduction information in
 `provenance`. Schema-1 parsing is strict: missing fields, unknown fields, old identifiers, invalid
 enums, and inconsistent arrays fail. Version 0.1.0 has no data-migration branch.
@@ -179,8 +181,9 @@ detection, status, and execution;
 configuration, template discovery, and provenance remain separate services so the analysis layer
 stays free of machine-specific executable handling.
 
-`backends/trajectory.py` deterministically selects native GRO, MDAnalysis, or an explicitly requested
-GROMACS conversion adapter. The native reader validates fixed atom identity and streams frames. The
+`backends/trajectory.py` deterministically selects the MDHelper GRO Reader, MDAnalysis, or an
+explicitly requested GROMACS conversion adapter. The MDHelper reader validates fixed atom identity
+and streams frames. The
 MDAnalysis adapter converts third-party objects into core atoms, frames, boxes, and zero-based
 indices; third-party objects do not cross the backend boundary. The GROMACS adapter invokes
 `gmx trjconv` only through Integrations and then exposes the converted GRO through the same core port.
@@ -197,8 +200,11 @@ RDF exports `radius_nm,g_r`; cumulative RDF exports `radius_nm,cumulative_number
 A project is rooted by `mdhelper-project.json` and owns `results/data`, `figures`, and
 `cache`. Its manifest records schema/application version, content-addressed inputs, confirmed roles,
 integration preferences and runs, strict plot state, and committed analysis entries. Every analysis
-entry includes the path and hash of one complete result under `results/data`. Opening rejects old or
-incomplete schema-1 data; it never rewrites an incompatible manifest into the current contract.
+entry includes an ID, analysis type, commit time, and hash. Its result path is derived as
+`results/data/<analysis_id>.json`; request and method metadata live only in that complete result.
+Opening rejects old or incomplete schema-1 data; it never rewrites an incompatible manifest into
+the current contract. Each input record stores one relative path when portable, or one absolute
+path when a relative path cannot be represented, plus its hash.
 
 `cache` contains rebuildable performance data, currently MDAnalysis XDR frame-offset indexes rather
 than analysis results. Offset files use a trajectory-path key, validate source size, nanosecond
@@ -207,7 +213,8 @@ work uses the project cache; unbound inputs use a `cache` directory beside the t
 these files only forces an offset rescan and does not change analysis semantics.
 
 Result commit validates request equality and provenance fingerprints, writes the result atomically,
-hashes it, and then commits the manifest. Path containment and fingerprints are rechecked on load.
+hashes it, and then commits the compact manifest index. The derived path is checked for containment,
+and fingerprints are rechecked on load.
 Relocation changes a path only when content identity is unchanged.
 
 ## 10. Workflow and external tools

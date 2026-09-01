@@ -29,7 +29,7 @@
 - 内部坐标和距离统一为 nm；
 - 内部时间统一为 ps；
 - 盒体积为 nm^3；
-- 原生 GRO 坐标不缩放，因为 GRO 本身使用 nm；
+- MDHelper GRO Reader 的坐标不缩放，因为 GRO 本身使用 nm；
 - MDAnalysis 坐标和三斜盒矢量从埃除以 10 转成 nm；
 - 径向绘图把 nm 转为埃，持久化结果仍保存 nm。
 
@@ -89,9 +89,9 @@ else:
 `auto` 只执行一次确定性选择，不捕获原生解析错误再切换 MDAnalysis。实际后端名进入
 provenance。
 
-### 3.1 原生 GRO 解析
+### 3.1 MDHelper GRO Reader
 
-原生 reader 的处理顺序是：
+MDHelper GRO Reader 的处理顺序是：
 
 1. 验证 topology 和 trajectory 都存在且扩展名为 GRO；
 2. 从 topology 第一帧建立原子元数据；
@@ -544,20 +544,19 @@ GUI 自动建立轨迹目录项目时显式允许非空目录。随后创建 `re
 打开项目时：
 
 1. 读取并解析 JSON；
-2. 严格验证顶层、input、analysis、integration run、plot 和嵌套 request；
-3. 严格解析嵌套 request 和 plot state，不补旧字段或迁移旧状态；
+2. 严格验证顶层、input、紧凑 analysis 索引、integration run 和 plot；
+3. 严格解析 plot state，不补旧字段或迁移旧状态；
 4. 补齐项目目录；
 5. 默认解析并验证所有记录输入的 hash。
 
 ### 13.2 输入记录与重定位
 
-记录输入时保存 absolute path、相对 project root 的 relative path（可用时）和 SHA-256。
-恢复时按以下顺序尝试：
+记录输入时只保存一个 path 和 SHA-256。当相对 project root 的路径可表示时保存
+relative path；Windows 跨卷时保存 absolute path。恢复时：
 
-1. `project_root / relative_path`；
-2. 原 absolute path；
-3. 候选必须是文件；
-4. 启用验证时，内容 hash 必须等于记录值。
+1. relative path 与 `project_root` 组合，absolute path 直接使用；
+2. 候选必须是文件；
+3. 启用验证时，内容 hash 必须等于记录值。
 
 显式 relocate 会先对新文件建立记录，再要求新旧 hash 相同。更换分析输入必须创建新项目，
 不能用 relocate 掩盖。
@@ -572,7 +571,7 @@ GUI 自动建立轨迹目录项目时显式允许非空目录。随后创建 `re
 6. 拒绝重复 `analysis_id` 和已存在结果路径；
 7. 原子写一份完整结果到 `results/data/<analysis_id>.json`；
 8. 对完整结果计算 SHA-256；
-9. 将结果路径、hash、结果条目和新 input 记录加入 manifest；
+9. 将 analysis ID、分析类型、提交时间、hash 和新 input 记录加入 manifest；结果路径由 ID 推导，request 和 method 只保存在完整结果中；
 10. 严格校验并原子写 manifest；
 11. 第 10 步失败时删除第 7 步新建的未索引文件。
 
@@ -682,9 +681,10 @@ pair 分块迭代自身当前没有单独的 cancel 参数；取消通常在下�
 
 ## 17. 契约解析和验证
 
-`AnalysisRequest.from_dict()` 只接受 0.1.0 当前 schema：它拒绝未知或缺失字段，构造
-`FrameRange` 并执行语义校验。结果解析拒绝未知字段、非有限 JSON 数、非法
-时间、错误 schema/status/type、无效内嵌 request 和分析类型不一致。
+`AnalysisRequest.from_dict()` 只接受 0.1.0 当前 schema：它按 `analysis_type` 分派为
+`RadialRequest` 或 `EnergyRequest`，两者不共享无关字段。它拒绝未知或缺失字段，
+仅为径向请求构造 `FrameRange`，并执行各自的语义校验。结果解析拒绝未知字段、
+非有限 JSON 数、非法时间、错误 schema/type、无效内嵌 request 和分析类型不一致。
 
 `PlotState` 同样严格要求当前 scheme、颜色编号和主/次纵轴范围字段。0.1.0 是最初开发
 版本，不迁移开发期旧字段或旧绘图状态。

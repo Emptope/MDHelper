@@ -77,12 +77,13 @@ overriding, or omitting role metadata leaves numerical results unchanged for ide
 ## 7. G6: strict, self-describing results
 
 Requests, results, projects, plot state, and external-run records are versioned, JSON-safe, and
-strictly parsed. Units, method version, schema version, request, warnings, diagnostics, uncertainty,
-and provenance have distinct fields.
+strictly parsed. Radial and Energy requests use disjoint fields. Units, method version, schema
+version, request, warnings, diagnostics, and provenance have distinct fields; unimplemented
+uncertainty and constant completion fields are not serialized.
 
 Version 0.1.0 accepts only its current field names. Unknown, missing, obsolete, non-finite, or
-inconsistent data fail at the boundary; they are not migrated. Every project result entry includes
-a content fingerprint.
+inconsistent data fail at the boundary; they are not migrated. Every project result entry is a
+compact index containing an ID, analysis type, commit time, and content fingerprint.
 
 ## 8. G7: complete provenance
 
@@ -153,9 +154,9 @@ cancellation, output capture, and fingerprints.
 ## 15. G14: valid configuration and portable environments
 
 User configuration has a documented TOML schema and machine-local executable paths. Portable mode
-changes only configuration location. Saved configuration is validated before replacement. Project
-manifests remain machine-independent through recorded absolute and relative paths plus content
-identity.
+changes only configuration location. Saved configuration is validated before replacement. Each
+project input stores one portable relative path when possible, otherwise one absolute path, plus
+content identity.
 
 Templates are deterministic, non-empty, ASCII, and rejected on key collision. Configuration or
 template errors are actionable rather than silently defaulted.

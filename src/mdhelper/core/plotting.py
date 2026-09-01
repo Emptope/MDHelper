@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Any, Literal
 
-from .analysis import AnalysisRequest, AnalysisResult
+from .analysis import AnalysisRequest, AnalysisResult, RadialRequest
 from .errors import ConfigurationError
 from .units import convert_distance
 
@@ -299,8 +299,8 @@ def _numbers(value: object, field: str) -> tuple[float, ...]:
         raise ConfigurationError(f"Plot field {field!r} must contain numbers.") from exc
 
 
-def _selection_label(request: AnalysisRequest) -> str:
-    selection = request.selection or ""
+def _selection_label(request: RadialRequest) -> str:
+    selection = request.selection
     return f"{request.reference}-{selection}" if selection else request.reference
 
 
@@ -327,10 +327,13 @@ def result_plot(result: AnalysisResult) -> PlotModel:
     """Create the most useful default plot for a completed result."""
 
     request = AnalysisRequest.from_dict(result.request)
+    radial_request = request if isinstance(request, RadialRequest) else None
     if result.analysis_type == "rdf":
-        selection = _selection_label(request)
+        if radial_request is None:
+            raise ConfigurationError("RDF plotting requires a radial request.")
+        selection = _selection_label(radial_request)
         residue_key = _selection_residue_key(
-            result, "selection", request.selection or selection
+            result, "selection", radial_request.selection
         )
         x = convert_distance(
             _numbers(result.data.get("radius_nm"), "radius_nm"),
@@ -362,9 +365,11 @@ def result_plot(result: AnalysisResult) -> PlotModel:
             combined_title="RDF and Cumulative Coordination Number",
         )
     if result.analysis_type == "cumulative_rdf":
-        selection = _selection_label(request)
+        if radial_request is None:
+            raise ConfigurationError("Cumulative RDF plotting requires a radial request.")
+        selection = _selection_label(radial_request)
         residue_key = _selection_residue_key(
-            result, "selection", request.selection or selection
+            result, "selection", radial_request.selection
         )
         x = convert_distance(
             _numbers(result.data.get("radius_nm"), "radius_nm"),

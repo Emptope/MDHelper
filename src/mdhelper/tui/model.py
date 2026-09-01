@@ -6,7 +6,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, AnalysisType
+from mdhelper.core.analysis import (
+    AnalysisRequest,
+    AnalysisResult,
+    AnalysisType,
+    EnergyRequest,
+    RadialRequest,
+)
 from mdhelper.core.system import FrameRange, SystemSummary
 from mdhelper.project import Project
 
@@ -26,17 +32,25 @@ class AnalysisDraft:
     parameter_provenance: dict[str, Any] = field(default_factory=dict)
 
     def request(self, workspace: Workspace) -> AnalysisRequest:
-        request = AnalysisRequest(
+        if self.analysis_type == "energy":
+            energy_request = EnergyRequest(
+                analysis_type="energy",
+                energy_file=self.energy_file,
+                energy_terms=tuple(self.energy_terms),
+                backend=workspace.backend,
+                parameter_provenance=dict(self.parameter_provenance),
+            )
+            energy_request.validate()
+            return energy_request
+        radial_request = RadialRequest(
             analysis_type=self.analysis_type,
             topology=workspace.topology,
             trajectory=workspace.trajectory,
             index_file=workspace.index_file,
             reference=self.reference,
-            selection=self.selection or None,
+            selection=self.selection,
             r_max_nm=self.r_max_nm,
             bin_width_nm=self.bin_width_nm,
-            energy_file=self.energy_file or None,
-            energy_terms=tuple(self.energy_terms),
             frames=self.frames,
             backend=workspace.backend,
             species_roles=dict(workspace.roles),
@@ -45,8 +59,8 @@ class AnalysisDraft:
                 "species_roles": dict(workspace.role_decisions),
             },
         )
-        request.validate()
-        return request
+        radial_request.validate()
+        return radial_request
 
 
 @dataclass

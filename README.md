@@ -14,7 +14,8 @@ GUI.
 
 - One analysis implementation shared by the TUI, CLI, and GUI;
 - streaming analysis of large trajectories with bounded pair-distance memory;
-- native single- and multi-frame GRO support, MDAnalysis-backed TPR/GRO and XTC/TRR support,
+- MDHelper GRO Reader support for single- and multi-frame GRO, MDAnalysis-backed TPR/GRO and
+  XTC/TRR support,
   and optional GROMACS-native trajectory, RDF/CN, and Energy backends;
 - exact GROMACS NDX groups or explicit static MDAnalysis selections;
 - orthorhombic and triclinic periodic boundary conditions;
@@ -143,10 +144,10 @@ The versioned method definitions and their validation evidence are published und
 
 ## Inputs and selections
 
-The native reader accepts single- or multi-frame `.gro` files. MDAnalysis supports `.tpr` or
+The MDHelper GRO Reader accepts single- or multi-frame `.gro` files. MDAnalysis supports `.tpr` or
 `.gro` topology with `.xtc` or `.trr` trajectories. The optional `gromacs` trajectory
 backend runs `gmx trjconv` through Integrations, converts to a standard multi-frame GRO file, and
-then reuses the native reader. Format compatibility can depend on the installed MDAnalysis or
+then reuses the MDHelper GRO Reader. Format compatibility can depend on the installed MDAnalysis or
 GROMACS version; in particular, a newer TPR may require a compatible GRO topology snapshot.
 Explicit GROMACS RDF/CN bypasses that conversion adapter: `gmx rdf` reads the original topology
 and trajectory directly. For a strided frame range, `gmx trjconv -fr` materializes the exact

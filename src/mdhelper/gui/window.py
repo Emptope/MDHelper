@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from mdhelper.app import ApplicationService
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.species import SpeciesRoleSuggestion, role_decision
 from mdhelper.gui.analysis import AnalysisPanel
@@ -329,20 +329,21 @@ class MainWindow(QMainWindow):
             return
         if self.session.project is None:
             request = runs[0][0]
-            root = Path(request.trajectory).expanduser().resolve().parent
-            try:
-                _project, created = self.session.ensure(
-                    root,
-                    request.topology,
-                    request.trajectory,
-                    request.species_roles,
-                    request.index_file,
-                )
-            except Exception as exc:
-                self._show_error(exc)
-                return
-            action = "created automatically" if created else "opened automatically"
-            self._project_ready(action, restore=False)
+            if isinstance(request, RadialRequest):
+                root = Path(request.trajectory).expanduser().resolve().parent
+                try:
+                    _project, created = self.session.ensure(
+                        root,
+                        request.topology,
+                        request.trajectory,
+                        request.species_roles,
+                        request.index_file,
+                    )
+                except Exception as exc:
+                    self._show_error(exc)
+                    return
+                action = "created automatically" if created else "opened automatically"
+                self._project_ready(action, restore=False)
         self._pending_runs = runs
         self._batch_total = len(runs)
         self.results.begin_batch(runs[0][0].analysis_type)

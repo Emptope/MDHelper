@@ -9,7 +9,7 @@ from threading import Event
 from typing import TYPE_CHECKING
 
 from mdhelper.analysis.common import check_cancel
-from mdhelper.core.analysis import AnalysisResult
+from mdhelper.core.analysis import AnalysisResult, EnergyRequest
 from mdhelper.core.errors import BackendError, FormatError, InputFileError
 from mdhelper.integrations.manager import IntegrationManager
 from mdhelper.plugins.analysis import AnalysisInput
@@ -199,8 +199,9 @@ class GmxEnergy:
 
     def run(self, inputs: AnalysisInput) -> AnalysisResult:
         request = inputs.request
+        if not isinstance(request, EnergyRequest):
+            raise BackendError("The GROMACS energy backend requires an energy request.")
         request.validate()
-        assert request.energy_file is not None
         source = Path(request.energy_file).expanduser().resolve()
         with tempfile.TemporaryDirectory(prefix="mdhelper-energy-") as directory:
             root = Path(directory)
@@ -226,13 +227,8 @@ class GmxEnergy:
             analysis_type="energy",
             method_version=METHOD_VERSION,
             data={"time_ps": time_ps, "series": series},
-            parameters={
-                "energy_file": request.energy_file,
-                "terms": list(request.energy_terms),
-                "analysis_backend": self.name,
-            },
+            parameters={},
             units={"time_ps": "ps", "series": y_label},
-            uncertainty={},
             diagnostics={"n_samples": len(time_ps)},
             provenance=provenance,
             request=request.to_dict(),
@@ -254,8 +250,9 @@ class MdaEnergy:
 
     def run(self, inputs: AnalysisInput) -> AnalysisResult:
         request = inputs.request
+        if not isinstance(request, EnergyRequest):
+            raise BackendError("The MDAnalysis energy backend requires an energy request.")
         request.validate()
-        assert request.energy_file is not None
         source = _energy_source(request.energy_file)
         check_cancel(inputs.cancel_event)
         reader = _edr_reader(source)
@@ -292,13 +289,8 @@ class MdaEnergy:
             analysis_type="energy",
             method_version=METHOD_VERSION,
             data={"time_ps": time_ps, "series": series},
-            parameters={
-                "energy_file": request.energy_file,
-                "terms": list(request.energy_terms),
-                "analysis_backend": self.name,
-            },
+            parameters={},
             units={"time_ps": time_unit, "series": series_unit},
-            uncertainty={},
             diagnostics={
                 "n_samples": len(time_ps),
                 "series_units": series_units,

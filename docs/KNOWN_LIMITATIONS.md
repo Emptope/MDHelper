@@ -16,7 +16,7 @@
   when complete topology charges exist; neutral population dominance is low-confidence, and all
   roles require confirmation.
 - Input identity is static: coordinate-dependent MDAnalysis selections are rejected.
-- The native reader supports single- or multi-frame GRO only. XTC/TRR and TPR support depends
+- The MDHelper GRO Reader supports single- or multi-frame GRO only. XTC/TRR and TPR support depends
   on the bundled MDAnalysis version; a newer TPR may require a compatible GRO/PDB topology
   snapshot. TNG is a GROMACS trajectory format but is not supported in MDHelper 0.1.0 because
   the current MDAnalysis/PyTNG reader does not reliably read valid GROMACS TNG output.

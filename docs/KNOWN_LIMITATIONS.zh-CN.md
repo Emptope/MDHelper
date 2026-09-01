@@ -11,7 +11,7 @@
 - 物种角色是建议，不是化学感知。只有 topology charge 完整时才使用净电荷符号；中性
   population 优势只有低置信度，所有角色都需要确认。
 - 输入原子身份固定；依赖坐标的 MDAnalysis 选择会被拒绝。
-- 原生 reader 只支持单帧或多帧 GRO。XTC/TRR 和 TPR 支持取决于内置 MDAnalysis；较新
+- MDHelper GRO Reader 只支持单帧或多帧 GRO。XTC/TRR 和 TPR 支持取决于内置 MDAnalysis；较新
   TPR 可能需要兼容的 GRO/PDB topology snapshot。TNG 是 GROMACS 轨迹格式，但当前
   MDAnalysis/PyTNG reader 不能可靠读取有效的 GROMACS TNG 输出，因此 MDHelper 0.1.0
   不支持 TNG。

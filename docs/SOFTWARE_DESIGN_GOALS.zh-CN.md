@@ -174,10 +174,12 @@ load trajectory or EDR input
 ### 当前机制
 
 - request/result/project 都使用 schema 版本 1；
+- 径向请求和 Energy 请求使用互斥字段，不序列化另一分析类型的参数；
 - core 解析器和 project Python schema 严格检查字段；
 - `schemas/` 发布对应 JSON Schema；
 - JSON 导出保留完整契约，CSV 提供稳定表格视图；
 - RDF/CN/energy 分别验证必需数组和长度关系。
+- 结果不保存尚未实现的 uncertainty 空对象或恒为 completed 的状态；project analysis 条目只保存 ID、类型、提交时间和内容 hash。
 
 ### 验收标准
 

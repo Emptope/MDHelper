@@ -218,7 +218,7 @@ class Tui:
         )
         backends: list[tuple[str, str]] = [
             ("Automatic selection", "auto"),
-            ("Native GRO streaming", "native"),
+            ("MDHelper GRO Reader", "native"),
             ("MDAnalysis", "mdanalysis"),
         ]
         if self._gromacs_supports():

@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+from mdhelper.core.analysis import AnalysisRequest, EnergyRequest
+from mdhelper.core.errors import ConfigurationError
+
 from .base import Report, ReportRows, number, series
 
 
 class EnergyReport(Report):
+    @property
+    def request(self) -> EnergyRequest:
+        request = AnalysisRequest.from_dict(self.result.request)
+        if not isinstance(request, EnergyRequest):
+            raise ConfigurationError("An energy report requires an energy request.")
+        return request
+
     def result_rows(self) -> ReportRows:
         rows: list[tuple[str, str]] = []
         raw_series = self.result.data.get("series")

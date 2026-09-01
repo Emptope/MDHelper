@@ -25,7 +25,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.core.analysis import (
+    AnalysisRequest,
+    AnalysisResult,
+    EnergyRequest,
+    RadialRequest,
+)
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.plotting import (
     DEFAULT_PLOT_SCHEME,
@@ -597,12 +602,12 @@ class ResultPanel(QWidget):
         title: str = "",
     ) -> None:
         request = AnalysisRequest.from_dict(result.request)
-        result_default = (
-            f"{request.reference}-{request.selection}"
-            if request.selection
-            else request.reference
-            or ", ".join(request.energy_terms)
-        )
+        if isinstance(request, RadialRequest):
+            result_default = f"{request.reference}-{request.selection}"
+        elif isinstance(request, EnergyRequest):
+            result_default = ", ".join(request.energy_terms)
+        else:
+            return
         keys: tuple[str, ...]
         if result.analysis_type == "energy":
             values = result.data.get("series")

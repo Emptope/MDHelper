@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.project.inputs import InputRepository
 from mdhelper.project.manifests import ManifestRepository
@@ -28,10 +27,10 @@ class ResultRepository:
         self.inputs = inputs
 
     def _path(self, entry: dict[str, Any]) -> Path | None:
-        value = entry.get("result")
-        if not isinstance(value, str) or not value:
+        analysis_id = entry.get("analysis_id")
+        if not isinstance(analysis_id, str) or not analysis_id:
             return None
-        path = (self.root / value).resolve()
+        path = (self.root / "results" / "data" / f"{analysis_id}.json").resolve()
         try:
             path.relative_to(self.root / "results" / "data")
         except ValueError:
@@ -66,10 +65,6 @@ class ResultRepository:
         entry = {
             "analysis_id": result.analysis_id,
             "analysis_type": result.analysis_type,
-            "method_version": result.method_version,
-            "status": result.status,
-            "request": request.to_dict(),
-            "result": os.path.relpath(result_path, self.root),
             "result_sha256": sha256_file(result_path),
             "committed_at": datetime.now(UTC).isoformat(),
         }
@@ -82,7 +77,7 @@ class ResultRepository:
                 if role not in manifest["inputs"]
             },
         }
-        if request.species_roles:
+        if isinstance(request, RadialRequest) and request.species_roles:
             updated["species_roles"] = dict(request.species_roles)
         integration_runs = result.provenance.get("integration_runs", [])
         if isinstance(integration_runs, list):
@@ -109,6 +104,14 @@ class ResultRepository:
             item: dict[str, object] = dict(entry)
             path = self._path(entry)
             item["available"] = path is not None and path.is_file()
+            if item["available"]:
+                try:
+                    result = self._load_entry(entry)
+                except ConfigurationError:
+                    item["available"] = False
+                else:
+                    item["request"] = result.request
+                    item["method_version"] = result.method_version
             results.append(item)
         return tuple(results)
 
@@ -116,31 +119,43 @@ class ResultRepository:
         for entry in manifest.get("analyses", []):
             if entry.get("analysis_id") != analysis_id:
                 continue
-            path = self._path(entry)
-            if path is None:
-                raise ConfigurationError(
-                    f"Analysis result path is invalid: {analysis_id}",
-                    "Remove the invalid project entry or restore a path inside the project.",
-                )
-            if not path.is_file():
-                raise ConfigurationError(
-                    f"Analysis result file is missing: {analysis_id}",
-                    "Rerun the analysis to create a new saved result.",
-                )
-            try:
-                expected = entry["result_sha256"]
-                if sha256_file(path) != expected:
-                    raise ConfigurationError(
-                        f"Analysis result fingerprint changed: {analysis_id}",
-                        "Restore the committed result or rerun the analysis.",
-                    )
-                value = json.loads(path.read_text(encoding="utf-8"))
-                return AnalysisResult.from_dict(value)
-            except ConfigurationError:
-                raise
-            except (OSError, json.JSONDecodeError, TypeError) as exc:
-                raise ConfigurationError(
-                    f"Could not load analysis result {analysis_id}.",
-                    details={"exception": f"{type(exc).__name__}: {exc}"},
-                ) from exc
+            return self._load_entry(entry)
         raise ConfigurationError(f"Analysis result not found: {analysis_id}")
+
+    def _load_entry(self, entry: dict[str, Any]) -> AnalysisResult:
+        analysis_id = str(entry.get("analysis_id", ""))
+        path = self._path(entry)
+        if path is None:
+            raise ConfigurationError(
+                f"Analysis result path is invalid: {analysis_id}",
+                "Remove the invalid project entry or restore a path inside the project.",
+            )
+        if not path.is_file():
+            raise ConfigurationError(
+                f"Analysis result file is missing: {analysis_id}",
+                "Rerun the analysis to create a new saved result.",
+            )
+        try:
+            if sha256_file(path) != entry["result_sha256"]:
+                raise ConfigurationError(
+                    f"Analysis result fingerprint changed: {analysis_id}",
+                    "Restore the committed result or rerun the analysis.",
+                )
+            value = json.loads(path.read_text(encoding="utf-8"))
+            result = AnalysisResult.from_dict(value)
+            if result.analysis_id != analysis_id:
+                raise ConfigurationError(
+                    f"Analysis result identity does not match its project entry: {analysis_id}"
+                )
+            if result.analysis_type != entry["analysis_type"]:
+                raise ConfigurationError(
+                    f"Analysis result type does not match its project entry: {analysis_id}"
+                )
+            return result
+        except ConfigurationError:
+            raise
+        except (OSError, json.JSONDecodeError, TypeError) as exc:
+            raise ConfigurationError(
+                f"Could not load analysis result {analysis_id}.",
+                details={"exception": f"{type(exc).__name__}: {exc}"},
+            ) from exc

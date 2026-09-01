@@ -6,7 +6,6 @@ import math
 from datetime import datetime
 from typing import Any
 
-from mdhelper.core.analysis import AnalysisRequest
 from mdhelper.core.errors import ConfigurationError, InputError
 from mdhelper.core.plotting import PlotState
 from mdhelper.core.species import validate_species_roles
@@ -16,10 +15,9 @@ _PROJECT_FIELDS = {
     "schema_version", "mdhelper_version", "created_at", "inputs", "species_roles",
     "integration_preferences", "integration_runs", "analyses", "plot",
 }
-_INPUT_FIELDS = {"absolute_path", "relative_path", "sha256"}
+_INPUT_FIELDS = {"path", "sha256"}
 _ANALYSIS_FIELDS = {
-    "analysis_id", "analysis_type", "method_version", "status", "request", "result",
-    "result_sha256", "committed_at",
+    "analysis_id", "analysis_type", "result_sha256", "committed_at",
 }
 _RUN_FIELDS = {
     "name", "display_name", "path", "version", "arguments", "working_directory",
@@ -61,13 +59,11 @@ def _fields(
         )
 
 
-def _string(value: object, field: str, nullable: bool = False) -> None:
-    if value is None and nullable:
-        return
+def _string(value: object, field: str) -> None:
     if not isinstance(value, str) or not value:
-        kind = "a string or null" if nullable else "a non-empty string"
         raise ConfigurationError(
-            f"Project field {field!r} must be {kind}.", details={"field": field}
+            f"Project field {field!r} must be a non-empty string.",
+            details={"field": field},
         )
 
 
@@ -177,17 +173,6 @@ def _integration_run(value: object, field: str) -> None:
         raise ConfigurationError(f"Project field {field + '.status'!r} is invalid.")
 
 
-def _request(value: object, field: str) -> dict[str, Any]:
-    request = _object(value, field)
-    try:
-        return AnalysisRequest.from_dict(request).to_dict()
-    except (ConfigurationError, KeyError, TypeError, ValueError, InputError) as exc:
-        raise ConfigurationError(
-            f"Project field {field!r} is not a valid analysis request.",
-            details={"field": field, "exception": f"{type(exc).__name__}: {exc}"},
-        ) from exc
-
-
 def validate_manifest(value: object) -> dict[str, Any]:
     """Validate a project manifest without third-party schema objects."""
 
@@ -212,8 +197,7 @@ def validate_manifest(value: object) -> dict[str, Any]:
         field = f"inputs.{role}"
         record = _object(raw, field)
         _fields(record, _INPUT_FIELDS, _INPUT_FIELDS, field)
-        _string(record["absolute_path"], f"{field}.absolute_path")
-        _string(record["relative_path"], f"{field}.relative_path", nullable=True)
+        _string(record["path"], f"{field}.path")
         _sha256(record["sha256"], f"{field}.sha256")
     _roles(manifest["species_roles"], "species_roles")
     _integration_preferences(manifest["integration_preferences"])
@@ -228,8 +212,7 @@ def validate_manifest(value: object) -> dict[str, Any]:
         field = f"analyses[{index}]"
         entry = _object(raw, field)
         _fields(entry, _ANALYSIS_FIELDS, _ANALYSIS_FIELDS, field)
-        for name in ("analysis_id", "method_version", "result"):
-            _string(entry[name], f"{field}.{name}")
+        _string(entry["analysis_id"], f"{field}.analysis_id")
         if entry["analysis_id"] in identifiers:
             raise ConfigurationError(
                 f"Project field {field + '.analysis_id'!r} is duplicated."
@@ -237,13 +220,6 @@ def validate_manifest(value: object) -> dict[str, Any]:
         identifiers.add(entry["analysis_id"])
         if entry["analysis_type"] not in {"rdf", "cumulative_rdf", "energy"}:
             raise ConfigurationError(f"Project field {field + '.analysis_type'!r} is invalid.")
-        if entry["status"] != "completed":
-            raise ConfigurationError(f"Project field {field + '.status'!r} must be 'completed'.")
-        entry["request"] = _request(entry["request"], f"{field}.request")
-        if entry["request"]["analysis_type"] != entry["analysis_type"]:
-            raise ConfigurationError(
-                f"Project field {field!r} has inconsistent analysis types."
-            )
         _sha256(entry["result_sha256"], f"{field}.result_sha256")
         _date_time(entry["committed_at"], f"{field}.committed_at")
     return manifest

@@ -12,7 +12,7 @@ from referencing import Registry, Resource
 import mdhelper.project.inputs as input_module
 import mdhelper.project.manifests as manifest_module
 from mdhelper.app import ApplicationService
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.core.analysis import AnalysisResult, EnergyRequest, RadialRequest
 from mdhelper.core.errors import ConfigurationError, InputFileError
 from mdhelper.io.export import export_result
 from mdhelper.project import Project
@@ -35,6 +35,17 @@ def _validate_schema(value: dict[str, object], schema_name: str) -> None:
     ).validate(value)
 
 
+def test_external_request_schema_uses_analysis_specific_fields() -> None:
+    energy = EnergyRequest(
+        analysis_type="energy",
+        energy_file="energy.edr",
+        energy_terms=("Potential",),
+        backend="mdanalysis",
+    )
+
+    _validate_schema(energy.to_dict(), "analysis-request-v1.schema.json")
+
+
 def test_project_result_commit_is_atomic_and_verified(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -43,7 +54,7 @@ def test_project_result_commit_is_atomic_and_verified(
     topology.write_bytes(b"topology")
     trajectory.write_bytes(b"trajectory")
     project = Project.create(tmp_path / "project", topology, trajectory)
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type="rdf",
         topology=str(topology),
         trajectory=str(trajectory),
@@ -59,7 +70,6 @@ def test_project_result_commit_is_atomic_and_verified(
         data={"radius_nm": [0.1], "g_r": [1.0]},
         parameters={},
         units={"radius_nm": "nm", "g_r": "dimensionless"},
-        uncertainty={},
         diagnostics={},
         provenance={
             "input_files": input_files,
@@ -72,10 +82,24 @@ def test_project_result_commit_is_atomic_and_verified(
     )
     result_path = project.commit_result(request, result)
     entry = project.manifest["analyses"][0]
-    stored_path = project.root / entry["result"]
+    stored_path = project.root / "results" / "data" / f"{result.analysis_id}.json"
+    assert set(entry) == {
+        "analysis_id",
+        "analysis_type",
+        "result_sha256",
+        "committed_at",
+    }
     assert result_path.is_file()
     assert stored_path == result_path
-    assert json.loads(stored_path.read_text(encoding="utf-8"))["data"] == result.data
+    stored = json.loads(stored_path.read_text(encoding="utf-8"))
+    assert stored["data"] == result.data
+    _validate_schema(request.to_dict(), "analysis-request-v1.schema.json")
+    _validate_schema(stored, "analysis-result-v1.schema.json")
+    _validate_schema(project.manifest, "project-v1.schema.json")
+    listed = project.list_results()[0]
+    assert listed["available"] is True
+    assert listed["request"] == request.to_dict()
+    assert listed["method_version"] == result.method_version
 
     failed = copy.deepcopy(result)
     failed.analysis_id = str(uuid4())
@@ -99,7 +123,7 @@ def test_project_result_commit_is_atomic_and_verified(
 
 
 def test_export_removes_binary_float_artifacts(tmp_path: Path) -> None:
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type="rdf",
         topology="topology",
         trajectory="trajectory",
@@ -116,7 +140,6 @@ def test_export_removes_binary_float_artifacts(tmp_path: Path) -> None:
         },
         parameters={"r_max_nm": 0.01, "bin_width_nm": 0.002},
         units={"radius_nm": "nm", "g_r": "dimensionless"},
-        uncertainty={},
         diagnostics={},
         provenance={},
         request=request.to_dict(),
@@ -258,7 +281,7 @@ def test_project_accepts_input_without_a_cross_volume_relative_path(
     project = Project.create(tmp_path / "cross-volume", topology, trajectory)
     monkeypatch.setattr(input_module.os.path, "relpath", original_relpath)
 
-    assert project.manifest["inputs"]["topology"]["relative_path"] is None
+    assert Path(project.manifest["inputs"]["topology"]["path"]).is_absolute()
     _validate_schema(project.manifest, "project-v1.schema.json")
     assert Project.open(project.root).resolve_inputs()["topology"] == topology.resolve()
 
@@ -292,37 +315,24 @@ def test_project_open_rejects_invalid_manifest_structure(
         Project.open(project.root, verify_inputs=False)
 
 
-def test_project_open_rejects_unknown_request_fields(tmp_path: Path) -> None:
+def test_project_open_rejects_redundant_analysis_metadata(tmp_path: Path) -> None:
     topology = tmp_path / "topology"
     trajectory = tmp_path / "trajectory"
     topology.write_text("topology", encoding="utf-8")
     trajectory.write_text("trajectory", encoding="utf-8")
     project = Project.create(tmp_path / "invalid-project", topology, trajectory)
 
-    request = AnalysisRequest(
-        analysis_type="rdf",
-        topology=str(topology),
-        trajectory=str(trajectory),
-        reference="resname REF",
-        selection="resname LIGA",
-        r_max_nm=0.5,
-        bin_width_nm=0.005,
-    ).to_dict()
-    request["bins"] = 100
     manifest = json.loads(project.manifest_path.read_text(encoding="utf-8"))
     manifest["analyses"].append(
         {
             "analysis_id": "invalid-analysis",
             "analysis_type": "rdf",
-            "method_version": "1.0.0",
-            "status": "completed",
-            "request": request,
-            "result": "results/data/invalid-analysis.json",
+            "request": {},
             "result_sha256": "0" * 64,
             "committed_at": manifest["created_at"],
         }
     )
     project.manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
-    with pytest.raises(ConfigurationError, match="not a valid analysis request"):
+    with pytest.raises(ConfigurationError, match="unknown members"):
         Project.open(project.root, verify_inputs=False)

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.core.analysis import AnalysisResult, EnergyRequest
 
 
 @pytest.fixture(autouse=True)
@@ -16,11 +16,8 @@ def _isolated_user_config(
 
 @pytest.fixture
 def energy_result() -> AnalysisResult:
-    request = AnalysisRequest(
+    request = EnergyRequest(
         analysis_type="energy",
-        topology="",
-        trajectory="",
-        reference="",
         energy_file="energy.edr",
         energy_terms=("Potential", "Temperature", "Pressure"),
         backend="gromacs",
@@ -37,7 +34,6 @@ def energy_result() -> AnalysisResult:
         },
         parameters={},
         units={"time_ps": "ps", "series": "Value"},
-        uncertainty={},
         diagnostics={},
         provenance={},
         request=request.to_dict(),

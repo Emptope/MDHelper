@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+from mdhelper.core.analysis import AnalysisRequest, RadialRequest
+from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.units import ANGSTROM_SYMBOL, convert_distance
 
 from .base import Report, ReportRows, number, scalar, series
 
 
 class RadialReport(Report):
+    @property
+    def request(self) -> RadialRequest:
+        request = AnalysisRequest.from_dict(self.result.request)
+        if not isinstance(request, RadialRequest):
+            raise ConfigurationError("A radial report requires a radial request.")
+        return request
+
     def radial_configuration_rows(self) -> ReportRows:
         radii = series(self.result.data.get("radius_nm"))
         radius = scalar(self.result.parameters.get("r_max_nm"))

@@ -110,7 +110,7 @@ TUI/CLI 运行期间保持等待并连接标准流。GUI 启动会创建独立�
 
 | 文件 | 工作原理与关系 |
 | --- | --- |
-| `analysis.py` | 定义 `AnalysisRequest`、`AnalysisResult` 及 JSON 转换。请求包含分析类型、输入、选择、显式参数、帧范围、轨迹后端、物种角色和参数决策记录；结果包含方法、数值、诊断和 provenance。契约 schema 版本当前为 1。 |
+| `analysis.py` | 定义共享 `AnalysisRequest` 边界、字段互斥的 `RadialRequest`/`EnergyRequest`、`AnalysisResult` 及 JSON 转换。径向请求保存轨迹、选择和帧参数；Energy 请求只保存 EDR 输入和 term。结果包含方法、数值、诊断和 provenance。契约 schema 版本当前为 1。 |
 | `system.py` | 定义 `Atom`、`Box`、`Frame`、`FrameRange`、`SystemSummary`。`Frame` 是算法逐帧消费的最小对象；`Atom.molecule_id` 是按残基/分子计数的稳定键。当前没有 `MDSystem`、`Molecule` 或 `Species` 实体类。 |
 | `trajectory.py` | 定义 `TrajectorySource` 协议。分析层只要求原子元数据、帧数和帧迭代，不知道 GRO 或 MDAnalysis。 |
 | `selection.py` | 定义选择引擎协议，使 NDX 和 MDAnalysis 选择最终都转换为零基原子索引。 |
@@ -291,10 +291,10 @@ expression 传给 `gmx rdf`。
 
 | 模式 | 行为 |
 | --- | --- |
-| `native` | 强制使用 `GroTrajectorySource`；输入不受支持或解析失败就报错。 |
+| `native` | 强制使用 MDHelper GRO Reader（`GroTrajectorySource`）；输入不受支持或解析失败就报错。 |
 | `mdanalysis` | 强制使用 `MDAnalysisTrajectorySource`。 |
 | `gromacs` | 通过 Integrations 调用本机 `gmx trjconv`，再读取标准化的多帧 GRO。 |
-| `auto` | topology 和 trajectory 都是 GRO 时选择原生后端，否则选择 MDAnalysis。 |
+| `auto` | topology 和 trajectory 都是 GRO 时选择 MDHelper GRO Reader，否则选择 MDAnalysis。 |
 
 `auto` 是确定性选择规则，不是失败后的级联重试。这样可避免同一输入因某后端偶发失败而
 静默切换实现，损害可复现性。
@@ -353,14 +353,14 @@ project-root/
 | --- | --- |
 | `project.py` | `Project` 聚合 manifest、input 和 result 仓库，向应用层提供创建、打开、提交和读取。 |
 | `manifests.py` | 严格校验 `mdhelper-project.json`；记录输入、结果索引和 schema 版本，不迁移旧字段。 |
-| `inputs.py` | 优先解析项目相对输入路径，再尝试原绝对路径；移动后的文件只有 SHA-256 相同才重新关联。 |
-| `results.py` | 验证请求/结果/provenance，写入结果，计算哈希并更新 manifest；读取时检查路径、哈希和契约。 |
+| `inputs.py` | 每个输入只保存一个路径和 SHA-256；可移植时使用项目相对路径，Windows 跨卷无法表示相对路径时使用绝对路径。移动后的文件只有 SHA-256 相同才重新关联。 |
+| `results.py` | 验证请求/结果/provenance，写入结果，计算哈希并更新紧凑 manifest 索引；读取时由 analysis ID 推导结果路径，并检查路径、哈希和契约。 |
 | `schema.py` | 运行时 Python schema 校验器，递归拒绝未知字段、缺失字段和错误类型。 |
 | `storage.py` | JSON 序列化、同目录临时文件和 `os.replace` 原子替换等底层存储原语。 |
 | `__init__.py` | 导出项目公共接口。 |
 
 结果提交顺序是：严格校验请求、结果和输入 provenance；将一份完整结果原子写入
-`results/data/`；计算文件哈希；将路径和哈希加入 manifest 并原子提交。若 manifest
+`results/data/<analysis_id>.json`；计算文件哈希；将 ID、分析类型、提交时间和哈希加入 manifest 并原子提交。manifest 不重复保存 request、method、恒定完成状态和可推导路径。若 manifest
 提交失败，刚创建且未被索引的文件会被删除。
 
 读取时拒绝结果路径逃逸 `results/data/`；每条记录必须带结果哈希，加载时会校验该哈希，

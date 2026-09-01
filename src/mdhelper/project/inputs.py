@@ -6,14 +6,18 @@ import os
 from pathlib import Path
 from typing import Any, TypedDict
 
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.core.analysis import (
+    AnalysisRequest,
+    AnalysisResult,
+    EnergyRequest,
+    RadialRequest,
+)
 from mdhelper.core.errors import ConfigurationError, InputFileError
 from mdhelper.services.provenance import sha256_file
 
 
 class InputRecord(TypedDict):
-    absolute_path: str
-    relative_path: str | None
+    path: str
     sha256: str
 
 
@@ -26,38 +30,35 @@ class InputRepository:
         if not resolved.is_file():
             raise InputFileError(f"Project input does not exist: {resolved}")
         try:
-            relative_path: str | None = os.path.relpath(resolved, self.root)
+            stored_path = os.path.relpath(resolved, self.root)
         except ValueError:
-            relative_path = None
+            stored_path = str(resolved)
         return {
-            "absolute_path": str(resolved),
-            "relative_path": relative_path,
+            "path": stored_path,
             "sha256": sha256_file(resolved),
         }
 
     def resolve(self, record: InputRecord, verify_fingerprint: bool = True) -> Path:
-        candidates: list[Path] = []
-        if record["relative_path"] is not None:
-            candidates.append((self.root / record["relative_path"]).resolve())
-        candidates.append(Path(record["absolute_path"]))
-        mismatched: list[str] = []
-        for candidate in candidates:
-            if not candidate.is_file():
-                continue
-            if verify_fingerprint and sha256_file(candidate) != record["sha256"]:
-                mismatched.append(str(candidate))
-                continue
-            return candidate.resolve()
-        if mismatched:
+        stored = Path(record["path"])
+        candidate = stored if stored.is_absolute() else self.root / stored
+        candidate = candidate.resolve()
+        if candidate.is_file() and (
+            not verify_fingerprint or sha256_file(candidate) == record["sha256"]
+        ):
+            return candidate
+        if candidate.is_file():
             raise InputFileError(
                 "A project input exists but its content fingerprint changed.",
                 "Restore the original file or explicitly relocate the project input.",
-                {"mismatched_paths": mismatched, "expected_sha256": record["sha256"]},
+                {
+                    "path": str(candidate),
+                    "expected_sha256": record["sha256"],
+                },
             )
         raise InputFileError(
             "A project input could not be located.",
             "Move the input next to the project or use project relocation.",
-            {"tried": [str(path) for path in candidates]},
+            {"path": str(candidate)},
         )
 
     def resolve_all(
@@ -83,7 +84,7 @@ class InputRepository:
                 {
                     "expected_sha256": current["sha256"],
                     "selected_sha256": relocated["sha256"],
-                    "selected_path": relocated["absolute_path"],
+                    "selected_path": str(Path(path).expanduser().resolve()),
                 },
             )
         return relocated
@@ -94,16 +95,17 @@ class InputRepository:
         request: AnalysisRequest,
         result: AnalysisResult,
     ) -> dict[str, InputRecord]:
-        if request.analysis_type == "energy":
-            assert request.energy_file is not None
+        if isinstance(request, EnergyRequest):
             requested: dict[str, str] = {"energy": request.energy_file}
-        else:
+        elif isinstance(request, RadialRequest):
             requested = {
                 "topology": request.topology,
                 "trajectory": request.trajectory,
             }
             if request.index_file is not None:
                 requested["index"] = request.index_file
+        else:
+            raise ConfigurationError("Project result has an unsupported request type.")
         provenance_files = result.provenance.get("input_files")
         provenance_hashes = result.provenance.get("input_sha256")
         if not isinstance(provenance_files, dict) or not isinstance(provenance_hashes, dict):

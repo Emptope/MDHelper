@@ -116,16 +116,16 @@ class GroTrajectorySource:
     """Read single- or multi-frame GRO files through the trajectory port."""
 
     backend_name = "native-gro"
-    backend_display_name = "Native GRO"
+    backend_display_name = "MDHelper GRO Reader"
 
     def __init__(self, topology: str | Path, trajectory: str | Path):
         self.topology_path = require_file(topology, "Topology")
         self.trajectory_path = require_file(trajectory, "Trajectory")
         if self.topology_path.suffix.casefold() != ".gro":
-            raise FormatError("The native backend supports GRO topology files only.")
+            raise FormatError("The MDHelper GRO Reader supports GRO topology files only.")
         if self.trajectory_path.suffix.casefold() != ".gro":
             raise FormatError(
-                "The native backend supports single- or multi-frame GRO trajectories only."
+                "The MDHelper GRO Reader supports single- or multi-frame GRO trajectories only."
             )
         with self.topology_path.open("r", encoding="utf-8") as handle:
             parsed = _read_frame(handle, 0)

@@ -8,7 +8,12 @@ from threading import Event
 
 from mdhelper.analysis.common import check_cancel
 from mdhelper.app.context import ApplicationContext
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.core.analysis import (
+    AnalysisRequest,
+    AnalysisResult,
+    EnergyRequest,
+    RadialRequest,
+)
 from mdhelper.core.errors import BackendError, ConfigurationError, FormatError, InputError
 from mdhelper.core.plotting import DEFAULT_PLOT_SCHEME, PlotLimits
 from mdhelper.core.progress import ProgressCallback
@@ -111,13 +116,12 @@ class AnalysisUseCases:
 
     def _run_file_analysis(
         self,
-        request: AnalysisRequest,
+        request: EnergyRequest,
         backend_name: str,
         progress: ProgressCallback | None,
         cancel_event: Event | None,
     ) -> AnalysisResult:
         backend = self.context.analysis_registry.get(request.analysis_type, backend_name)
-        assert request.energy_file is not None
         provenance = input_provenance(
             {"energy": Path(request.energy_file)},
             backend.name,
@@ -161,7 +165,7 @@ class AnalysisUseCases:
     ) -> AnalysisResult:
         request.validate()
         check_cancel(cancel_event)
-        if request.analysis_type == "energy":
+        if isinstance(request, EnergyRequest):
             last_error: BackendError | FormatError | None = None
             for backend_name in self._energy_backend_names(request.backend):
                 try:
@@ -174,6 +178,8 @@ class AnalysisUseCases:
                         raise
             assert last_error is not None
             raise last_error
+        if not isinstance(request, RadialRequest):
+            raise InputError("Trajectory analysis requires a radial request.")
         backend_name = (
             "gromacs"
             if request.backend == "gromacs"

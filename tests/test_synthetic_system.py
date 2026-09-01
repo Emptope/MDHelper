@@ -12,7 +12,7 @@ from mdhelper.analysis import AnalysisRegistry
 from mdhelper.app import ApplicationService
 from mdhelper.backends.gro import GroTrajectorySource
 from mdhelper.cli import main
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
 from mdhelper.core.errors import InputFileError
 from mdhelper.core.plotting import PlotLimits, PlotSelection, PlotState
 from mdhelper.core.progress import ProgressCallback
@@ -98,7 +98,7 @@ def _common(path: Path) -> _Common:
 def test_hand_checkable_rdf_and_coordination(synthetic_path: Path) -> None:
     application = ApplicationService(UserConfig())
     rdf = application.analyses.run(
-        AnalysisRequest(
+        RadialRequest(
             analysis_type="rdf",
             selection="resname LIGA",
             r_max_nm=0.5,
@@ -114,7 +114,7 @@ def test_hand_checkable_rdf_and_coordination(synthetic_path: Path) -> None:
     assert "coordination_number" not in rdf.data
 
     coordination = application.analyses.run(
-        AnalysisRequest(
+        RadialRequest(
             analysis_type="cumulative_rdf",
             selection="resname LIGA",
             r_max_nm=0.5,
@@ -136,7 +136,7 @@ def test_rdf_normalization_matches_gromacs_for_overlapping_selections(
     synthetic_path: Path,
 ) -> None:
     result = ApplicationService(UserConfig()).analyses.run(
-        AnalysisRequest(
+        RadialRequest(
             analysis_type="rdf",
             reference="resname LIGA",
             selection="resname LIGA",
@@ -166,7 +166,7 @@ def test_application_accepts_backend_neutral_trajectory_loader(synthetic_path: P
 
     application = ApplicationService(UserConfig(), trajectory_loader=loader)
     result = application.analyses.run(
-        AnalysisRequest(
+        RadialRequest(
             analysis_type="cumulative_rdf",
             selection="resname LIGA",
             r_max_nm=0.5,
@@ -217,7 +217,6 @@ def test_analysis_algorithm_is_replaceable_behind_application_contract(
             data={"marker": 1},
             parameters={},
             units={"marker": "dimensionless"},
-            uncertainty={},
             diagnostics={},
             provenance=provenance,
             request=request.to_dict(),
@@ -229,7 +228,7 @@ def test_analysis_algorithm_is_replaceable_behind_application_contract(
         trajectory_loader=lambda *_: source,
         analysis_registry=registry,
     )
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type="rdf",
         selection="resname LIGA",
         r_max_nm=0.5,
@@ -245,14 +244,14 @@ def test_project_plot_state_round_trips_all_comparison_controls(
 ) -> None:
     application = ApplicationService(UserConfig())
     common = _common(synthetic_path)
-    rdf_request = AnalysisRequest(
+    rdf_request = RadialRequest(
         analysis_type="rdf",
         selection="resname LIGA",
         r_max_nm=0.5,
         bin_width_nm=0.05,
         **common,
     )
-    cn_request = AnalysisRequest(
+    cn_request = RadialRequest(
         analysis_type="cumulative_rdf",
         selection="resname LIGB",
         r_max_nm=0.5,
@@ -300,7 +299,7 @@ def test_project_commit_binds_result_to_fingerprinted_inputs(
         encoding="utf-8",
     )
     application = ApplicationService(UserConfig())
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type="cumulative_rdf",
         topology=str(changed),
         trajectory=str(changed),
@@ -331,7 +330,7 @@ def test_project_atomically_registers_explicit_index_on_first_commit(
     index = tmp_path / "groups.ndx"
     index.write_text("[ central ]\n1\n[ ligand ]\n2 3\n", encoding="utf-8")
     application = ApplicationService(UserConfig())
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type="cumulative_rdf",
         topology=str(synthetic_path),
         trajectory=str(synthetic_path),

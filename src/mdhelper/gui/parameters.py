@@ -21,7 +21,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from mdhelper.core.analysis import AnalysisRequest, AnalysisType, analysis_label
+from mdhelper.core.analysis import (
+    AnalysisRequest,
+    AnalysisType,
+    Backend,
+    EnergyRequest,
+    RadialRequest,
+    analysis_label,
+)
 from mdhelper.core.errors import InputError
 from mdhelper.core.system import FrameRange
 from mdhelper.gui.choices import choice_enabled
@@ -297,13 +304,11 @@ class ParameterPanel(QGroupBox):
                 self.cn_selection.text(),
             )
         else:
-            request = AnalysisRequest(
+            request = EnergyRequest(
                 analysis_type="energy",
-                reference="",
-                selection=None,
                 energy_file=self.energy_file.edit.text().strip(),
                 energy_terms=self.energy_queue.items(),
-                **common,
+                backend=cast(Backend, common["backend"]),
             )
         request.validate()
         return request
@@ -343,7 +348,7 @@ class ParameterPanel(QGroupBox):
     ) -> AnalysisRequest:
         values = parameters or {}
         if self._analysis_type() == "rdf":
-            request = AnalysisRequest(
+            request = RadialRequest(
                 analysis_type="rdf",
                 reference=reference,
                 selection=selection,
@@ -354,7 +359,7 @@ class ParameterPanel(QGroupBox):
                 **common,
             )
         else:
-            request = AnalysisRequest(
+            request = RadialRequest(
                 analysis_type="cumulative_rdf",
                 reference=reference,
                 selection=selection,
@@ -368,27 +373,31 @@ class ParameterPanel(QGroupBox):
         return request
 
     def apply_request(self, request: AnalysisRequest) -> None:
-        self.start.setValue(request.frames.start)
-        self.stop.setText("" if request.frames.stop is None else str(request.frames.stop))
-        self.stride.setValue(request.frames.stride)
-        if request.analysis_type == "rdf":
-            self._set_analysis("rdf")
+        if isinstance(request, RadialRequest):
+            self.start.setValue(request.frames.start)
+            self.stop.setText(
+                "" if request.frames.stop is None else str(request.frames.stop)
+            )
+            self.stride.setValue(request.frames.stride)
+            self._set_analysis(request.analysis_type)
+        if isinstance(request, RadialRequest) and request.analysis_type == "rdf":
             self.rdf_reference.setText(request.reference)
-            self.rdf_selection.setText(request.selection or "")
+            self.rdf_selection.setText(request.selection)
             self.rdf_max.setValue(request.r_max_nm)
             self.rdf_bin_width.setValue(request.bin_width_nm)
-        elif request.analysis_type == "cumulative_rdf":
-            self._set_analysis("cumulative_rdf")
+        elif isinstance(request, RadialRequest):
             self.cn_reference.setText(request.reference)
-            self.cn_selection.setText(request.selection or "")
+            self.cn_selection.setText(request.selection)
             self.cn_max.setValue(request.r_max_nm)
             self.cn_bin_width.setValue(request.bin_width_nm)
-        else:
+        elif isinstance(request, EnergyRequest):
             self._set_analysis("energy")
-            self.energy_file.edit.setText(request.energy_file or "")
-            self._energy_source = request.energy_file or ""
+            self.energy_file.edit.setText(request.energy_file)
+            self._energy_source = request.energy_file
             self.energy_queue.set_available(())
             self.energy_queue.set_items(request.energy_terms)
+        else:
+            raise InputError("Unknown analysis request type.")
 
     def reset(self) -> None:
         self._set_analysis("rdf")

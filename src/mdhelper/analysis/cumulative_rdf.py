@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from threading import Event
 
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
+from mdhelper.core.errors import InputError
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.services.selection import selection_resolution_record
 
@@ -20,6 +21,8 @@ def run_cumulative_rdf(
     cancel_event: Event | None = None,
     max_pairs_per_chunk: int = 500_000,
 ) -> AnalysisResult:
+    if not isinstance(request, RadialRequest):
+        raise InputError("Cumulative RDF analysis requires a radial request.")
     request.validate()
     profile = radial_profile(
         source,
@@ -48,12 +51,7 @@ def run_cumulative_rdf(
             "cumulative_number": profile.cumulative_number.tolist(),
         },
         parameters={
-            "reference": request.reference,
-            "selection": request.selection,
-            "r_max_nm": request.r_max_nm,
             "bin_width_nm": profile.bin_width_nm,
-            "requested_bin_width_nm": request.bin_width_nm,
-            "frames": request.frames.__dict__,
             "definition": "mean selection atoms within radius per reference atom",
             "pbc": "triclinic minimum image",
             "trajectory_preprocessing": preprocessing_record(),
@@ -62,7 +60,6 @@ def run_cumulative_rdf(
             "radius_nm": "nm",
             "cumulative_number": "count",
         },
-        uncertainty={},
         diagnostics={
             "n_frames": profile.audit.count,
             "selected_frame_time_range": profile.audit.to_dict(),

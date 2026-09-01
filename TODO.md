@@ -11,8 +11,8 @@
 
 ## 已完成
 
-- [x] [Feature] RDF Result 删除 g(r) minimum
-- [x] [Performance] MDAnalysis Backend 分析 RDF/CN 速度显著慢于 gmx ，查找原因并优化
+- [x] [BugFix] 目前 Load 页中的 Backend 选项的 Native 和 MDAnalysis 有什么区别？如果没有区别的话使用 MDAnalysis 的话，合并为 MDAnalysis。
+- [x] [Feature] 目前的 schemas 太过冗余，精简设计。
 
 ## 完成标准（每轮改动后需重新确认）
 

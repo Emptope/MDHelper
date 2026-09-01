@@ -13,7 +13,7 @@ from typing import Any
 
 from mdhelper.app import ApplicationService
 from mdhelper.cli.output import write_json
-from mdhelper.core.analysis import AnalysisRequest
+from mdhelper.core.analysis import AnalysisRequest, EnergyRequest, RadialRequest
 from mdhelper.core.errors import ConfigurationError, InputError
 from mdhelper.core.system import FrameRange
 from mdhelper.project import Project
@@ -64,15 +64,11 @@ def _request(
     species_roles: dict[str, str],
 ) -> AnalysisRequest:
     if args.command == "energy":
-        return AnalysisRequest(
+        return EnergyRequest(
             analysis_type="energy",
-            topology=topology,
-            trajectory=trajectory,
-            reference="",
             energy_file=args.energy_file,
             energy_terms=tuple(args.term),
             backend=args.backend,
-            species_roles=species_roles,
         )
     common: dict[str, Any] = {
         "topology": topology,
@@ -83,7 +79,7 @@ def _request(
         "species_roles": species_roles,
     }
     if args.command == "rdf":
-        return AnalysisRequest(
+        return RadialRequest(
             analysis_type="rdf",
             reference=args.reference,
             selection=args.selection,
@@ -92,7 +88,7 @@ def _request(
             **common,
         )
     if args.command == "cn":
-        return AnalysisRequest(
+        return RadialRequest(
             analysis_type="cumulative_rdf",
             reference=args.reference,
             selection=args.selection,
@@ -204,15 +200,24 @@ def handle(args: argparse.Namespace, app: ApplicationService) -> int:
         if args.project:
             project = app.projects.open(args.project)
             inputs = project.resolve_inputs()
-            replacement: dict[str, Any] = {
-                "topology": str(inputs["topology"]),
-                "trajectory": str(inputs["trajectory"]),
-            }
-            if request.index_file is not None and "index" in inputs:
-                replacement["index_file"] = str(inputs["index"])
-            species_roles = dict(project.manifest.get("species_roles", {}))
-            species_roles.update(request.species_roles)
-            replacement["species_roles"] = species_roles
+            replacement: dict[str, Any] = {}
+            if isinstance(request, EnergyRequest):
+                if "energy" in inputs:
+                    replacement["energy_file"] = str(inputs["energy"])
+            elif isinstance(request, RadialRequest):
+                replacement.update(
+                    {
+                        "topology": str(inputs["topology"]),
+                        "trajectory": str(inputs["trajectory"]),
+                    }
+                )
+                if request.index_file is not None and "index" in inputs:
+                    replacement["index_file"] = str(inputs["index"])
+                species_roles = dict(project.manifest.get("species_roles", {}))
+                species_roles.update(request.species_roles)
+                replacement["species_roles"] = species_roles
+            else:
+                raise ConfigurationError("Unknown analysis request type.")
             request = replace(request, **replacement)
         return _run(
             app, request, args.output, not args.no_figures, args.json_progress, project

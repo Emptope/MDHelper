@@ -17,11 +17,18 @@ from mdhelper.analysis.common import (
     selected_frame_count,
 )
 from mdhelper.analysis.radial import first_shell, first_shell_warnings
-from mdhelper.core.analysis import AnalysisResult
+from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import BackendError, FormatError
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.plugins.analysis import AnalysisInput
 from mdhelper.services.selection import resolve_selections, selection_resolution_record
+
+
+def _request(inputs: AnalysisInput) -> RadialRequest:
+    request = inputs.request
+    if not isinstance(request, RadialRequest):
+        raise BackendError("The GROMACS RDF backend requires a radial request.")
+    return request
 
 METHOD_VERSION = "1.0.0"
 
@@ -49,7 +56,8 @@ def _audit_frames(
     audit = FrameAudit()
     times: list[float] = []
     indices: list[int] = []
-    for frame in source.iter_frames(inputs.request.frames):
+    request = _request(inputs)
+    for frame in source.iter_frames(request.frames):
         check_cancel(inputs.cancel_event)
         audit.observe(frame)
         times.append(frame.time_ps)
@@ -57,7 +65,7 @@ def _audit_frames(
         report_progress(
             inputs.progress,
             audit.count,
-            selected_frame_count(source.n_frames, inputs.request.frames),
+            selected_frame_count(source.n_frames, request.frames),
             f"Selecting GROMACS RDF frame {frame.index}",
         )
     return audit, tuple(times), tuple(indices)
@@ -70,11 +78,12 @@ def _audit_bounds(
     n_frames = source.n_frames
     if n_frames is None:
         return _audit_frames(source, inputs)
-    count = selected_frame_count(n_frames, inputs.request.frames)
+    request = _request(inputs)
+    count = selected_frame_count(n_frames, request.frames)
     assert count is not None
     if count == 0:
         raise BackendError("The selected GROMACS RDF frame range is empty.")
-    frame_range = inputs.request.frames
+    frame_range = request.frames
     stop = n_frames if frame_range.stop is None else min(frame_range.stop, n_frames)
     indices = tuple(range(frame_range.start, stop, frame_range.stride))
     first_index = indices[0]
@@ -107,7 +116,7 @@ def _frame_args(
     inputs: AnalysisInput,
     times: tuple[float, ...],
 ) -> list[str] | None:
-    frame_range = inputs.request.frames
+    frame_range = _request(inputs).frames
     arguments = [
         "-f",
         str(source.trajectory_path),
@@ -176,7 +185,7 @@ def _selection_records(
     source: TrajectorySource,
     inputs: AnalysisInput,
 ) -> tuple[dict[str, object], int | None, int | None, int | None]:
-    request = inputs.request
+    request = _request(inputs)
     if request.index_file is None:
         records: dict[str, object] = {
             "reference": {
@@ -215,7 +224,7 @@ class GmxRdf:
     needs_trajectory = True
 
     def run(self, inputs: AnalysisInput) -> AnalysisResult:
-        request = inputs.request
+        request = _request(inputs)
         request.validate()
         if inputs.source is None:
             raise BackendError("The GROMACS RDF backend requires trajectory metadata.")
@@ -341,12 +350,7 @@ class GmxRdf:
         integration_runs.append(record.to_dict())
         provenance["integration_runs"] = integration_runs
         common_parameters = {
-            "reference": request.reference,
-            "selection": request.selection,
-            "r_max_nm": request.r_max_nm,
             "bin_width_nm": actual_width,
-            "requested_bin_width_nm": request.bin_width_nm,
-            "frames": request.frames.__dict__,
             "pbc": "GROMACS gmx rdf default periodic handling",
             "trajectory_preprocessing": {
                 "source": (
@@ -394,7 +398,6 @@ class GmxRdf:
             data=data,
             parameters=parameters,
             units=units,
-            uncertainty={},
             diagnostics=diagnostics,
             provenance=provenance,
             request=request.to_dict(),

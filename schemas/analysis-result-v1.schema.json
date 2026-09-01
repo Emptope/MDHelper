@@ -9,7 +9,6 @@
     "data",
     "parameters",
     "units",
-    "uncertainty",
     "diagnostics",
     "provenance",
     "request",
@@ -17,15 +16,13 @@
     "analysis_id",
     "created_at",
     "method_version",
-    "schema_version",
-    "status"
+    "schema_version"
   ],
   "properties": {
     "analysis_type": {"enum": ["rdf", "cumulative_rdf", "energy"]},
     "data": {"type": "object"},
     "parameters": {"type": "object"},
     "units": {"type": "object", "additionalProperties": {"type": "string"}},
-    "uncertainty": {"type": "object"},
     "diagnostics": {"type": "object"},
     "provenance": {"type": "object"},
     "request": {"$ref": "analysis-request-v1.schema.json"},
@@ -33,7 +30,6 @@
     "analysis_id": {"type": "string", "minLength": 1},
     "created_at": {"type": "string", "format": "date-time"},
     "method_version": {"type": "string", "minLength": 1},
-    "schema_version": {"const": 1},
-    "status": {"const": "completed"}
+    "schema_version": {"const": 1}
   }
 }

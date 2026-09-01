@@ -8,7 +8,7 @@ import pytest
 
 from mdhelper.analysis.energy import MdaEnergy, parse_energy_terms
 from mdhelper.app import ApplicationService
-from mdhelper.core.analysis import AnalysisRequest
+from mdhelper.core.analysis import EnergyRequest, RadialRequest
 from mdhelper.core.errors import BackendError, FormatError
 from mdhelper.core.plotting import result_plot
 from mdhelper.core.system import FrameRange
@@ -105,11 +105,8 @@ def test_gromacs_energy_backend_standardizes_exports_and_project_data(
     energy = tmp_path / "energy.edr"
     energy.write_bytes(b"energy")
     application = _application(tmp_path)
-    request = AnalysisRequest(
+    request = EnergyRequest(
         analysis_type="energy",
-        topology="",
-        trajectory="",
-        reference="",
         energy_file=str(energy),
         energy_terms=("Potential", "Temperature"),
         backend="gromacs",
@@ -147,11 +144,8 @@ def test_gromacs_energy_backend_standardizes_exports_and_project_data(
         tmp_path / "energy.mdhelper", topology, trajectory
     )
     result_path = application.projects.commit_result(project, request, result)
-    entry = project.manifest["analyses"][0]
-    stored_path = project.root / entry["result"]
     assert result_path.parent == project.root / "results" / "data"
-    assert stored_path == result_path
-    assert stored_path.is_file()
+    assert result_path.is_file()
     reopened = application.projects.open(project.root)
     assert application.projects.load_result(reopened, result.analysis_id).data == result.data
 
@@ -185,11 +179,8 @@ def test_auto_energy_backend_falls_back_to_available_gromacs(
         raise BackendError("MDAnalysis EDR support is unavailable.")
 
     monkeypatch.setattr(MdaEnergy, "run", unavailable)
-    request = AnalysisRequest(
+    request = EnergyRequest(
         analysis_type="energy",
-        topology="",
-        trajectory="",
-        reference="",
         energy_file=str(energy),
         energy_terms=("Potential", "Temperature"),
         backend="auto",
@@ -212,11 +203,8 @@ def test_mdanalysis_reads_terms_and_selected_series_from_edr() -> None:
 
     assert terms[:4] == ("Bond", "Angle", "Ryckaert-Bell.", "Fourier Dih.")
     assert "Time" not in terms
-    request = AnalysisRequest(
+    request = EnergyRequest(
         analysis_type="energy",
-        topology="",
-        trajectory="",
-        reference="",
         energy_file=str(energy),
         energy_terms=("Potential", "Total Energy"),
         backend="mdanalysis",
@@ -240,11 +228,8 @@ def test_mdanalysis_reads_terms_and_selected_series_from_edr() -> None:
 
 def test_mdanalysis_energy_rejects_a_term_absent_from_the_edr() -> None:
     energy = Path("examples/LiFSI_DME_OPLS_0.8_small/md.edr").resolve()
-    request = AnalysisRequest(
+    request = EnergyRequest(
         analysis_type="energy",
-        topology="",
-        trajectory="",
-        reference="",
         energy_file=str(energy),
         energy_terms=("Not a term",),
         backend="mdanalysis",
@@ -301,7 +286,7 @@ def test_gmx_rdf_uses_native_commands_and_frame_range(
     )
     application = _application(tmp_path)
     progress: list[tuple[int, int | None, str]] = []
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type=analysis_type,  # type: ignore[arg-type]
         topology=str(synthetic_path),
         trajectory=str(synthetic_path),
@@ -329,7 +314,7 @@ def test_gmx_rdf_uses_native_commands_and_frame_range(
     }
     assert result.provenance["trajectory_backend"] == {
         "name": "native-gro",
-        "display_name": "Native GRO",
+        "display_name": "MDHelper GRO Reader",
     }
     runs = result.provenance["integration_runs"]
     assert [run["arguments"][0] for run in runs] == ["trjconv", "rdf"]
@@ -365,7 +350,7 @@ def test_gmx_rdf_reads_original_inputs_without_trjconv(tmp_path: Path) -> None:
         encoding="ascii",
     )
     result = _application(tmp_path).analyses.run(
-        AnalysisRequest(
+        RadialRequest(
             analysis_type="rdf",
             topology=str(trajectory),
             trajectory=str(trajectory),

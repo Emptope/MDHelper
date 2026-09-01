@@ -9,7 +9,7 @@ from threading import Event
 import numpy as np
 from numpy.typing import NDArray
 
-from mdhelper.core.analysis import AnalysisRequest
+from mdhelper.core.analysis import RadialRequest
 from mdhelper.core.errors import InputError
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.services.selection import resolve_selections
@@ -48,7 +48,7 @@ class RadialGrid:
     cumulative_radius_nm: NDArray[np.float64]
 
 
-def radial_grid(request: AnalysisRequest) -> RadialGrid:
+def radial_grid(request: RadialRequest) -> RadialGrid:
     """Build the shared half-width histogram and radial output grids."""
 
     width = request.bin_width_nm
@@ -237,7 +237,7 @@ def first_shell_warnings(shell: dict[str, object]) -> list[str]:
 
 def radial_profile(
     source: TrajectorySource,
-    request: AnalysisRequest,
+    request: RadialRequest,
     progress_name: str,
     progress: ProgressCallback | None = None,
     cancel_event: Event | None = None,

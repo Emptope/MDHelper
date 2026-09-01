@@ -140,7 +140,7 @@ class MDAnalysisTrajectorySource:
         except ImportError as exc:
             raise BackendError(
                 "MDAnalysis is not installed, so this trajectory format cannot be read.",
-                "Run 'uv sync'; use the native backend for GRO-only analysis.",
+                "Run 'uv sync'; use the MDHelper GRO Reader for GRO-only analysis.",
             ) from exc
         try:
             cache = (

@@ -5,7 +5,7 @@ from dataclasses import replace
 import pytest
 from matplotlib import pyplot as plt
 
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.plotting import (
     PLOT_SCHEMES,
@@ -22,7 +22,7 @@ plt.switch_backend("Agg")
 
 
 def _result(reference: str = "A", selection: str = "B") -> AnalysisResult:
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type="rdf",
         topology="topology",
         trajectory="trajectory",
@@ -37,7 +37,6 @@ def _result(reference: str = "A", selection: str = "B") -> AnalysisResult:
         },
         parameters={},
         units={},
-        uncertainty={},
         diagnostics={},
         provenance={},
         request=request.to_dict(),
@@ -45,7 +44,7 @@ def _result(reference: str = "A", selection: str = "B") -> AnalysisResult:
 
 
 def _cumulative_rdf_result() -> AnalysisResult:
-    request = AnalysisRequest(
+    request = RadialRequest(
         analysis_type="cumulative_rdf",
         topology="topology",
         trajectory="trajectory",
@@ -60,7 +59,6 @@ def _cumulative_rdf_result() -> AnalysisResult:
         },
         parameters={},
         units={},
-        uncertainty={},
         diagnostics={},
         provenance={},
         request=request.to_dict(),

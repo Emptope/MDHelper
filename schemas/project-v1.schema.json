@@ -93,20 +93,12 @@
         "required": [
           "analysis_id",
           "analysis_type",
-          "method_version",
-          "status",
-          "request",
-          "result",
           "result_sha256",
           "committed_at"
         ],
         "properties": {
           "analysis_id": {"type": "string", "minLength": 1},
           "analysis_type": {"enum": ["rdf", "cumulative_rdf", "energy"]},
-          "method_version": {"type": "string", "minLength": 1},
-          "status": {"const": "completed"},
-          "request": {"$ref": "analysis-request-v1.schema.json"},
-          "result": {"type": "string", "minLength": 1},
           "result_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
           "committed_at": {"type": "string", "format": "date-time"}
         }
@@ -130,13 +122,12 @@
     "input": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["absolute_path", "relative_path", "sha256"],
+      "required": ["path", "sha256"],
       "properties": {
-        "absolute_path": {"type": "string", "minLength": 1},
-        "relative_path": {
-          "type": ["string", "null"],
+        "path": {
+          "type": "string",
           "minLength": 1,
-          "description": "Portable path relative to the project, or null across Windows volumes."
+          "description": "Relative when portable, otherwise absolute across Windows volumes."
         },
         "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
       }
@@ -145,12 +136,13 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "name", "path", "version", "arguments", "working_directory",
+        "name", "display_name", "path", "version", "arguments", "working_directory",
         "environment_summary", "exit_code", "stdout", "stderr", "started_at",
         "output_fingerprints", "elapsed_seconds", "status"
       ],
       "properties": {
         "name": {"type": "string", "minLength": 1},
+        "display_name": {"type": "string", "minLength": 1},
         "path": {"type": "string", "minLength": 1},
         "version": {"type": "string", "minLength": 1},
         "arguments": {"type": "array", "items": {"type": "string"}},

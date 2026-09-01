@@ -351,7 +351,7 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
     assert window.load.inputs.topology.edit.text() == str(trajectory.resolve())
     assert window.load.inputs.trajectory.edit.text() == str(trajectory_input.resolve())
     assert window.load.inputs.index_file.edit.text() == str(index_input.resolve())
-    assert window.load.inputs.backend.currentText() == "auto"
+    assert window.load.inputs.backend.currentText() == "Auto"
     assert not window.results.text.toPlainText()
     assert inspections == [True]
     project = window.application.projects.create(tmp_path / "saved-project", trajectory, trajectory)

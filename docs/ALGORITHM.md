@@ -51,7 +51,7 @@ anything else                  -> error
 `auto` does not retry with MDAnalysis after a native parse error. Provenance records the reader
 that was actually used.
 
-The native reader validates both paths and extensions, builds atom metadata from the topology's
+The MDHelper GRO Reader validates both paths and extensions, builds atom metadata from the topology's
 first frame, scans the trajectory to count and validate frames, and then streams requested frames
 during analysis. Atom identity at each index must remain constant. Three box values produce a
 diagonal matrix; nine values are reordered according to the GRO format.
@@ -272,15 +272,18 @@ Input files are SHA-256 hashed in 4 MiB chunks. Provenance records package/runti
 platform, byte order, actual reader, input paths and hashes, configuration source, role decisions,
 and parameter decisions.
 
-Project manifests, nested requests, plot state, and results use strict schema-1 parsing. Unknown
-or missing fields fail; 0.1.0 does not migrate development-era request names or plot states.
+Project manifests, analysis-specific requests, plot state, and results use strict schema-1 parsing.
+Radial requests contain trajectory, selection, and sampling fields; Energy requests contain only
+the EDR path and selected terms. Unknown or missing fields fail; 0.1.0 does not migrate
+development-era request names or plot states.
 Project input relocation is accepted only when the content hash is unchanged.
 
-Result commit validates the embedded request, input fingerprints, IDs, and paths; writes one full
-result under `results/data/`; hashes that file; and then atomically commits the manifest. If manifest
-commit fails, the new unindexed file is removed.
-Every manifest result entry requires that hash. Loading checks path containment, file existence,
-content identity, and the strict result contract in that order.
+Result commit validates the embedded request, input fingerprints, and ID; writes one full result
+under `results/data/<analysis_id>.json`; hashes that file; and then atomically commits the manifest.
+If manifest commit fails, the new unindexed file is removed. Every compact manifest result entry
+requires the ID, analysis type, commit time, and hash; it does not duplicate the request, method,
+constant completion state, or derived path. Loading checks path containment, file existence,
+content identity, result-entry identity, and the strict result contract.
 JSON and TOML atomic writes use a same-directory temporary file and `os.replace`.
 
 ## 12. External tools, configuration, and tasks
@@ -304,7 +307,7 @@ memory but does not itself guarantee cancellation latency within a very large fr
 | Operation | Worst-case time | Main additional memory |
 | --- | --- | --- |
 | RDF/cumulative RDF | worst-case `O(F * N_R * N_S)`; local cells reduce candidates | `O(N_R + N_S + M + B)` |
-| Native GRO scan | `O(F * N_atoms)` | one frame |
+| MDHelper GRO Reader scan | `O(F * N_atoms)` | one frame |
 | File fingerprint | input bytes | 4 MiB |
 
 Any algorithm change must preserve or explicitly revise formulas, units, endpoint inclusion,

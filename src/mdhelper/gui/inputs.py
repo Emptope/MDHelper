@@ -5,7 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QComboBox, QFormLayout, QGroupBox, QLabel, QWidget
 
-from mdhelper.core.analysis import AnalysisRequest
+from mdhelper.core.analysis import AnalysisRequest, RadialRequest
 from mdhelper.core.errors import InputError
 from mdhelper.core.trajectory import TOPOLOGY_SUFFIXES, TRAJECTORY_SUFFIXES
 from mdhelper.gui.choices import choice_enabled, set_choice_enabled
@@ -40,8 +40,8 @@ class InputPanel(QGroupBox):
         self.index_summary.setWordWrap(True)
         self.index_summary.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.backend = QComboBox()
-        self.backend.addItem("auto", "auto")
-        self.backend.addItem("native", "native")
+        self.backend.addItem("Auto", "auto")
+        self.backend.addItem("MDHelper GRO Reader", "native")
         self.backend.addItem("MDAnalysis", "mdanalysis")
         self.backend.addItem("GROMACS (local gmx)", "gromacs")
         form.addRow("Topology", self.topology)
@@ -98,10 +98,11 @@ class InputPanel(QGroupBox):
         self.backend.setItemText(index, "GROMACS (local gmx) - Checking...")
 
     def apply_request(self, request: AnalysisRequest) -> None:
-        self.topology.edit.setText(request.topology)
-        self.trajectory.edit.setText(request.trajectory)
-        self.index_file.edit.setText(request.index_file or "")
-        self.selection_source.setCurrentIndex(0 if request.index_file else 1)
+        if isinstance(request, RadialRequest):
+            self.topology.edit.setText(request.topology)
+            self.trajectory.edit.setText(request.trajectory)
+            self.index_file.edit.setText(request.index_file or "")
+            self.selection_source.setCurrentIndex(0 if request.index_file else 1)
         self.set_backend(request.backend)
 
     def set_index_groups(self, groups: dict[str, int]) -> None:
