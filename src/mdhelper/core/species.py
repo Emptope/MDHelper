@@ -108,6 +108,17 @@ class SpeciesRoleSuggestion:
             "available": self.available,
         }
 
+    def provenance_dict(self) -> dict[str, Any]:
+        """Return only per-species facts needed to audit a role choice."""
+        self.validate()
+        evidence = dict(self.evidence)
+        evidence.pop("charge_tolerance_e", None)
+        return {
+            "suggested_role": self.suggested_role,
+            "confidence": self.confidence,
+            "evidence": evidence,
+        }
+
 
 def role_decision(
     selected_role: str,
@@ -120,16 +131,7 @@ def role_decision(
     suggestion.validate()
     if not isinstance(source, str) or not source.strip():
         raise InputError("A role decision requires a non-empty source.")
-    decision = (
-        "accepted"
-        if suggestion.available and selected_role == suggestion.suggested_role
-        else "overridden"
-        if suggestion.available
-        else "confirmed_without_suggestion"
-    )
     return {
-        "decision": decision,
-        "selected_role": selected_role,
         "source": source,
-        "suggestion": suggestion.to_dict(),
+        **suggestion.provenance_dict(),
     }

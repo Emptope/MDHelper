@@ -284,8 +284,8 @@ numeric collision rules as the GUI.
 - Species-role suggestions are explainable metadata and always require confirmation. They never
   change selections, cutoffs, or numerical algorithms.
 - First-shell detection is a post-analysis diagnostic. It never changes a curve.
-- Requests, results, input files, backend decisions, software versions, selections, and frame
-  audits are recorded for provenance.
+- Requests retain user decisions once. Result provenance records resolved inputs, backend and
+  software versions, integration runs, and content fingerprints without copying request metadata.
 
 Read [Known limitations](docs/KNOWN_LIMITATIONS.md) before interpreting production results.
 

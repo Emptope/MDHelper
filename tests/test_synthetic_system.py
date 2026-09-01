@@ -219,6 +219,8 @@ def test_native_and_mdanalysis_radial_pipelines_are_distinct_and_consistent(
 
     assert native.provenance["analysis_backend"]["name"] == "native"
     assert mda.provenance["analysis_backend"]["name"] == "mdanalysis"
+    assert "parameter_decisions" not in native.provenance
+    assert "species_mapping" not in native.provenance
     assert native.data["g_r"] == pytest.approx(mda.data["g_r"], abs=1e-5)
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.metadata
+import json
 import platform
 import sys
 from collections.abc import Callable
@@ -13,6 +14,18 @@ from typing import Any
 
 from mdhelper.core.errors import InputFileError, TaskCancelled
 from mdhelper.version import __version__
+
+
+def unique_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Remove identical records while preserving their first-seen order."""
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for record in records:
+        key = json.dumps(record, sort_keys=True, separators=(",", ":"))
+        if key not in seen:
+            seen.add(key)
+            result.append(record)
+    return result
 
 
 def sha256_file(
@@ -60,8 +73,6 @@ def analysis_provenance(
     trajectory: Path,
     configuration_sources: dict[str, str] | None = None,
     additional_inputs: dict[str, Path] | None = None,
-    species_roles: dict[str, str] | None = None,
-    parameter_provenance: dict[str, Any] | None = None,
     cancel_event: Event | None = None,
     progress: Callable[[int, int | None, str], None] | None = None,
     fingerprint_inputs: bool = True,
@@ -71,8 +82,6 @@ def analysis_provenance(
     return input_provenance(
         inputs,
         configuration_sources,
-        species_roles,
-        parameter_provenance,
         cancel_event,
         progress,
         fingerprint_inputs,
@@ -82,8 +91,6 @@ def analysis_provenance(
 def input_provenance(
     inputs: dict[str, Path],
     configuration_sources: dict[str, str] | None = None,
-    species_roles: dict[str, str] | None = None,
-    parameter_provenance: dict[str, Any] | None = None,
     cancel_event: Event | None = None,
     progress: Callable[[int, int | None, str], None] | None = None,
     fingerprint_inputs: bool = True,
@@ -103,11 +110,6 @@ def input_provenance(
         "backend_versions": dependency_versions(),
         "input_files": input_files,
         "configuration_sources": configuration_sources or {},
-        "species_mapping": {
-            "status": "confirmed" if species_roles else "not_provided",
-            "roles": dict(sorted((species_roles or {}).items())),
-        },
-        "parameter_decisions": parameter_provenance or {},
         "byte_order": sys.byteorder,
     }
     if fingerprint_inputs:

@@ -11,6 +11,7 @@ import mdhelper.bootstrap.windows_console as windows_console
 from mdhelper.app import ApplicationService
 from mdhelper.app.reports import result_summary
 from mdhelper.core.analysis import AnalysisResult
+from mdhelper.core.species import role_decision
 from mdhelper.core.system import FrameRange
 from mdhelper.gui.main import tui_command
 from mdhelper.integrations.models import IntegrationStatus
@@ -928,11 +929,7 @@ def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(tmp_path: Path) -> None
     tui.workspace.summary = summary
     tui.workspace.roles = dict.fromkeys(summary.species, "other")
     tui.workspace.role_decisions = {
-        species: {
-            "decision": "confirmed_without_suggestion",
-            "selected_role": "other",
-            "suggestion": suggestion.to_dict(),
-        }
+        species: role_decision("other", suggestion, "test")
         for species, suggestion in summary.role_suggestions.items()
     }
     draft = AnalysisDraft(
@@ -1047,11 +1044,7 @@ def test_tui_radial_queue_runs_without_review(tmp_path: Path) -> None:
     tui.workspace.summary = summary
     tui.workspace.roles = dict.fromkeys(summary.species, "other")
     tui.workspace.role_decisions = {
-        species: {
-            "decision": "confirmed_without_suggestion",
-            "selected_role": "other",
-            "suggestion": suggestion.to_dict(),
-        }
+        species: role_decision("other", suggestion, "test")
         for species, suggestion in summary.role_suggestions.items()
     }
     draft = AnalysisDraft(

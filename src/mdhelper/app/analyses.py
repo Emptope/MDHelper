@@ -29,7 +29,6 @@ from mdhelper.core.errors import (
 )
 from mdhelper.core.plotting import DEFAULT_PLOT_SCHEME, PlotLimits, PlotModel, PlotSize
 from mdhelper.core.progress import ProgressCallback
-from mdhelper.core.species import role_decision, role_policy
 from mdhelper.core.system import FrameRange
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.io.export import (
@@ -40,7 +39,7 @@ from mdhelper.io.export import (
 )
 from mdhelper.plugins.analysis import AnalysisInput, BackendAdapter, BackendQuery
 from mdhelper.services.provenance import analysis_provenance, input_provenance
-from mdhelper.services.system import summarize_source, trajectory_cache
+from mdhelper.services.system import trajectory_cache
 
 
 class AnalysisUseCases:
@@ -225,7 +224,6 @@ class AnalysisUseCases:
                 "user_config": str(self.context.config_file),
                 "analysis_backend": "analysis_request",
             },
-            parameter_provenance=request.parameter_provenance,
             cancel_event=cancel_event,
             progress=progress,
             fingerprint_inputs=backend.fingerprints_inputs(request),
@@ -291,7 +289,6 @@ class AnalysisUseCases:
             )
         check_cancel(cancel_event)
         unmapped_species: list[str] = []
-        decisions: dict[str, object] = {}
         if source is not None:
             system_species = {atom.residue_name for atom in source.atoms}
             unknown_species = sorted(set(request.species_roles) - system_species)
@@ -302,11 +299,6 @@ class AnalysisUseCases:
                     {"unknown_species": unknown_species},
                 )
             unmapped_species = sorted(system_species - set(request.species_roles))
-            suggestions = summarize_source(source).role_suggestions
-            decisions = {
-                species: role_decision(role, suggestions[species], "analysis_request")
-                for species, role in request.species_roles.items()
-            }
         provenance = analysis_provenance(
             (
                 source.topology_path
@@ -325,8 +317,6 @@ class AnalysisUseCases:
             additional_inputs=(
                 {"index": Path(request.index_file)} if request.index_file else None
             ),
-            species_roles=request.species_roles,
-            parameter_provenance=request.parameter_provenance,
             cancel_event=cancel_event,
             progress=progress,
             fingerprint_inputs=backend.fingerprints_inputs(request),
@@ -335,16 +325,6 @@ class AnalysisUseCases:
             "name": backend.name,
             "display_name": backend.display_name,
         }
-        provenance["species_mapping"]["status"] = (
-            "not_provided"
-            if not request.species_roles
-            else "partial"
-            if unmapped_species
-            else "confirmed"
-        )
-        provenance["species_mapping"]["unmapped_species"] = unmapped_species
-        provenance["species_mapping"]["decisions"] = decisions
-        provenance["species_mapping"]["policy"] = role_policy()
         integration_run = getattr(source, "integration_run", None)
         if isinstance(integration_run, dict):
             provenance["integration_runs"] = [integration_run]

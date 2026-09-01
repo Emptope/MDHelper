@@ -272,11 +272,9 @@ class MainWindow(QMainWindow):
             project = self.session.project
             existing_roles = project.manifest.get("species_roles", {}) if project else {}
             self.role_provenance = {
-                species: {
-                    "decision": "loaded_from_project",
-                    "selected_role": role,
-                    "suggestion": summary.role_suggestions[species].to_dict(),
-                }
+                species: role_decision(
+                    role, summary.role_suggestions[species], "project_manifest"
+                )
                 for species, role in existing_roles.items()
                 if species in summary.role_suggestions
             }

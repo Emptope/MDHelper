@@ -117,9 +117,28 @@ def test_species_role_suggestions_use_topology_evidence_not_names() -> None:
         "numerical algorithms",
     ]
     assert serialized["role_definitions"]["solvent"]
-    assert role_decision(
-        "other", summary.role_suggestions["alpha"], "test"
-    )["decision"] == "overridden"
+    decision = role_decision("other", summary.role_suggestions["alpha"], "test")
+    assert decision == {
+        "source": "test",
+        "suggested_role": "cation",
+        "confidence": "high",
+        "evidence": {
+            "molecule_count": 1,
+            "atoms_per_molecule": [1],
+            "complete_topology_charges": True,
+            "molecule_charge_range_e": [1.0, 1.0],
+            "mean_molecule_charge_e": 1.0,
+        },
+    }
+    assert not {
+        "available",
+        "candidates",
+        "decision",
+        "method",
+        "reason",
+        "requires_user_confirmation",
+        "selected_role",
+    } & set(decision)
 
 
 def test_mdanalysis_xdr_offsets_are_stored_in_cache(tmp_path: Path) -> None:

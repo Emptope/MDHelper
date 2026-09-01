@@ -15,22 +15,24 @@ solvent from an additive or another neutral component, so the evidence and ambig
 Missing charges, mixed molecular charge signs, and tied neutral populations produce an unavailable
 suggestion with candidate roles and a reason instead of a guessed value.
 
-Every suggestion has a method, evidence, confidence, candidate roles, a reason, and
-`requires_user_confirmation = true`. The CLI user confirms roles with a structured
+The inspection summary exposes each suggestion's method, evidence, confidence, candidate roles,
+reason, and confirmation requirement. The CLI user confirms roles with a structured
 `--roles '{LI: cation, SOL: solvent}'` mapping. The GUI shows the same suggestions, requires
 confirmation, and keeps
-every role editable. Interactive accepted and overridden decisions enter request parameter
-provenance, and every frontend receives a normalized decision record in result provenance.
+every role editable. Request parameter provenance stores only the choice source and per-species
+suggestion facts that cannot be recovered from the selected role. The selected role itself has a
+single source in `request.species_roles`; result provenance does not copy it.
 Confirmed roles are stored in the project manifest; `mdhelper project set-roles` can replace that
 mapping without changing machine-local configuration.
 
 Roles have one deliberately narrow effect: they preserve descriptive chemical context in project
-metadata, analysis provenance, and later result interpretation. They never generate or replace an
+metadata and later result interpretation. They never generate or replace an
 atom selection, choose a cutoff or radial grid, select an algorithm, or alter a numerical result.
 `inspect` publishes this policy together with definitions for every allowed role so CLI, TUI, and
-GUI users see the same contract. During an analysis, every supplied role is paired with the current
-topology-derived suggestion and recorded as accepted, overridden, or confirmed without an
-available suggestion. This makes direct CLI requests as auditable as interactive confirmation.
+GUI users see the same contract. Stored request evidence omits the global candidate vocabulary,
+constant confirmation flag, derivable availability and decision labels, repeated selected role,
+and fixed charge tolerance. This keeps direct CLI requests auditable without duplicating static or
+derivable data.
 
 The GUI exposes suggestion evidence in a full review dialog rather than a transient tooltip. Batch
 application still asks for confirmation and only fills available suggestions; unavailable or

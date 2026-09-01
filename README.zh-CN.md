@@ -257,7 +257,8 @@ TUI 的 RDF 与 CN 设置会把首次 group 选择直接作为有序任务队列
 - 基础结果不估计平衡时间、自相关、收敛性、不确定度或标准误。
 - 物种角色建议是可解释且需要确认的元数据，不会改变选择、cutoff 或数值算法。
 - 第一配位壳检测是分析后的诊断，不会改变曲线。
-- 请求、结果、输入文件、后端决策、软件版本、选择和帧审计都会写入 provenance。
+- 请求只保留一份用户决策。结果 provenance 记录实际输入、backend、软件版本、integration
+  runs 和内容指纹，不复制 request metadata。
 
 使用生产数据前请阅读[已知限制](docs/KNOWN_LIMITATIONS.zh-CN.md)。
 

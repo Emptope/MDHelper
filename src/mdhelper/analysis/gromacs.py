@@ -33,6 +33,7 @@ from mdhelper.integrations.gromacs import (
 from mdhelper.integrations.manager import IntegrationManager
 from mdhelper.integrations.models import IntegrationRunRecord
 from mdhelper.plugins.analysis import AnalysisInput, BackendQuery
+from mdhelper.services.provenance import unique_records
 from mdhelper.services.selection import resolve_selections, selection_resolution_record
 
 from .energy import _GromacsEnergy
@@ -466,7 +467,7 @@ class GromacsBackend:
         if conversion_record is not None:
             integration_runs.append(conversion_record.to_dict())
         integration_runs.append(record.to_dict())
-        provenance["integration_runs"] = integration_runs
+        provenance["integration_runs"] = unique_records(integration_runs)
         common_parameters = {
             "bin_width_nm": actual_width,
             "pbc": "GROMACS gmx rdf default periodic handling",

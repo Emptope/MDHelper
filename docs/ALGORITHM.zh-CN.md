@@ -444,9 +444,10 @@ otherwise                         -> unavailable
 - 并列最大或非最大中性 species 都不自动决定角色；
 - 候选角色仍包含 solvent、additive、polymer、surface、other 等供用户确认。
 
-每条建议记录 molecule count、atoms-per-molecule 取值、charge 是否完整、charge range、mean
-charge、方法、理由、置信度和候选角色。确认结果进入 request/provenance，但角色不改变
-原子选择、半径、bin 或数值公式。
+inspection summary 显示 molecule count、atoms-per-molecule 取值、charge 是否完整、charge
+range、mean charge、方法、理由、置信度和候选角色。持久化 request 只保留选择来源、建议角色、
+置信度和逐 species 证据；最终角色只存于 `request.species_roles`，不复制到 result provenance。
+角色不改变原子选择、半径、bin 或数值公式。
 
 ## 11. 绘图构造算法
 

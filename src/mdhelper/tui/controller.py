@@ -229,11 +229,7 @@ class Tui:
             for name, role in self.workspace.roles.items():
                 self.workspace.role_decisions.setdefault(
                     name,
-                    {
-                        "decision": "loaded_from_project",
-                        "selected_role": role,
-                        "suggestion": summary.role_suggestions[name].to_dict(),
-                    },
+                    role_decision(role, summary.role_suggestions[name], "project_manifest"),
                 )
         self.terminal.rule("System inspection")
         self.terminal.write(summary_text(summary))

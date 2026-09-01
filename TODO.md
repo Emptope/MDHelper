@@ -11,14 +11,7 @@
 
 ## 已完成
 
-- [x] [UI] TUI 主菜单删除冗余 Current inputs 状态。
-- [x] [BugFix] TUI 分析运行删除全部 Review setup 和二次确认。
-- [x] [BugFix] TUI 径向分析首次选择自动加入任务队列。
-- [x] [Feature] 同类多序列合并图使用固定分析名和数字编号。
-- [x] [BugFix] TUI RDF/CN 队列按显式分析类型逐项执行，Run task queue 不再二次确认。
-- [x] [BugFix] TUI 径向任务队列提供完整的 Add task 编辑流程。
-- [x] [Feature] TUI RDF/CN 实现一个类似 GUI 的任务队列，并且目前 RDF+CN 导出的图片中，没有类似 GUI "Save Plot" 的合并绘制图片。
-- [x] [Feature] TUI Energy terms 以横纵列表方式列出，不要全部纵向列出。
+- [x] [BugFix] 去除结果 provenance 中重复的参数决策和 integration run 记录。
 
 ## 完成标准（每轮改动后需重新确认）
 

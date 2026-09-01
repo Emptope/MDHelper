@@ -21,6 +21,7 @@ from mdhelper.core.plotting import (
     draw_plot,
     results_plots,
 )
+from mdhelper.services.provenance import unique_records
 from mdhelper.services.run_streams import (
     externalize_run_streams,
     remove_run_streams,
@@ -351,6 +352,7 @@ def export_result(
             if len(records) != len(raw_runs):
                 raise BackendError("Integration runs must be objects before export.")
             if records:
+                records = unique_records(records)
                 stored, stream_paths = externalize_run_streams(records, output, "run")
                 provenance["integration_runs"] = stored
     try:
