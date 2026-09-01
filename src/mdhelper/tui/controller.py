@@ -582,7 +582,7 @@ class Tui:
             minimum=0,
             allow_empty=True,
         )
-        stride = self.terminal.integer("Frame stride", draft.frames.stride, minimum=1)
+        stride = self.terminal.integer("Frame stride (frames)", draft.frames.stride, minimum=1)
         assert start is not None and stride is not None
         frames = FrameRange(start, stop, stride)
         frames.validate()

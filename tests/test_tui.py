@@ -749,6 +749,7 @@ def test_tui_setup_runs_shared_analysis(tmp_path: Path) -> None:
     assert "Review Cumulative Coordination Number (CN) setup" in text
     assert "[Groups]" in text
     assert "[Frames]" in text
+    assert "every 1 frames" in text
     assert "[Parameters]" in text
     assert "Bin width:" in text
     assert "Analysis completed" in text

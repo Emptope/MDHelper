@@ -138,7 +138,8 @@ def setup_panel(draft: AnalysisDraft, workspace: Workspace) -> str:
             (
                 "",
                 "[Frames]",
-                f"  Range:         {frames.start} to {stop} (exclusive), every {frames.stride}",
+                f"  Range:         {frames.start} to {stop} (exclusive), "
+                f"every {frames.stride} frames",
                 "",
                 "[Parameters]",
             )

@@ -278,7 +278,7 @@ frame handling 与 computation，并必须进入 provenance。同一次尝试禁
 
 - `native` 固定使用 Native GRO reader、NDX selection 和 Native 径向算法；
 - `mdanalysis` 固定使用 MDAnalysis reader、selection、frame handling、distance 与 Energy；
-- `gromacs` 默认把原输入直接传给 `gmx rdf`，仅 cumulative RDF 添加 `-cn`；有限抽样范围只用一次 `gmx trjconv -fr`，并使用 GROMACS selection 与 `gmx energy`；
+- `gromacs` 默认把原输入直接传给 `gmx rdf`，仅 cumulative RDF 添加 `-cn`；非默认范围只用一次 `gmx trjconv -fr`，开放结束位置先用 `gmx check` 获取帧数，并使用 GROMACS selection 与 `gmx energy`；
 - `auto` 按 adapter 声明的优先级选择完整策略；source 加载失败时可尝试下一条完整策略；
 - 显式 Backend 不 fallback；一次尝试内不混用；
 - 所有 Backend 都输出统一的 nm、ps 与结果契约。

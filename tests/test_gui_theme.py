@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -642,6 +643,7 @@ def test_frame_controls_use_exclusive_gui_stop_and_round_trip_requests() -> None
 
     assert "First frame (0-based)" in labels
     assert "Stop frame (exclusive)" in labels
+    assert "Stride (frames)" in labels
     assert "Uncertainty block (frames)" not in labels
     panel.start.setValue(2)
     panel.stop.setText("7")
@@ -1035,11 +1037,7 @@ def test_gui_export_includes_every_visible_result_and_current_plot(
 
     window._export_result()
 
-    assert {path.name for path in tmp_path.glob("plot.*")} == {
-        "plot.png",
-        "plot.svg",
-        "plot.pdf",
-    }
+    assert not tuple(tmp_path.glob("plot.*"))
     outputs = (
         tmp_path / "rdf-A-B",
         tmp_path / "rdf-A-C",
@@ -1048,13 +1046,42 @@ def test_gui_export_includes_every_visible_result_and_current_plot(
         assert {path.name for path in output.iterdir()} == {
             "result.json",
             "rdf.csv",
+            f"{output.name}.png",
+            f"{output.name}.svg",
+            f"{output.name}.pdf",
         }
-    assert "Exported comparison" in (tmp_path / "plot.svg").read_text(encoding="utf-8")
-    image = QImage(str(tmp_path / "plot.png"))
+        assert "Exported comparison" in (output / f"{output.name}.svg").read_text(
+            encoding="utf-8"
+        )
+    image = QImage(str(outputs[0] / "rdf-A-B.png"))
     assert image.width() / image.height() == pytest.approx(
         display_width / display_height,
         abs=0.001,
     )
+    window.close()
+
+
+def test_gui_save_plot_exports_each_plot_window_to_separate_files(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    energy_result: AnalysisResult,
+) -> None:
+    window = MainWindow()
+    window.results.show_result(energy_result)
+    window.session.project = SimpleNamespace(root=tmp_path)  # type: ignore[assignment]
+    window.session.result = energy_result
+    monkeypatch.setattr(QMessageBox, "information", lambda *_args, **_kwargs: None)
+
+    window._save_project_figures()
+
+    output = tmp_path / "figures"
+    assert {path.name for path in output.iterdir()} == {
+        f"energy-{term}.{suffix}"
+        for term in ("Potential", "Temperature", "Pressure")
+        for suffix in ("png", "svg", "pdf")
+    }
+    for title in ("Potential", "Temperature", "Pressure"):
+        assert title in (output / f"energy-{title}.svg").read_text(encoding="utf-8")
     window.close()
 
 
@@ -1088,7 +1115,13 @@ def test_gui_exports_each_energy_curve_to_its_own_directory(
 
     for term in ("Potential", "Temperature", "Pressure"):
         output = tmp_path / f"energy-{term}"
-        assert {path.name for path in output.iterdir()} == {"result.json", "energy.csv"}
+        assert {path.name for path in output.iterdir()} == {
+            "result.json",
+            "energy.csv",
+            f"energy-{term}.png",
+            f"energy-{term}.svg",
+            f"energy-{term}.pdf",
+        }
         assert (output / "energy.csv").read_text(encoding="utf-8").splitlines()[0] == (
             f"time_ps,{term}"
         )

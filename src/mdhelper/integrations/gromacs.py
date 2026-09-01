@@ -11,6 +11,7 @@ from mdhelper.integrations.models import IntegrationAdapter
 _FRAME_PROGRESS = re.compile(
     r"(?i)(?:reading|last)\s+frame\s+(\d+)\s+time\s+([-+0-9.eE]+)"
 )
+_LAST_FRAME = re.compile(r"(?i)last\s+frame\s+(\d+)\s+time\s+[-+0-9.eE]+")
 _ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
@@ -41,6 +42,11 @@ def frame_progresses(stdout: str, stderr: str) -> tuple[tuple[int, float], ...]:
 def frame_progress(stdout: str, stderr: str) -> tuple[int, float] | None:
     values = frame_progresses(stdout, stderr)
     return values[-1] if values else None
+
+
+def frame_count(stdout: str, stderr: str) -> int | None:
+    matches = tuple(_LAST_FRAME.finditer(f"{stdout}\n{stderr}"))
+    return int(matches[-1].group(1)) + 1 if matches else None
 
 
 class GromacsAdapter(IntegrationAdapter):

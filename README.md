@@ -129,7 +129,8 @@ Add terms from the available list to the ordered analysis queue; no comma-separa
 required.
 
 All radial analysis commands also accept `--start`, `--stop`, `--stride`,
-`--analysis-backend`, and `--figures false`.
+`--analysis-backend`, and `--figures false`. `stride` is measured in frames; for example, `10`
+selects every tenth frame relative to `start`.
 
 ## Analyses
 
@@ -156,9 +157,10 @@ Backend is an analysis-pipeline choice, not a file-reader choice:
 Native accepts single- or multi-frame GRO topology/trajectory pairs and requires an NDX file.
 MDAnalysis supports `.tpr` or `.gro` topology with `.xtc` or `.trr` trajectories. Format
 compatibility depends on the selected pipeline's installed software. The GROMACS pipeline passes
-the original topology and trajectory directly to `gmx rdf` for the default full frame range. An
-explicit finite sampled frame range uses `gmx trjconv -fr` once to materialize the exact zero-based
-indices as a temporary XTC while `gmx rdf` keeps the original topology.
+the original topology and trajectory directly to `gmx rdf` for the default full frame range. A
+non-default frame range uses `gmx trjconv -fr` once to materialize the exact zero-based indices as
+a temporary XTC while `gmx rdf` keeps the original topology. An open-ended non-default range first
+uses `gmx check` to read the frame count without expanding the trajectory.
 
 GROMACS maps a structure/topology and an XTC trajectory by atom index. The XTC supplies the
 ordered coordinates, atom count, step, time, and box; atom and residue metadata come from the
@@ -247,13 +249,15 @@ with separate Y axes, edit legends and colors, set explicit axis limits, save pl
 and restore saved project results. Each selected GROMACS energy term uses a separate plot by
 default, with one plot per window. Select energy rows in **Plot series** and use **Combine** to draw
 them on shared axes in one window; **Separate** restores individual plot windows. These groups are
-marked as `Combined` in the Plot column and preserved in project plot state and figure
-exports.
+marked as `Combined` in the Plot column and preserved in project plot state and figure exports.
+**Save Plot** writes every open plot directly under the project's `figures` directory. File stems
+use the same readable naming rules as Export directories, such as `rdf-A-B` and
+`energy-Potential`; no plot subdirectories are created.
 
-GUI multi-result exports use readable directories such as `rdf-A-B` and `cn-A-B`. Energy exports
-create one directory per curve, such as `energy-Potential`; 46 selected terms therefore create 46
-bounded names instead of one concatenated name. Unsafe characters are replaced, names are capped
-at 120 characters, and numeric suffixes prevent collisions.
+GUI exports use readable directories such as `rdf-A-B` and `cn-A-B`. Energy exports create one
+directory per curve, such as `energy-Potential`; each directory contains its result data and its
+separate PNG/SVG/PDF plot rather than a combined plot at the export root. Unsafe characters are
+replaced, names are capped at 120 characters, and numeric suffixes prevent collisions.
 
 The TUI analysis menu also provides **RDF + CN Combined Plot**. It reuses one radial setup for both
 analyses, keeps their raw exports separate, and writes one combined PNG/SVG/PDF figure set.
@@ -292,8 +296,8 @@ uv run mdhelper templates list
 The Analysis Settings Backend selector offers GROMACS only after the user explicitly runs GROMACS
 detection under Integrations in the current session or saves a configured executable path. The
 displayed choice is enabled only after that executable passes capability detection. GROMACS RDF/CN
-requires `rdf`; sampled frame subsets additionally require `trjconv`. GROMACS Energy requires
-`energy`.
+requires `rdf`; frame subsets additionally require `trjconv`, and open-ended subsets require
+`check`. GROMACS Energy requires `energy`.
 Energy remains available through Auto or MDAnalysis without GROMACS. Load and system inspection do
 not expose this selector and do not change when an analysis backend changes.
 

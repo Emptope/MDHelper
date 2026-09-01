@@ -72,10 +72,39 @@ def preprocessing_record() -> dict[str, str]:
 
 
 def selected_frame_count(n_frames: int | None, frame_range: FrameRange) -> int | None:
-    if n_frames is None:
+    if n_frames is None and frame_range.stop is None:
         return None
-    stop = n_frames if frame_range.stop is None else min(frame_range.stop, n_frames)
+    if n_frames is None:
+        stop = frame_range.stop
+    else:
+        stop = n_frames if frame_range.stop is None else min(frame_range.stop, n_frames)
+    assert stop is not None
     return len(range(frame_range.start, stop, frame_range.stride))
+
+
+def validate_frame_selection(
+    n_frames: int | None,
+    frame_range: FrameRange,
+) -> int | None:
+    count = selected_frame_count(n_frames, frame_range)
+    if count is None:
+        return None
+    stop = frame_range.stop
+    if n_frames is not None:
+        stop = n_frames if stop is None else min(stop, n_frames)
+    assert stop is not None
+    available = max(0, stop - frame_range.start)
+    if available > 1 and count == 1:
+        raise InputError(
+            "The frame stride selects only one frame from a multi-frame range.",
+            "Reduce the stride or explicitly select a one-frame range.",
+            {
+                "available_frames": available,
+                "selected_frames": count,
+                "stride_frames": frame_range.stride,
+            },
+        )
+    return count
 
 
 def report_progress(

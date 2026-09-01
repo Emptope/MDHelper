@@ -49,7 +49,11 @@
 
 ### 2.3 帧范围
 
-`FrameRange(start, stop, stride)` 使用零基索引，`start` 包含而 `stop` 不包含：
+`FrameRange(start, stop, stride)` 使用零基索引，`start` 包含而 `stop` 不包含；`stride` 的单位
+是帧。
+
+若范围内原本有多个可用帧，而 stride 最终只保留一帧，程序会拒绝该请求；显式单帧范围
+仍然有效。
 
 ```text
 start, start + stride, start + 2 * stride, ... < stop
@@ -80,8 +84,8 @@ gromacs    -> GROMACS input processing + GROMACS selection + RDF/CN or Energy
 ```
 
 Auto 按优先级排列可用完整策略。径向请求只有在 GRO/GRO 加 NDX 时才先考虑 Native，随后
-是 MDAnalysis，再随后是具备 `rdf` capability 的 GROMACS；抽样 GROMACS 帧子集额外需要
-`trjconv`。Energy 先考虑
+是 MDAnalysis，再随后是具备 `rdf` capability 的 GROMACS；GROMACS 帧子集额外需要
+`trjconv`，开放结束位置的子集还需要 `check`。Energy 先考虑
 MDAnalysis，再考虑具备 `energy` capability 的 GROMACS。source 加载错误可以进入下一条
 完整策略；显式请求不 fallback；同一次尝试不会组合不同 Backend 的组件。独立体系检查仍
 使用 reader-only Auto：GRO/GRO 选择 Native，其他输入选择 MDAnalysis。provenance 记录解析
@@ -348,16 +352,16 @@ N_k = (sum_(j=0..k) H_j) / N_ref_obs
 
 显式 `gromacs` request 不用上述公式作为曲线数据源。默认 `0:end:1` 范围把所选 topology
 和 trajectory 直接传给一次 `gmx rdf`。RDF request 只使用 `-o`；cumulative RDF request
-额外使用 `-cn`，并保留 RDF 输出供共同的第一壳层诊断使用。有限非默认范围把零基帧索引
+额外使用 `-cn`，并保留 RDF 输出供共同的第一壳层诊断使用。非默认范围把零基帧索引
 转换为一次 `gmx trjconv -fr` 接受的一基 NDX 条目，生成精确 XTC
-子集，`gmx rdf -s` 仍使用原 topology。开放结束位置的非默认范围可能先读取 GROMACS
-trajectory metadata，再构造原生命令范围参数。`-dt` 按绝对时间网格取样，Python stride
+子集，`gmx rdf -s` 仍使用原 topology。开放结束位置的非默认范围先用 `gmx check` 获取
+帧数，不把完整轨迹展开为另一种坐标格式。`-dt` 按绝对时间网格取样，Python stride
 按相对 `start` 的索引取样，因此两者不能互换。
 
 request 的 `bin_width_nm`、`r_max_nm` 分别传给 `-bin`、`-rmax`。该分支的 pair selection、
 PBC、grid endpoint、RDF normalization 和 cumulative integration 均由 GROMACS 决定。
 MDHelper 严格解析两列有限数值且 radius 递增的 XVG，映射成 `radius_nm` 与 `g_r` 或
-`cumulative_number`，应用共同的第一壳层诊断；需要转换时同时记录 conversion 与 `rdf`
+`cumulative_number`，应用共同的第一壳层诊断；记录全部 metadata inspection、conversion 与 `rdf`
 Integration run。程序不重算或替换曲线。
 
 ## 9. 第一配位壳诊断

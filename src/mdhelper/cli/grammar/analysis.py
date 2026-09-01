@@ -13,7 +13,7 @@ from .common import add_inputs, add_output, command
 def _add_frames(parser: ArgumentParser) -> None:
     parser.add_argument("--start", type=int, default=0, help="First zero-based frame.")
     parser.add_argument("--stop", type=int, help="Exclusive zero-based frame stop.")
-    parser.add_argument("--stride", type=int, default=1, help="Frame stride.")
+    parser.add_argument("--stride", type=int, default=1, help="Frame stride in frames.")
 
 
 def _add_radial(parser: ArgumentParser) -> None:

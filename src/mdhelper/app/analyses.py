@@ -22,11 +22,16 @@ from mdhelper.core.errors import (
     MDHelperError,
     TaskCancelled,
 )
-from mdhelper.core.plotting import DEFAULT_PLOT_SCHEME, PlotLimits, PlotSize
+from mdhelper.core.plotting import DEFAULT_PLOT_SCHEME, PlotLimits, PlotModel, PlotSize
 from mdhelper.core.progress import ProgressCallback
 from mdhelper.core.species import role_decision, role_policy
 from mdhelper.core.trajectory import TrajectorySource
-from mdhelper.io.export import export_comparison_figures, export_figures, export_result
+from mdhelper.io.export import (
+    export_comparison_figures,
+    export_figures,
+    export_plot_model,
+    export_result,
+)
 from mdhelper.plugins.analysis import AnalysisInput, BackendAdapter, BackendQuery
 from mdhelper.services.provenance import analysis_provenance, input_provenance
 from mdhelper.services.system import summarize_source, trajectory_cache
@@ -85,6 +90,17 @@ class AnalysisUseCases:
             limits,
             size,
         )
+
+    def export_plot_model(
+        self,
+        model: PlotModel,
+        output_directory: str | Path,
+        stem: str,
+        scheme: str = DEFAULT_PLOT_SCHEME,
+        limits: PlotLimits | None = None,
+        size: PlotSize | None = None,
+    ) -> list[Path]:
+        return export_plot_model(model, output_directory, stem, scheme, limits, size)
 
     def energy_terms(
         self,

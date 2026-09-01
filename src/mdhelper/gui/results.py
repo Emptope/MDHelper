@@ -313,6 +313,19 @@ class ResultPanel(QWidget):
     def plot_titles(self) -> tuple[str | None, ...]:
         return tuple(item[5] or None for item in self._visible_series())
 
+    def plot_models(self) -> tuple[PlotModel, ...]:
+        visible = self._visible_series()
+        if not visible:
+            return ()
+        return results_plots(
+            tuple(item[0] for item in visible),
+            tuple(item[1] for item in visible),
+            tuple(item[2] for item in visible),
+            tuple(item[3] or None for item in visible),
+            tuple(item[4] or None for item in visible),
+            tuple(item[5] or None for item in visible),
+        )
+
     def plot_scheme(self) -> str:
         return str(self.color_scheme.currentData())
 
@@ -322,6 +335,12 @@ class ResultPanel(QWidget):
     def plot_size(self) -> PlotSize:
         width, height = self.figure.get_size_inches()
         return PlotSize(float(width), float(height))
+
+    def plot_sizes(self) -> tuple[PlotSize, ...]:
+        return tuple(
+            PlotSize(*(float(value) for value in window.figure.get_size_inches()))
+            for window in self.plot_windows
+        )
 
     def plot_state(self) -> PlotState:
         selections: list[PlotSelection] = []
@@ -817,16 +836,7 @@ class ResultPanel(QWidget):
     def _redraw(self, _item: QTableWidgetItem | None = None) -> None:
         visible = self._visible_series()
         windows_open = any(window.isVisible() for window in self._plot_windows)
-        models: tuple[PlotModel, ...] = ()
-        if visible:
-            models = results_plots(
-                tuple(item[0] for item in visible),
-                tuple(item[1] for item in visible),
-                tuple(item[2] for item in visible),
-                tuple(item[3] or None for item in visible),
-                tuple(item[4] or None for item in visible),
-                tuple(item[5] or None for item in visible),
-            )
+        models = self.plot_models()
         self._plot_rows = tuple(
             tuple(visible[source][6] for source in model.source_indices)
             for model in models

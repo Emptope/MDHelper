@@ -11,6 +11,8 @@ from mdhelper.core.analysis import (
     EnergyRequest,
     RadialRequest,
 )
+from mdhelper.core.errors import ConfigurationError
+from mdhelper.core.plotting import PlotModel, results_plots
 
 _NAME_LIMIT = 120
 
@@ -18,6 +20,13 @@ _NAME_LIMIT = 120
 @dataclass(frozen=True)
 class ResultExport:
     result: AnalysisResult
+    name: str
+
+
+@dataclass(frozen=True)
+class PlotExport:
+    model: PlotModel
+    items: tuple[ResultExport, ...]
     name: str
 
 
@@ -56,6 +65,55 @@ def result_exports(result: AnalysisResult) -> tuple[ResultExport, ...]:
             items.append(ResultExport(item_result, _safe_name(("energy", term))))
         return tuple(items)
     return (ResultExport(result, _safe_name((result.analysis_type,))),)
+
+
+def _selected_export(result: AnalysisResult, series_key: str | None) -> ResultExport:
+    items = result_exports(result)
+    if series_key is None and len(items) == 1:
+        return items[0]
+    for item in items:
+        request = AnalysisRequest.from_dict(item.result.request)
+        if isinstance(request, EnergyRequest) and request.energy_terms == (series_key,):
+            return item
+    raise ConfigurationError("A plotted result series has no matching export item.")
+
+
+def _unique_name(name: str, reserved: set[str]) -> str:
+    candidate = name
+    number = 2
+    while candidate in reserved:
+        suffix = f"-{number}"
+        candidate = f"{name[: _NAME_LIMIT - len(suffix)].rstrip(' ._-')}{suffix}"
+        number += 1
+    reserved.add(candidate)
+    return candidate
+
+
+def plot_exports(
+    results: tuple[AnalysisResult, ...],
+    series_keys: tuple[str | None, ...] | None = None,
+    models: tuple[PlotModel, ...] | None = None,
+) -> tuple[PlotExport, ...]:
+    """Bind each displayed plot to readable names and source export items."""
+
+    if series_keys is not None and len(series_keys) != len(results):
+        raise ConfigurationError("Plot series keys must match the number of results.")
+    plotted = results_plots(results) if models is None else models
+    plans: list[PlotExport] = []
+    reserved: set[str] = set()
+    for model in plotted:
+        items: list[ResultExport] = []
+        seen: set[tuple[str, str]] = set()
+        for index in model.source_indices:
+            series_key = None if series_keys is None else series_keys[index]
+            item = _selected_export(results[index], series_key)
+            key = (item.result.analysis_id, item.name)
+            if key not in seen:
+                seen.add(key)
+                items.append(item)
+        name = _safe_name(tuple(item.name for item in items))
+        plans.append(PlotExport(model, tuple(items), _unique_name(name, reserved)))
+    return tuple(plans)
 
 
 def export_directories(

@@ -309,7 +309,7 @@ class ParameterPanel(QGroupBox):
         grid.addWidget(self.start, 0, 1)
         grid.addWidget(QLabel("Stop frame (exclusive)"), 0, 2)
         grid.addWidget(self.stop, 0, 3)
-        grid.addWidget(QLabel("Stride"), 1, 0)
+        grid.addWidget(QLabel("Stride (frames)"), 1, 0)
         grid.addWidget(self.stride, 1, 1)
         grid.setColumnStretch(1, 1)
         grid.setColumnStretch(3, 1)

@@ -7,11 +7,11 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from mdhelper.analysis.common import selected_frame_count
+from mdhelper.analysis.common import selected_frame_count, validate_frame_selection
 from mdhelper.backends.gro import GroTrajectorySource
 from mdhelper.backends.mdanalysis import MDAnalysisTrajectorySource
 from mdhelper.backends.trajectory import load_trajectory
-from mdhelper.core.errors import FormatError, TopologyError, TrajectoryError
+from mdhelper.core.errors import FormatError, InputError, TopologyError, TrajectoryError
 from mdhelper.core.species import role_decision
 from mdhelper.core.system import Atom, FrameRange
 from mdhelper.services.system import summarize_source
@@ -29,6 +29,9 @@ def test_frame_range_uses_python_stop_semantics(tmp_path: Path) -> None:
     assert [frame.index for frame in source.iter_frames(FrameRange())] == [0, 1]
     assert selected_frame_count(2, FrameRange(stop=1)) == 1
     assert selected_frame_count(2, FrameRange(stop=20, stride=2)) == 1
+    assert validate_frame_selection(2, FrameRange(stop=1)) == 1
+    with pytest.raises(InputError, match="selects only one frame"):
+        validate_frame_selection(101, FrameRange(stride=1_000_000_000))
     with pytest.raises(TrajectoryError, match="produced no frames"):
         list(source.iter_frames(FrameRange(start=1, stop=1)))
 

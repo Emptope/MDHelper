@@ -16,6 +16,7 @@ from mdhelper.core.plotting import (
     DEFAULT_PLOT_SCHEME,
     DEFAULT_PLOT_SIZE,
     PlotLimits,
+    PlotModel,
     PlotSize,
     draw_plot,
     results_plots,
@@ -26,6 +27,16 @@ from mdhelper.services.run_streams import (
 )
 
 EXPORT_SIGNIFICANT_DIGITS = 15
+_FIGURE_STYLE = {
+    "font.family": "sans-serif",
+    "font.size": 10.0,
+    "axes.labelsize": 10.0,
+    "axes.titlesize": 12.0,
+    "xtick.labelsize": 9.0,
+    "ytick.labelsize": 9.0,
+    "savefig.facecolor": "white",
+    "savefig.edgecolor": "white",
+}
 
 
 def _clean_number(value: float) -> float:
@@ -148,6 +159,41 @@ def _safe_stem(value: str) -> str:
     return stem.strip("._") or "analysis"
 
 
+def _load_pyplot() -> Any:
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError as exc:
+        raise BackendError("Matplotlib is required for figure export.") from exc
+    return plt
+
+
+def _save_figure(figure: Any, output: Path, filename: str) -> list[Path]:
+    paths: list[Path] = []
+    temporary: Path | None = None
+    try:
+        for suffix in ("png", "svg", "pdf"):
+            path = output / f"{filename}.{suffix}"
+            temporary = path.with_name(f".{path.name}.tmp")
+            figure.savefig(
+                temporary,
+                dpi=300 if suffix == "png" else None,
+                format=suffix,
+            )
+            os.replace(temporary, path)
+            paths.append(path)
+    except OSError as exc:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+        raise BackendError(
+            f"Could not export analysis figure to {output}.",
+            details={"exception": f"{type(exc).__name__}: {exc}"},
+        ) from exc
+    return paths
+
+
 def _write_figures(
     results: Sequence[AnalysisResult],
     output: Path,
@@ -161,27 +207,9 @@ def _write_figures(
     limits: PlotLimits | None = None,
     size: PlotSize | None = None,
 ) -> list[Path]:
-    try:
-        import matplotlib
-
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-    except ImportError as exc:
-        raise BackendError("Matplotlib is required for figure export.") from exc
-    paths: list[Path] = []
-    temporary: Path | None = None
+    plt = _load_pyplot()
     filename = _safe_stem(results[0].analysis_type if stem is None else stem)
-    style = {
-        "font.family": "sans-serif",
-        "font.size": 10.0,
-        "axes.labelsize": 10.0,
-        "axes.titlesize": 12.0,
-        "xtick.labelsize": 9.0,
-        "ytick.labelsize": 9.0,
-        "savefig.facecolor": "white",
-        "savefig.edgecolor": "white",
-    }
-    with plt.rc_context(style):  # type: ignore[arg-type]
+    with plt.rc_context(_FIGURE_STYLE):
         models = results_plots(
             results,
             labels,
@@ -202,26 +230,9 @@ def _write_figures(
             axis.set_facecolor("white")
             draw_plot(axis, model, scheme, limits)
         try:
-            for suffix in ("png", "svg", "pdf"):
-                path = output / f"{filename}.{suffix}"
-                temporary = path.with_name(f".{path.name}.tmp")
-                figure.savefig(
-                    temporary,
-                    dpi=300 if suffix == "png" else None,
-                    format=suffix,
-                )
-                os.replace(temporary, path)
-                paths.append(path)
-        except OSError as exc:
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
-            raise BackendError(
-                f"Could not export analysis figure to {output}.",
-                details={"exception": f"{type(exc).__name__}: {exc}"},
-            ) from exc
+            return _save_figure(figure, output, filename)
         finally:
             plt.close(figure)
-    return paths
 
 
 def _output_directory(path: str | Path) -> Path:
@@ -287,6 +298,35 @@ def export_comparison_figures(
         limits,
         size,
     )
+
+
+def export_plot_model(
+    model: PlotModel,
+    output_directory: str | Path,
+    stem: str,
+    scheme: str = DEFAULT_PLOT_SCHEME,
+    limits: PlotLimits | None = None,
+    size: PlotSize | None = None,
+) -> list[Path]:
+    """Export one prepared plot model without changing its grouping or labels."""
+
+    plt = _load_pyplot()
+    output = _output_directory(output_directory)
+    panel_size = DEFAULT_PLOT_SIZE if size is None else size
+    panel_size.validate()
+    with plt.rc_context(_FIGURE_STYLE):
+        figure = plt.figure(
+            figsize=(panel_size.width, panel_size.height),
+            constrained_layout=True,
+        )
+        figure.set_facecolor("white")
+        axis = figure.add_subplot(1, 1, 1)
+        axis.set_facecolor("white")
+        draw_plot(axis, model, scheme, limits)
+        try:
+            return _save_figure(figure, output, _safe_stem(stem))
+        finally:
+            plt.close(figure)
 
 
 def export_result(

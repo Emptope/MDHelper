@@ -25,6 +25,7 @@ from test_synthetic_system import _write_trajectory
 
 import mdhelper.gui.window as window_module
 from mdhelper.app import InputCandidates
+from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.gui.projects import NewProjectDialog
 from mdhelper.gui.window import MainWindow
@@ -379,13 +380,37 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
     )
     window._open_project()
 
-    assert window.session.project is None
+    assert window.session.project is not None
+    assert window.session.project.root == tmp_path.resolve()
+    assert window.results.project_available
     assert window.load.inputs.topology.edit.text() == str(trajectory.resolve())
     assert window.load.inputs.trajectory.edit.text() == str(trajectory_input.resolve())
     assert window.load.inputs.index_file.edit.text() == str(index_input.resolve())
     assert window.analysis.parameters.analysis_backend.currentText() == "Automatic"
     assert not window.results.text.toPlainText()
     assert inspections == [True]
+    assert (tmp_path / "mdhelper-project.json").is_file()
+    assert (tmp_path / "results").is_dir()
+    assert (tmp_path / "figures").is_dir()
+    request = RadialRequest(
+        analysis_type="rdf",
+        topology=str(trajectory),
+        trajectory=str(trajectory_input),
+        reference="A",
+        selection="B",
+    )
+    window.results.show_result(
+        AnalysisResult(
+            analysis_type="rdf",
+            data={"radius_nm": [0.1], "g_r": [1.0]},
+            parameters={},
+            units={},
+            diagnostics={},
+            provenance={},
+            request=request.to_dict(),
+        )
+    )
+    assert window.results.project_button.isEnabled()
     project = window.application.projects.create(tmp_path / "saved-project", trajectory, trajectory)
     monkeypatch.setattr(
         window_module.QFileDialog,

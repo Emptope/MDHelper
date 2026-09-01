@@ -122,6 +122,9 @@ selected result series, panel group, visibility,
 legend, color, custom title, and strict primary/secondary limit fields. The GUI edits the title of
 the plot containing the current visible series and synchronizes that title across its grouped
 series; project restore and figure export consume the same state.
+GUI project figure saving writes one PNG/SVG/PDF set per plot model directly under `figures`, using
+the readable analysis naming rule. GUI result export writes each plot into its corresponding
+analysis directory and does not create a combined figure at the export root.
 
 ## 6. Application layer
 
@@ -167,8 +170,9 @@ cancellation checks.
 
 `gromacs.py` is the complete GROMACS adapter. Its radial path preserves zero-based Python frame
 slicing and invokes `gmx rdf` through Integrations. RDF requests use only `-o`; cumulative RDF adds
-`-cn` and parses both XVG curves. Both retain the trajectory-conversion and RDF run records. The default full range reads
-the original trajectory directly; finite sampled ranges use one exact converted subset.
+`-cn` and parses both XVG curves. Both retain every metadata-inspection, trajectory-conversion, and
+RDF run record. The default full range reads the original trajectory directly; non-default ranges
+use one exact converted subset, and open-ended ranges obtain the frame count with `gmx check`.
 
 `mdanalysis.py` owns MDAnalysis radial and Energy dispatch, while `native.py` owns Native radial
 dispatch. `energy.py` contains private Energy implementations shared by the complete adapters.
@@ -193,10 +197,11 @@ stays free of machine-specific executable handling.
 For analysis, `backends/trajectory.py` receives the already resolved backend name; it does not make
 a second policy choice. The MDHelper reader validates fixed atom identity and streams frames. The
 MDAnalysis adapter converts third-party objects into core atoms, frames, boxes, and zero-based
-indices; third-party objects do not cross the backend boundary. The GROMACS adapter invokes
-`gmx trjconv` only through Integrations when an open-ended non-default range requires trajectory
-metadata. Default full-range RDF/CN bypasses the trajectory port and passes the original inputs
-directly to `gmx rdf`; finite sampled ranges use one GROMACS-generated exact subset.
+indices; third-party objects do not cross the backend boundary. The GROMACS analysis adapter
+bypasses the trajectory port: default full-range RDF/CN passes the original inputs directly to
+`gmx rdf`, while a non-default range uses one GROMACS-generated exact subset. An open-ended
+non-default range obtains only its frame count through `gmx check` before conversion, avoiding a
+full coordinate expansion. Every external command is invoked through Integrations.
 
 ## 9. I/O and projects
 
@@ -263,8 +268,9 @@ multi-select. It does not call CLI parsing or GUI widgets.
 GUI separates widgets, application calls, and result formatting. `window.py` coordinates use cases;
 `parameters.py` builds requests; `results.py` renders result text and core plot models; `species.py`
 handles role confirmation. Both interactive frontends expose Backend under Analysis Settings, not
-Load. Energy remains available through MDAnalysis; GROMACS RDF/CN requires `rdf`, sampled frame
-subsets additionally require `trjconv`, and GROMACS Energy requires `energy`. Backend selection is
+Load. Energy remains available through MDAnalysis; GROMACS RDF/CN requires `rdf`, frame subsets
+additionally require `trjconv`, open-ended subsets require `check`, and GROMACS Energy requires
+`energy`. Backend selection is
 independent from system inspection. New
 Project non-recursively discovers `.tpr`/`.gro` topology,
 `.xtc`/`.trr`/`.gro` trajectory, and optional `.ndx` candidates. Background workers never mutate Qt

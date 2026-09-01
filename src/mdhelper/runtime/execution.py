@@ -164,23 +164,19 @@ def _read_stream(stream: TextIO, chunks: list[str]) -> None:
             chunks.append(value)
     except (OSError, ValueError):
         pass
+    finally:
+        try:
+            stream.close()
+        except OSError:
+            pass
 
 
 def _finish_readers(
-    process: subprocess.Popen[str],
     readers: tuple[Thread, Thread],
 ) -> None:
+    deadline = time.monotonic() + 0.5
     for reader in readers:
-        reader.join(timeout=0.5)
-    if any(reader.is_alive() for reader in readers):
-        for stream in (process.stdout, process.stderr):
-            if stream is not None:
-                try:
-                    stream.close()
-                except OSError:
-                    pass
-        for reader in readers:
-            reader.join(timeout=0.25)
+        reader.join(timeout=max(0.0, deadline - time.monotonic()))
 
 
 def run_integration(
@@ -264,7 +260,7 @@ def run_integration(
     while True:
         if cancel_event is not None and cancel_event.is_set():
             _stop(process, terminate=True)
-            _finish_readers(process, readers)
+            _finish_readers(readers)
             stdout = "".join(stdout_chunks)
             stderr = "".join(stderr_chunks)
             exit_code = process.returncode if process.returncode is not None else -1
@@ -280,7 +276,7 @@ def run_integration(
         remaining = timeout_seconds - (time.monotonic() - started)
         if remaining <= 0:
             _stop(process, terminate=False)
-            _finish_readers(process, readers)
+            _finish_readers(readers)
             stdout = "".join(stdout_chunks)
             stderr = "".join(stderr_chunks)
             exit_code = process.returncode if process.returncode is not None else -1
@@ -293,7 +289,7 @@ def run_integration(
                 f"{adapter.name} exceeded the {timeout_seconds:g}-second timeout.",
                 details={"integration_run": record.to_dict()},
             )
-        if process.poll() is not None and not any(reader.is_alive() for reader in readers):
+        if process.poll() is not None:
             break
         now = time.monotonic()
         if process_progress is not None and now >= next_progress:
@@ -305,12 +301,12 @@ def run_integration(
                 )
             except BaseException:
                 _stop(process, terminate=True)
-                _finish_readers(process, readers)
+                _finish_readers(readers)
                 raise
             last_progress = current_output
             next_progress = now + 0.25
         time.sleep(min(0.05, remaining))
-    _finish_readers(process, readers)
+    _finish_readers(readers)
     stdout = "".join(stdout_chunks)
     stderr = "".join(stderr_chunks)
     if process_progress is not None and (stdout, stderr) != last_progress:

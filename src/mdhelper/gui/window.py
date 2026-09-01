@@ -19,10 +19,11 @@ from PySide6.QtWidgets import (
 from mdhelper.app import ApplicationService
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError
+from mdhelper.core.plotting import PlotSize
 from mdhelper.core.species import SpeciesRoleSuggestion, role_decision
 from mdhelper.gui.analysis import AnalysisPanel
 from mdhelper.gui.dialogs import IntegrationsDialog
-from mdhelper.gui.export import export_directories, result_exports
+from mdhelper.gui.export import PlotExport, export_directories, plot_exports, result_exports
 from mdhelper.gui.fonts import configure_ui_font
 from mdhelper.gui.formatting import (
     error_text,
@@ -441,7 +442,16 @@ class MainWindow(QMainWindow):
         self.load.inputs.topology.edit.setText(str(topology))
         self.load.inputs.trajectory.edit.setText(str(trajectory))
         self.load.inputs.index_file.edit.setText("" if index_file is None else str(index_file))
+        _project, created = self.session.ensure(
+            directory,
+            topology,
+            trajectory,
+            {},
+            index_file,
+        )
         self._inspect()
+        action = "created" if created else "opened"
+        self._project_ready(action, restore=False)
 
     def _open_existing_project(self, directory: str) -> None:
         _, inputs = self.session.open(directory)
@@ -537,30 +547,27 @@ class MainWindow(QMainWindow):
         directory = QFileDialog.getExistingDirectory(self, "Export analysis result")
         if not directory:
             return
-        visible = self.results.plot_results()
-        plotted = visible or (self.session.result,)
-        labels = self.results.plot_labels() if visible else (None,)
-        color_ids = self.results.plot_color_ids() if visible else None
-        series_keys = self.results.plot_series_keys() if visible else None
-        group_ids = self.results.plot_group_ids() if visible else None
-        titles = self.results.plot_titles() if visible else None
+        plots = self._plot_exports()
+        sizes = self._plot_export_sizes(len(plots))
         try:
             paths = []
-            unique = tuple({result.analysis_id: result for result in plotted}.values())
             items = tuple(
                 item
-                for result in unique
-                for item in result_exports(result)
+                for plot in plots
+                for item in plot.items
             )
-            nested = len(unique) > 1 or any(
-                result.analysis_type == "energy" for result in unique
+            unique_items = tuple(
+                {
+                    (item.result.analysis_id, item.name): item
+                    for item in items
+                }.values()
             )
-            outputs = (
-                export_directories(Path(directory), items)
-                if nested
-                else (Path(directory),)
-            )
-            for item, output in zip(items, outputs, strict=True):
+            outputs = export_directories(Path(directory), unique_items)
+            output_by_item = {
+                (item.result.analysis_id, item.name): output
+                for item, output in zip(unique_items, outputs, strict=True)
+            }
+            for item, output in zip(unique_items, outputs, strict=True):
                 paths.extend(
                     self.application.analyses.export(
                         item.result,
@@ -568,21 +575,24 @@ class MainWindow(QMainWindow):
                         include_figures=False,
                     )
                 )
-            paths.extend(
-                self.application.analyses.export_comparison_figures(
-                    plotted,
-                    directory,
-                    "plot",
-                    labels,
-                    color_ids,
-                    series_keys,
-                    group_ids,
-                    titles,
-                    self.results.plot_scheme(),
-                    self.results.plot_limits(),
-                    self.results.plot_size(),
+            for plot, size in zip(plots, sizes, strict=True):
+                destinations = tuple(
+                    dict.fromkeys(
+                        output_by_item[(item.result.analysis_id, item.name)]
+                        for item in plot.items
+                    )
                 )
-            )
+                for output in destinations:
+                    paths.extend(
+                        self.application.analyses.export_plot_model(
+                            plot.model,
+                            output,
+                            output.name,
+                            self.results.plot_scheme(),
+                            self.results.plot_limits(),
+                            size,
+                        )
+                    )
         except Exception as exc:
             self._show_error(exc)
             return
@@ -594,28 +604,22 @@ class MainWindow(QMainWindow):
                 self, "Project Figures", "Open a project and complete an analysis first."
             )
             return
-        visible = self.results.plot_results()
-        plotted = visible or (self.session.result,)
-        labels = self.results.plot_labels() if visible else (None,)
-        color_ids = self.results.plot_color_ids() if visible else None
-        series_keys = self.results.plot_series_keys() if visible else None
-        group_ids = self.results.plot_group_ids() if visible else None
-        titles = self.results.plot_titles() if visible else None
+        plots = self._plot_exports()
+        sizes = self._plot_export_sizes(len(plots))
         directory = self.session.project.root / "figures"
         try:
-            paths = self.application.analyses.export_comparison_figures(
-                plotted,
-                directory,
-                "plot",
-                labels,
-                color_ids,
-                series_keys,
-                group_ids,
-                titles,
-                self.results.plot_scheme(),
-                self.results.plot_limits(),
-                self.results.plot_size(),
-            )
+            paths = []
+            for plot, size in zip(plots, sizes, strict=True):
+                paths.extend(
+                    self.application.analyses.export_plot_model(
+                        plot.model,
+                        directory,
+                        plot.name,
+                        self.results.plot_scheme(),
+                        self.results.plot_limits(),
+                        size,
+                    )
+                )
         except Exception as exc:
             self._show_error(exc)
             return
@@ -625,6 +629,25 @@ class MainWindow(QMainWindow):
             "Project Figures Saved",
             f"Saved PNG, SVG, and PDF to:\n{directory}",
         )
+
+    def _plot_exports(self) -> tuple[PlotExport, ...]:
+        visible = self.results.plot_results()
+        if visible:
+            return plot_exports(
+                visible,
+                self.results.plot_series_keys(),
+                self.results.plot_models(),
+            )
+        assert self.session.result is not None
+        items = result_exports(self.session.result)
+        return plot_exports(tuple(item.result for item in items))
+
+    def _plot_export_sizes(self, count: int) -> tuple[PlotSize, ...]:
+        sizes = self.results.plot_sizes()
+        if len(sizes) == count:
+            return sizes
+        size = self.results.plot_size()
+        return tuple(size for _index in range(count))
 
     def _integrations(self) -> None:
         IntegrationsDialog(self.application, self).exec()

@@ -156,6 +156,8 @@ TUI/CLI 运行期间保持等待并连接标准流。GUI 启动会创建独立�
 绘图状态逐行保存 result ID、result series、panel group、可见性、legend、颜色和自定义
 标题，因此同一 energy result 的多个 term 可以独立恢复、组合和导出。GUI 编辑当前可见
 序列所属绘图的标题，并同步到该绘图的其他分组序列；项目恢复和图片导出使用同一状态。
+GUI 保存项目图片时，每个绘图模型按可读分析名称直接在 `figures` 下生成一组 PNG/SVG/PDF，
+不建立图片子目录。GUI 结果导出把各图片写入对应分析目录，不在导出根目录生成合并图片。
 
 当前绘图配色不支持 `Atom name`。原子名可以用于选择表达式和选择诊断，但一条聚合分析
 序列往往包含多个原子名，不能形成无歧义的一对一颜色键。
@@ -223,9 +225,9 @@ grid。`rdf.py`、`cumulative_rdf.py` 只把共享 profile 组装成各自的结
 `analysis/gromacs.py` 是完整 GROMACS adapter。其 RDF/CN 路径保留零基 Python 帧切片语义，通过
 Integrations 调用 `gmx rdf`。RDF request 只使用 `-o`；cumulative RDF 添加 `-cn` 并解析两条
 XVG 曲线。两者都记录
-trajectory conversion 与 RDF 完整命令。运行时进度来自 GROMACS 原生输出，不显示该命令；
-命令由 execution 层写入诊断日志。默认全帧范围直接读取原轨迹；有限抽样范围只使用一次
-精确转换子集。
+metadata inspection、trajectory conversion 与 RDF 完整命令。运行时进度来自 GROMACS
+原生输出，不显示该命令；命令由 execution 层写入诊断日志。默认全帧范围直接读取原轨迹；
+非默认范围只使用一次精确转换子集，开放结束位置的范围先用 `gmx check` 获取帧数。
 
 PBC、分块、网格、归一化、累计公式、端点和第一壳层峰谷规则集中记录在
 `docs/ALGORITHM.md`；发布定义和验证容差分别见
@@ -324,10 +326,10 @@ XTC/TRR reader 通过通用 XDR reader 子类把 MDAnalysis 的 `*_offsets.npz` 
 到应用提供的 cache 目录。非 XDR reader 不创建这类缓存；不得在分析完成后才移动 sidecar，
 因为那会导致下一次加载重新扫描并再次污染输入目录。
 
-`backends/gromacs.py` 只为需要 metadata 的开放结束位置非默认范围提供标准轨迹端口；
-可执行文件检测、能力校验与 `gmx trjconv` 执行均由 Integrations 完成，上层分析不接触
-可执行程序路径。默认全帧 GROMACS RDF/CN 绕过该端口，把原输入路径直接传给 `gmx rdf`；
-有限抽样范围使用一次 GROMACS 生成的精确子集。
+GROMACS 分析 adapter 绕过标准轨迹端口：默认全帧 RDF/CN 把原输入路径直接传给
+`gmx rdf`，非默认范围使用一次 GROMACS 生成的精确子集；开放结束位置的非默认范围先通过
+`gmx check` 只获取帧数，避免完整展开坐标。可执行文件检测、能力校验与所有命令执行均由
+Integrations 完成，上层分析不接触可执行程序路径。
 
 `backends/mdanalysis_selection.py` 从 core 原子元数据构造轻量 Universe 解析静态表达式，
 避免应用层依赖 MDAnalysis 对象。`backends/common.py` 提供输入存在性检查和基于原子名的
@@ -479,8 +481,8 @@ GUI 的 New Project 先选择目录，由 App 层非递归发现受支持的拓�
 目录中的既有项目时会先比较输入指纹，禁止把另一套体系的结果提交到该项目。
 
 GUI 与 TUI 在 Analysis Settings 使用同一个 Backend 选择器；Load 不显示 Backend。
-Energy 始终可通过 MDAnalysis 使用；GROMACS RDF/CN 需要 `rdf` capability，抽样帧子集
-额外需要 `trjconv`，GROMACS Energy 需要 `energy`。Backend 选择不参与体系检查；切换 Backend
+Energy 始终可通过 MDAnalysis 使用；GROMACS RDF/CN 需要 `rdf` capability，帧子集额外需要
+`trjconv`，开放结束位置的子集还需要 `check`，GROMACS Energy 需要 `energy`。Backend 选择不参与体系检查；切换 Backend
 不触发 Species 或 Index groups 刷新。仅在当前会话显式执行过 Integrations 检测，或保存的
 配置包含 GROMACS 可执行文件路径后，交互式 Backend 选择器才显示 GROMACS；Auto 内部探测
 不会显示该选项。

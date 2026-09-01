@@ -16,6 +16,7 @@ from mdhelper.app import ApplicationService
 from mdhelper.core.errors import BackendError, ConfigurationError, TaskCancelled
 from mdhelper.integrations import DEFAULT_INTEGRATION_REGISTRY
 from mdhelper.integrations.gromacs import GromacsAdapter
+from mdhelper.integrations.gromacs import frame_count as gromacs_frame_count
 from mdhelper.integrations.gromacs import frame_progress as gromacs_frame_progress
 from mdhelper.integrations.gromacs import output_message as gromacs_output_message
 from mdhelper.integrations.manager import IntegrationManager
@@ -80,6 +81,10 @@ def _fake_program(path: Path) -> Path:
         "    import subprocess\n"
         "    subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(5)'])\n"
         "    time.sleep(5)\n"
+        "    raise SystemExit(0)\n"
+        "if command == 'exit-with-child':\n"
+        "    import subprocess\n"
+        "    subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(5)'])\n"
         "    raise SystemExit(0)\n"
         "print('\\n'.join(sys.argv[1:]))\n",
         encoding="utf-8",
@@ -170,6 +175,8 @@ def test_gromacs_output_parsing() -> None:
         "", "Reading frame 20 time 40.000\rReading frame 30 time 60.000"
     ) == (30, 60.0)
     assert gromacs_frame_progress("unrelated", "output") is None
+    assert gromacs_frame_count("", "Last frame 30 time 60.000") == 31
+    assert gromacs_frame_count("unrelated", "output") is None
     assert gromacs_output_message(
         "Reading frame 1 time 2.000\rReading frame 2 time 4.000",
         "",
@@ -321,6 +328,16 @@ def test_running_integration_cancels_process_tree_promptly(tmp_path: Path) -> No
         timer.cancel()
 
     assert time.monotonic() - started < 2
+
+
+def test_running_integration_returns_after_parent_process_exits(tmp_path: Path) -> None:
+    manager, _program_path, _ = _fake_integration(tmp_path)
+    started = time.monotonic()
+
+    record = manager.run("fake", ["exit-with-child"], tmp_path)
+
+    assert record.status == "completed"
+    assert time.monotonic() - started < 4
 
 
 def test_configured_path_replaces_cached_detection(tmp_path: Path) -> None:

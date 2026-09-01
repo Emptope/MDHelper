@@ -50,8 +50,9 @@ visible in setup review and stored in the request. Auto considers Native only fo
 NDX, then MDAnalysis, then an available GROMACS pipeline; expression mode resolves to MDAnalysis.
 Energy considers MDAnalysis before available GROMACS. Explicit selections never fall back.
 GROMACS RDF passes the original inputs directly to `gmx rdf`; cumulative RDF adds `-cn` for the
-default full frame range. Energy uses `gmx energy`. An explicit finite sampled frame range uses one `gmx trjconv -fr`
-command to create an exact temporary XTC subset and keeps the original topology for `gmx rdf`.
+default full frame range. Energy uses `gmx energy`. A non-default frame range uses one
+`gmx trjconv -fr` command to create an exact temporary XTC subset and keeps the original topology
+for `gmx rdf`. An open-ended non-default range first obtains the frame count with `gmx check`.
 
 ## Strict initial-version contracts
 

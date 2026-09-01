@@ -11,7 +11,7 @@ from mdhelper.analysis.energy import parse_energy_terms
 from mdhelper.analysis.mdanalysis import MDAnalysisBackend
 from mdhelper.app import ApplicationService, TrajectoryLoader
 from mdhelper.core.analysis import EnergyRequest, RadialRequest
-from mdhelper.core.errors import BackendError, FormatError
+from mdhelper.core.errors import BackendError, FormatError, InputError
 from mdhelper.core.plotting import result_plot
 from mdhelper.core.system import FrameRange
 from mdhelper.integrations.models import (
@@ -42,7 +42,7 @@ class _GromacsAdapter(IntegrationAdapter):
         return ("capabilities",)
 
     def parse_capabilities(self, stdout: str, stderr: str, exit_code: int) -> tuple[str, ...]:
-        return ("energy", "trjconv", "rdf") if exit_code == 0 else ()
+        return ("energy", "trjconv", "rdf", "check") if exit_code == 0 else ()
 
 
 def _program(path: Path) -> Path:
@@ -55,7 +55,11 @@ def _program(path: Path) -> Path:
         "if command == '--version':\n"
         "    print('GROMACS version: test')\n"
         "elif command == 'capabilities':\n"
-        "    print('energy trjconv rdf')\n"
+        "    print('energy trjconv rdf check')\n"
+        "elif command == 'check':\n"
+        "    for frame in range(6):\n"
+        "        print(f'Reading frame {frame} time {frame:.3f}', flush=True)\n"
+        "    print('Last frame 5 time 5.000', flush=True)\n"
         "elif command == 'energy':\n"
         "    selected = sys.stdin.read().strip()\n"
         "    output = Path(sys.argv[sys.argv.index('-o') + 1])\n"
@@ -471,3 +475,59 @@ def test_gromacs_pipeline_uses_its_own_input_and_expression_processing(
     assert any("Reading frame" in message for _, _, message in progress)
     assert all(" -f " not in message for _, _, message in progress)
     assert all("Fingerprinting" not in message for _, _, message in progress)
+
+
+def test_gromacs_open_sampled_range_uses_metadata_without_loading_trajectory(
+    tmp_path: Path,
+) -> None:
+    from test_synthetic_system import _write_trajectory
+
+    trajectory = tmp_path / "trajectory.gro"
+    _write_trajectory(trajectory, 6)
+    index = tmp_path / "groups.ndx"
+    index.write_text("[ ref ]\n1\n[ sel ]\n2 3\n", encoding="ascii")
+
+    def reject_loader(*_args: object) -> object:
+        raise AssertionError("The direct GROMACS pipeline must not load the trajectory")
+
+    result = _application(
+        tmp_path,
+        trajectory_loader=reject_loader,  # type: ignore[arg-type]
+    ).analyses.run(
+        RadialRequest(
+            analysis_type="rdf",
+            topology=str(trajectory),
+            trajectory=str(trajectory),
+            index_file=str(index),
+            reference="ref",
+            selection="sel",
+            r_max_nm=0.5,
+            bin_width_nm=0.05,
+            frames=FrameRange(stride=2),
+            analysis_backend="gromacs",
+        )
+    )
+
+    runs = result.provenance["integration_runs"]
+    assert [run["arguments"][0] for run in runs] == ["check", "trjconv", "rdf"]
+    assert result.diagnostics["n_frames"] == 3
+    assert runs[1]["stdout"].endswith("[ frames ]\n1 3 5\n")
+
+
+def test_gromacs_rejects_stride_that_reduces_a_multi_frame_range_to_one(
+    tmp_path: Path,
+) -> None:
+    trajectory = tmp_path / "trajectory"
+    trajectory.write_bytes(b"trajectory")
+    request = RadialRequest(
+        analysis_type="rdf",
+        topology=str(trajectory),
+        trajectory=str(trajectory),
+        reference="A",
+        selection="B",
+        frames=FrameRange(stride=1_000_000_000),
+        analysis_backend="gromacs",
+    )
+
+    with pytest.raises(InputError, match="selects only one frame"):
+        _application(tmp_path).analyses.run(request)

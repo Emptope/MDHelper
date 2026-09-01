@@ -18,7 +18,10 @@ selections, estimate statistical uncertainty, or cache analysis results.
   conversion once at the backend boundary.
 - Radial plots convert nm to angstrom; persisted arrays remain in nm.
 - A frame range is zero-based and follows Python slicing: `start` is inclusive, `stop` is
-  exclusive, and `stop = null` means the end of the trajectory. `stride` is relative to `start`.
+  exclusive, and `stop = null` means the end of the trajectory. `stride` is measured in frames
+  and is relative to `start`.
+  If a range contains multiple available frames, a stride that would retain only one is rejected;
+  an intentional one-frame range remains valid.
 - In-process selections are resolved once to fixed, ordered, zero-based atom-index tuples.
 - Coordinates are not unwrapped, reconstructed, aligned, or fitted. Every pair uses the current
   frame's triclinic minimum image.
@@ -47,8 +50,8 @@ gromacs    -> GROMACS input processing + GROMACS selection + RDF/CN or Energy
 ```
 
 Auto orders available complete strategies. Radial requests consider Native first only for a
-GRO/GRO pair with NDX, then MDAnalysis, then GROMACS when `rdf` is available. Sampled GROMACS
-frame subsets additionally require `trjconv`. Energy
+GRO/GRO pair with NDX, then MDAnalysis, then GROMACS when `rdf` is available. GROMACS frame
+subsets additionally require `trjconv`, and open-ended subsets require `check`. Energy
 considers MDAnalysis, then GROMACS when `energy` is available. A source-loading error may advance to
 the next complete strategy. Explicit requests do not fall back, and one attempt never combines
 components from different backends. Independent system inspection retains a reader-only Auto rule:
@@ -217,19 +220,19 @@ not the name of the complete distance-dependent array.
 An explicit `gromacs` request does not use the formulas above as its curve source. The default
 `0:end:1` range invokes `gmx rdf` once, passing the selected topology and trajectory directly. RDF
 requests use `-o` only; cumulative RDF requests add `-cn` and retain the RDF output for the shared
-first-shell diagnostic. A finite non-default Python range is written as an exact XTC subset
-by translating its zero-based frame indices to the one-based NDX entries accepted by one
-`gmx trjconv -fr` command. The original topology remains the `gmx rdf -s` input. Open-ended
-non-default ranges may inspect GROMACS trajectory metadata before constructing native range
-arguments. GROMACS `-dt` is not used because it samples an absolute time grid rather than a stride
-relative to `start`.
+first-shell diagnostic. A non-default Python range is written as an exact XTC subset by translating
+its zero-based frame indices to the one-based NDX entries accepted by one `gmx trjconv -fr`
+command. The original topology remains the `gmx rdf -s` input. Open-ended non-default ranges first
+obtain the frame count with `gmx check`; they do not expand the complete trajectory into another
+coordinate format. GROMACS `-dt` is not used because it samples an absolute time grid rather than a
+stride relative to `start`.
 
 The request's `bin_width_nm` and `r_max_nm` are passed as `-bin` and `-rmax`. GROMACS owns pair
 selection, PBC, grid endpoints, RDF normalization, and cumulative integration on this branch.
 MDHelper requires finite two-column XVG data with strictly increasing radii, maps it to `radius_nm`
 plus `g_r` or `cumulative_number`, applies the common first-shell diagnostic, and
-records both conversion and `rdf` Integration runs when conversion is required. It does not
-recompute or replace either curve.
+records every metadata inspection, conversion, and `rdf` Integration run. It does not recompute or
+replace either curve.
 
 ## 8. First-shell diagnostic
 

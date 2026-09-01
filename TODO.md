@@ -11,8 +11,10 @@
 
 ## 已完成
 
-- [x] [BugFix] Result Export 使用可读目录名；RDF/CN 按选择命名，Energy 每条曲线单独导出且名称长度受限。
-- [x] [Feature] 精简初版 project/result 持久化；manifest 删除 integration preference/run，result 删除 artifacts，stdout/stderr 外置为同目录 .out/.err。
+- [x] [BugFix] GUI 打开新项目目录时立即创建 figures 和 results，并在结果完成后启用 Save Plot。
+- [x] [Feature] GUI Save Plot 使用分析目录命名规则平铺保存图片；Export 将独立图片保存到对应分析目录。
+- [x] [BugFix] 解决多个窗口 Plot 时选择 Save Plot 保存到同一张图片的问题，需要保存到不同图片中。
+- [x] [BugFix] 解决 GROMACS 后端当 stride > 1 时合成帧结束后卡死的问题。
 
 ## 完成标准（每轮改动后需重新确认）
 

@@ -20,7 +20,7 @@ from .common import (
     check_cancel,
     iter_neighbor_pairs,
     report_progress,
-    selected_frame_count,
+    validate_frame_selection,
     validate_radius,
 )
 
@@ -259,7 +259,7 @@ def radial_profile(
         raise InputError("The selections contain no non-self atom pairs.")
 
     audit = FrameAudit()
-    total = selected_frame_count(source.n_frames, request.frames)
+    total = validate_frame_selection(source.n_frames, request.frames)
 
     for frame in source.iter_frames(request.frames):
         check_cancel(cancel_event)
@@ -340,7 +340,7 @@ def mdanalysis_radial_profile(
         raise InputError("The selections contain no non-self atom pairs.")
 
     audit = FrameAudit()
-    total = selected_frame_count(source.n_frames, request.frames)
+    total = validate_frame_selection(source.n_frames, request.frames)
     for frame in source.iter_frames(request.frames):
         check_cancel(cancel_event)
         validate_radius(request.r_max_nm, frame.box, "r_max_nm")

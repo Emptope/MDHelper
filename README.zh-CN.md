@@ -121,7 +121,7 @@ capability 时才回退到 GROMACS。用户从可选列表将 term 加入有序�
 逗号分隔的名称。
 
 所有径向分析命令还支持 `--start`、`--stop`、`--stride`、`--analysis-backend` 和
-`--figures false`。
+`--figures false`。`stride` 的单位是帧；例如 `10` 表示从 `start` 开始每 10 帧取一帧。
 
 ## 分析类型
 
@@ -148,8 +148,9 @@ Backend 表示包含文件 reader 在内的完整分析流水线：
 Native 支持单帧或多帧 GRO topology/trajectory 组合，并要求 NDX 文件。MDAnalysis 支持以
 `.tpr` 或 `.gro` 为 topology、以 `.xtc` 或 `.trr` 为 trajectory。格式兼容性由所选流水线
 的软件版本决定。默认全帧范围下，GROMACS 流水线把原 topology 和 trajectory 直接传给
-`gmx rdf`。显式有限抽样帧范围只运行一次 `gmx trjconv -fr`，生成精确零基帧索引的临时
-XTC，`gmx rdf` 保留原 topology。
+`gmx rdf`。非默认帧范围只运行一次 `gmx trjconv -fr`，生成精确零基帧索引的临时 XTC，
+`gmx rdf` 保留原 topology。开放结束位置的非默认范围先用 `gmx check` 读取帧数，不展开
+整条轨迹。
 
 GROMACS 按原子索引将 structure/topology 与 XTC 轨迹对应。XTC 提供按顺序排列的
 坐标、原子数、step、time 和 box；原子与残基元数据来自 structure/topology。GROMACS
@@ -231,11 +232,12 @@ GUI 可以比较多个兼容结果，将 RDF 和 CN 组合在共享距离轴及�
 energy term 默认各自在独立窗口中绘图，一个窗口只显示一张图；在 **Plot series** 中选择
 energy 行并使用 **Combine** 可将其绘制到同一窗口的共享坐标轴，**Separate** 可恢复独立
 绘图窗口。组合行会在 Plot 列显示 `Combined` 标记；组合关系会保存在项目绘图状态和图像
-导出中。
+导出中。**Save Plot** 会把每个绘图窗口直接保存到项目的 `figures` 目录，不创建图片子目录；
+文件名与 Export 的可读目录命名规则一致，例如 `rdf-A-B`、`energy-Potential`。
 
-GUI 多结果导出使用 `rdf-A-B`、`cn-A-B` 等可读目录。Energy 每条曲线单独建立目录，例如
-`energy-Potential`；选择 46 个 term 会生成 46 个有长度上限的名称，而不是把全部 term
-拼成一个名称。非法字符会被替换，名称最长 120 个字符，冲突时追加数字后缀。
+GUI 导出使用 `rdf-A-B`、`cn-A-B` 等可读目录。Energy 每条曲线单独建立目录，例如
+`energy-Potential`；每个目录包含结果数据及独立的 PNG/SVG/PDF 图片，导出根目录不再保存
+合并图片。非法字符会被替换，名称最长 120 个字符，冲突时追加数字后缀。
 
 TUI 分析菜单也提供 **RDF + CN Combined Plot**。它让两项分析复用同一套径向配置，分别保存
 原始结果，并输出一套合并的 PNG/SVG/PDF 图像。
@@ -268,8 +270,8 @@ uv run mdhelper templates list
 
 仅当用户在当前会话的 Integrations 中显式执行过 GROMACS 检测，或已保存 configured
 executable 路径时，Analysis Settings 的 Backend 选择器才显示 GROMACS；该可执行文件通过
-capability 检测后选项才可用。GROMACS RDF/CN 需要 `rdf` capability，抽样帧子集额外需要
-`trjconv`；GROMACS Energy 需要 `energy`。
+capability 检测后选项才可用。GROMACS RDF/CN 需要 `rdf` capability，帧子集额外需要
+`trjconv`，开放结束位置的子集还需要 `check`；GROMACS Energy 需要 `energy`。
 没有 GROMACS 时，Energy 仍可通过 Auto 或 MDAnalysis 使用。Load 和体系检查不显示该
 选择器，也不会因分析 Backend 改变而重新加载。
 

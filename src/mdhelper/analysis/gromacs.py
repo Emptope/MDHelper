@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from bisect import bisect_right
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from threading import Event
@@ -15,15 +16,21 @@ from mdhelper.analysis.common import (
     analysis_directory,
     check_cancel,
     report_progress,
-    selected_frame_count,
+    validate_frame_selection,
 )
 from mdhelper.analysis.radial import first_shell, first_shell_warnings
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, EnergyRequest, RadialRequest
 from mdhelper.core.errors import BackendError, FormatError
 from mdhelper.core.system import FrameRange
 from mdhelper.core.trajectory import TrajectorySource
-from mdhelper.integrations.gromacs import frame_progress, frame_progresses, output_message
+from mdhelper.integrations.gromacs import (
+    frame_count,
+    frame_progress,
+    frame_progresses,
+    output_message,
+)
 from mdhelper.integrations.manager import IntegrationManager
+from mdhelper.integrations.models import IntegrationRunRecord
 from mdhelper.plugins.analysis import AnalysisInput, BackendQuery
 from mdhelper.services.selection import resolve_selections, selection_resolution_record
 
@@ -55,91 +62,6 @@ def _write_frame_index(indices: Sequence[int], path: Path) -> None:
         ) from exc
 
 
-def _audit_frames(
-    source: TrajectorySource,
-    inputs: AnalysisInput,
-) -> tuple[FrameAudit, tuple[float, ...], tuple[int, ...]]:
-    audit = FrameAudit()
-    times: list[float] = []
-    indices: list[int] = []
-    request = _request(inputs)
-    for frame in source.iter_frames(request.frames):
-        check_cancel(inputs.cancel_event)
-        audit.observe(frame)
-        times.append(frame.time_ps)
-        indices.append(frame.index)
-        report_progress(
-            inputs.progress,
-            audit.count,
-            selected_frame_count(source.n_frames, request.frames),
-            f"Selecting GROMACS RDF frame {frame.index}",
-        )
-    return audit, tuple(times), tuple(indices)
-
-
-def _audit_bounds(
-    source: TrajectorySource,
-    inputs: AnalysisInput,
-) -> tuple[FrameAudit, tuple[float, ...], tuple[int, ...]]:
-    n_frames = source.n_frames
-    if n_frames is None:
-        return _audit_frames(source, inputs)
-    request = _request(inputs)
-    count = selected_frame_count(n_frames, request.frames)
-    assert count is not None
-    if count == 0:
-        raise BackendError("The selected GROMACS RDF frame range is empty.")
-    frame_range = request.frames
-    stop = n_frames if frame_range.stop is None else min(frame_range.stop, n_frames)
-    indices = tuple(range(frame_range.start, stop, frame_range.stride))
-    first_index = indices[0]
-    last_index = indices[-1]
-    first = next(source.iter_frames(type(frame_range)(first_index, first_index + 1)))
-    last = (
-        first
-        if last_index == first_index
-        else next(source.iter_frames(type(frame_range)(last_index, last_index + 1)))
-    )
-    audit = FrameAudit(
-        count=count,
-        first_index=first.index,
-        last_index=last.index,
-        first_time_ps=first.time_ps,
-        last_time_ps=last.time_ps,
-    )
-    report_progress(
-        inputs.progress,
-        count,
-        count,
-        f"Selected {count} GROMACS RDF frames",
-    )
-    times = (first.time_ps,) if count == 1 else (first.time_ps, last.time_ps)
-    return audit, times, indices
-
-
-def _frame_args(
-    source: TrajectorySource,
-    inputs: AnalysisInput,
-    times: tuple[float, ...],
-) -> list[str] | None:
-    frame_range = _request(inputs).frames
-    arguments = [
-        "-f",
-        str(source.trajectory_path),
-        "-s",
-        str(source.topology_path),
-    ]
-    if frame_range.start == 0 and frame_range.stop is None and frame_range.stride == 1:
-        return arguments
-    if frame_range.stride != 1:
-        return None
-    if len(times) == 1:
-        return [*arguments, "-b", str(times[0]), "-e", str(times[0])]
-    if np.any(np.diff(np.asarray(times, dtype=np.float64)) <= 0):
-        return None
-    return [*arguments, "-b", str(times[0]), "-e", str(times[-1])]
-
-
 def _requested_paths(request: RadialRequest) -> tuple[Path, Path]:
     return (
         Path(request.topology).expanduser().resolve(),
@@ -147,10 +69,19 @@ def _requested_paths(request: RadialRequest) -> tuple[Path, Path]:
     )
 
 
-def _requested_indices(frame_range: FrameRange) -> tuple[int, ...]:
-    if frame_range.stop is None:
-        raise BackendError("An open-ended sampled frame range requires trajectory metadata.")
-    indices = tuple(range(frame_range.start, frame_range.stop, frame_range.stride))
+def _requested_indices(
+    frame_range: FrameRange,
+    n_frames: int | None = None,
+) -> tuple[int, ...]:
+    stop = frame_range.stop
+    if stop is None and n_frames is None:
+        raise BackendError("An open-ended non-default frame range requires trajectory metadata.")
+    if stop is None:
+        stop = n_frames
+    elif n_frames is not None:
+        stop = min(stop, n_frames)
+    assert stop is not None
+    indices = tuple(range(frame_range.start, stop, frame_range.stride))
     if not indices:
         raise BackendError("The selected GROMACS RDF frame range is empty.")
     return indices
@@ -284,6 +215,7 @@ def _selection_records(
 def _process_progress(
     inputs: AnalysisInput,
     total: int | None,
+    indices: tuple[int, ...] = (),
 ) -> Callable[[float, str, str], None]:
     def update(_elapsed: float, stdout: str, stderr: str) -> None:
         message = output_message(stdout, stderr)
@@ -294,7 +226,9 @@ def _process_progress(
             report_progress(inputs.progress, 0, total, message)
             return
         frame, _time_ps = parsed
-        current = frame + 1 if total is None else min(frame + 1, total)
+        current = bisect_right(indices, frame) if indices else frame + 1
+        if total is not None:
+            current = min(current, total)
         report_progress(
             inputs.progress,
             current,
@@ -303,6 +237,33 @@ def _process_progress(
         )
 
     return update
+
+
+def _trajectory_frame_count(
+    inputs: AnalysisInput,
+    trajectory: Path,
+    root: Path,
+) -> tuple[int, IntegrationRunRecord]:
+    record = inputs.integrations.run(
+        "gromacs",
+        ["check", "-f", str(trajectory)],
+        root,
+        cancel_event=inputs.cancel_event,
+        process_progress=_process_progress(inputs, None),
+        required_capabilities=("check",),
+    )
+    if record.status != "completed":
+        raise BackendError(
+            f"GROMACS trajectory inspection exited with code {record.exit_code}.",
+            details={"integration_run": record.to_dict()},
+        )
+    count = frame_count(record.stdout, record.stderr)
+    if count is None:
+        raise BackendError(
+            "GROMACS did not report the trajectory frame count.",
+            details={"integration_run": record.to_dict()},
+        )
+    return count, record
 
 
 class GromacsBackend:
@@ -330,11 +291,8 @@ class GromacsBackend:
         request.validate()
 
     def opens_trajectory(self, request: AnalysisRequest) -> bool:
-        return (
-            isinstance(request, RadialRequest)
-            and request.frames.stop is None
-            and request.frames != FrameRange()
-        )
+        del request
+        return False
 
     def fingerprints_inputs(self, request: AnalysisRequest) -> bool:
         del request
@@ -362,10 +320,9 @@ class GromacsBackend:
             cn_output = root / "cn.xvg"
             cn_radius: NDArray[np.float64] | None = None
             cumulative: NDArray[np.float64] | None = None
-            if inputs.source is not None:
-                audit, times, indices = _audit_bounds(inputs.source, inputs)
-                frame_args = _frame_args(inputs.source, inputs, times)
-            elif request.frames == FrameRange():
+            metadata_record: IntegrationRunRecord | None = None
+            indices: tuple[int, ...]
+            if request.frames == FrameRange():
                 audit = FrameAudit()
                 indices = ()
                 frame_args = [
@@ -375,7 +332,15 @@ class GromacsBackend:
                     str(topology_path),
                 ]
             else:
-                indices = _requested_indices(request.frames)
+                n_frames = None
+                if request.frames.stop is None:
+                    n_frames, metadata_record = _trajectory_frame_count(
+                        inputs,
+                        trajectory_path,
+                        root,
+                    )
+                validate_frame_selection(n_frames, request.frames)
+                indices = _requested_indices(request.frames, n_frames)
                 audit = FrameAudit(
                     count=len(indices),
                     first_index=indices[0],
@@ -404,19 +369,13 @@ class GromacsBackend:
                     cancel_event=inputs.cancel_event,
                     output_files=[subset],
                     input_text="0\n",
-                    process_progress=_process_progress(inputs, audit.count),
+                    process_progress=_process_progress(inputs, audit.count, indices),
                     required_capabilities=("trjconv",),
                 )
                 if conversion_record.status != "completed" or not subset.is_file():
                     raise BackendError(
                         "GROMACS did not produce the selected RDF trajectory.",
                         details={"integration_run": conversion_record.to_dict()},
-                    )
-                if audit.first_time_ps is None:
-                    audit = _run_audit(
-                        conversion_record.stdout,
-                        conversion_record.stderr,
-                        indices,
                     )
                 frame_args = [
                     "-f",
@@ -495,6 +454,8 @@ class GromacsBackend:
         provenance = dict(inputs.provenance)
         runs = provenance.get("integration_runs")
         integration_runs = list(runs) if isinstance(runs, list) else []
+        if metadata_record is not None:
+            integration_runs.append(metadata_record.to_dict())
         if conversion_record is not None:
             integration_runs.append(conversion_record.to_dict())
         integration_runs.append(record.to_dict())

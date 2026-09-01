@@ -42,8 +42,9 @@ palette 并继续响应系统配色变化。
 computation。选择值出现在设置复核中并进入 request。Auto 只有在 GRO/GRO 加 NDX 时才先
 考虑 Native，随后是 MDAnalysis 和可用 GROMACS；expression 模式解析为 MDAnalysis。
 Energy 先考虑 MDAnalysis，再考虑可用 GROMACS。显式选择不回退。默认全帧范围把原输入
-直接传给 `gmx rdf`；只有 cumulative RDF 添加 `-cn`。Energy 用 `gmx energy` 提取序列。显式有限抽样径向
-范围通过一次 `gmx trjconv -fr` 生成精确临时 XTC，`gmx rdf` 保留原 topology。
+直接传给 `gmx rdf`；只有 cumulative RDF 添加 `-cn`。Energy 用 `gmx energy` 提取序列。
+非默认径向帧范围通过一次 `gmx trjconv -fr` 生成精确临时 XTC，`gmx rdf` 保留原 topology；
+开放结束位置的非默认范围先用 `gmx check` 获取帧数。
 
 ## 最初版本的严格契约
 
