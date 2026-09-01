@@ -300,7 +300,7 @@ CLI、TUI 和 GUI 可以有适合媒介的交互，但不能拥有不同的分�
 ### 当前机制
 
 - CLI 将最终 JSON 写 stdout，进度/诊断写 stderr；
-- TUI 用 workspace 和各分析独立 draft 构造 request；
+- TUI 用会话状态和各分析独立 draft 构造 request；
 - GUI 用 session 保存输入/草稿，以后台 task 调用相同门面；
 - 三者的结果展示和导出都来自 `AnalysisResult`/`PlotModel`；
 - Qt 在 GUI 包内惰性导入，Linux headless 路径不依赖 Qt。

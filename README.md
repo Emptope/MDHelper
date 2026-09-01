@@ -36,11 +36,12 @@ GUI.
 Calling `mdhelper` without arguments opens the GUI when Qt and a display are available, then
 falls back to the numbered TUI when the GUI is unavailable. Explicit `gui`, `tui`, and `cli`
 modes select an interface; other arguments are routed to the CLI. The TUI uses `0` to return from
-nested menus and shows one review before an analysis begins. Before a workspace is loaded, it shows
-the current project/workspace status and only the Load menu. Once loaded, its main menu contains
-Analysis, Results, Workspace, and Tools; Tools keeps Integrations, Templates, and Configuration as
-separate entries. Without an open project, the default export folder is
-`results` beside the selected trajectory; project workspaces use `<project>/exports`. Each export
+nested menus; selecting Run starts the analysis immediately without a separate review or confirmation
+screen. Before inputs are loaded, it shows the current project and only the Load menu. Once loaded,
+its main menu provides Analysis, Results, Input files, Project, Species roles, and Tools directly;
+Tools keeps Integrations, Templates, and Configuration as separate entries. Without an open project,
+the default export folder is `results` beside the selected trajectory; project sessions use
+`<project>/exports`. Each export
 creates readable analysis directories under that root.
 
 ## Requirements and setup
@@ -251,22 +252,24 @@ default, with one plot per window. Select energy rows in **Plot series** and use
 them on shared axes in one window; **Separate** restores individual plot windows. These groups are
 marked as `Combined` in the Plot column and preserved in project plot state and figure exports.
 **Save Plot** writes every current plot directly under the project's `figures` directory. File stems
-use readable names such as `rdf-A-B`, `cn-A-B`, and `energy-Potential`. A plot containing both RDF
-and CN uses `rdf-cn`; occupied names advance to `rdf-cn-2`, `rdf-cn-3`, and so on without
-overwriting an existing image set. Combined Energy terms use one ordered prefix, such as
-`energy-Total-Energy-Temperature`. No plot subdirectories are created. The initial Open Plot Window
-canvas and file exports use the same content aspect ratio; resizing the plot window updates the
-subsequent export size.
+use readable names such as `rdf-A-B`, `cn-A-B`, and `energy-Potential`. Plots containing multiple
+series of one analysis type use the fixed names `rdf`, `cn`, or `energy`; a mixed RDF/CN plot uses
+`rdf-cn`. Occupied names advance to `rdf-2`, `rdf-3`, or the corresponding analysis name and number
+without overwriting an existing image set. No plot subdirectories are created. The initial Open
+Plot Window canvas and file exports use the same content aspect ratio; resizing the plot window
+updates the subsequent export size.
 
 GUI and TUI exports use readable directories such as `rdf-A-B` and `cn-A-B`. Energy exports create one
 directory per curve, such as `energy-Potential`; each directory contains its result data and its
-separate PNG/SVG/PDF plot rather than a combined plot at the export root. Unsafe characters are
-replaced, names are capped at 120 characters, and numeric suffixes prevent collisions.
+separate PNG/SVG/PDF plot. Unsafe characters are replaced, names are capped at 120 characters, and
+numeric suffixes prevent collisions.
 
-The TUI analysis menu also provides **RDF + CN Combined Plot**. It reuses one radial setup for both
-analyses and exports each result with its standalone plot in a separate readable directory. TUI
-**Save Plot** preserves the current combined dual-axis plot under the same `rdf-cn` naming and
-collision rules as the GUI.
+RDF and CN TUI setups add the initial group selection as the first entry in an ordered task queue.
+Entries retain the analysis type, selection pair, maximum radius, and bin width. **RDF + CN Combined
+Plot** uses a separate mixed queue; each row is one explicit RDF or CN task and runs exactly once.
+The export keeps each result and standalone plot in its readable directory and also writes the
+combined batch plot at the export root. TUI **Save Plot** uses the same fixed combined names and
+numeric collision rules as the GUI.
 
 ## Method and reproducibility conventions
 

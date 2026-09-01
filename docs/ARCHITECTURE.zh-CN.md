@@ -158,11 +158,12 @@ TUI/CLI 运行期间保持等待并连接标准流。GUI 启动会创建独立�
 序列所属绘图的标题，并同步到该绘图的其他分组序列；项目恢复和图片导出使用同一状态。
 交互式界面保存项目图片时，每个绘图模型按可读分析名称直接在 `figures` 下生成一组
 PNG/SVG/PDF，不建立图片子目录；命名会同时避开本批次及磁盘已有图片组。RDF/CN 组合模型
-统一使用 `rdf-cn`，单项径向模型保留包含 Pair 的可读名称。GUI 与 TUI 结果导出都会在对应
-分析目录内为每个结果重建单项图，不在导出根目录生成或向多个目录复制合并图。Energy
-组合名称只保留一个 `energy` 前缀，并按显示顺序连接 source terms。绘图对话框根据 Figure
-canvas 与 layout margins 计算初始 client size，因此首次打开不会改变 Save Plot 或 Export
-随后使用的内容比例。
+中，同类多序列模型固定使用 `rdf`、`cn` 或 `energy`，RDF/CN 混合模型使用 `rdf-cn`；名称
+冲突时从 `-2` 开始追加数字编号。单项径向与 Energy 模型保留包含 Pair 或 term 的可读名称。
+GUI 与 TUI 结果 bundle 都会在对应分析目录内为每个结果重建单项图；TUI 径向任务批次还会
+通过 Save Plot 使用的同一平铺图片规划，在导出根目录保存共享绘图模型。绘图对话框根据
+Figure canvas 与 layout margins 计算初始 client size，因此首次打开不会改变 Save Plot 或
+Export 随后使用的内容比例。
 
 当前绘图配色不支持 `Atom name`。原子名可以用于选择表达式和选择诊断，但一条聚合分析
 序列往往包含多个原子名，不能形成无歧义的一对一颜色键。
@@ -432,20 +433,22 @@ YAML 结构值，`--args-file` 可载入完整调用。SIGINT 转换为取消请
 | 文件 | 职责 |
 | --- | --- |
 | `terminal.py` | 抽象输入、输出和终端能力，便于非交互测试。 |
-| `model.py` | 保存 workspace、各分析独立草稿和当前菜单状态。 |
-| `controller.py` | 实现编号菜单状态机、返回规则、运行前审核和服务调用。 |
+| `model.py` | 保存 TUI 会话状态、各分析独立草稿和径向任务队列。 |
+| `controller.py` | 实现编号菜单状态机、返回规则、队列运行和服务调用。 |
 | `formatting.py` | 渲染共享结果报告，并格式化 TUI 错误和选择摘要。 |
 | `main.py` | 创建终端、应用服务和控制器。 |
 | `__main__.py` | 支持 `python -m mdhelper.tui`。 |
 
-Workspace 保存当前输入和检测结果；各分析草稿相互独立，避免参数串扰。运行前审核面板
-集中展示输入、选择、帧范围和分析参数。检测到的物种角色须经用户确认才参与已配置运行，
-但确认不会改变分析选择。RDF + CN 工作流从同一套径向配置构造两个 request，分别导出原始
-结果及其单项图到可读分析目录；Save Plot 则把共享距离轴和双 Y 轴模型以 `rdf-cn` 保存。
-TUI Export 与 Save Plot 复用 GUI 的 App 导出规划，项目图片同样平铺保存到 `figures`。
-workspace 未加载时状态机显示
-明确的 project/workspace 状态和 Load 菜单，成功加载输入或项目后才显示精简主菜单；Tools
-中的 Integrations 与 Templates 保持为独立状态。选定 EDR 后通过 App 用例按所选 Backend
+TUI 会话状态保存当前输入和检测结果；各分析草稿相互独立，避免参数串扰。选择 Run 后直接
+构造 request 并执行，不显示独立的 Review 或二次确认页面。检测到的物种角色须经用户确认才
+参与已配置运行，但确认不会改变分析选择。RDF 与 CN 草稿会把首次选择直接加入由分析类型、
+选择和径向参数快照组成的有序队列；RDF + CN 工作流使用独立混合队列，每个显式 RDF 或 CN
+任务只构造一个 request。工作流分别导出原始结果及其单项图到可读分析目录；两种类型同时
+存在时，在导出根目录以 `rdf-cn` 保存共享距离轴和双 Y 轴模型。TUI Export 与 Save Plot 复用 GUI 的 App
+导出规划，项目图片同样平铺保存到 `figures`。输入未加载时状态机显示明确的 project/input
+状态和 Load 菜单；成功加载后，Input files、Project 和 Species roles 直接位于主菜单，不再
+经过额外的 Workspace 子菜单。Tools 中的 Integrations 与 Templates 保持为独立状态。选定
+EDR 后通过 App 用例按所选 Backend
 发现 terms；`auto` 先使用 MDAnalysis，无法读取时才按已检测 capability 回退到
 `gmx energy`，随后以带选中标记的有序多选菜单编辑 terms。
 

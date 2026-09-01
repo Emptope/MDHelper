@@ -28,8 +28,9 @@ from mdhelper.tui.formatting import (
     roles_text,
     setup_panel,
     summary_text,
+    task_label,
 )
-from mdhelper.tui.model import AnalysisDraft, Workspace
+from mdhelper.tui.model import AnalysisDraft, RadialTask, Workspace
 from mdhelper.tui.terminal import EndOfInput, Terminal
 from mdhelper.version import DEVELOPER, __version__
 from mdhelper.workflow.tasks import TaskService
@@ -90,8 +91,10 @@ class Tui:
             (
                 ("Analysis", "1"),
                 ("Results and export", "2"),
-                ("Workspace", "3"),
-                ("Tools", "4"),
+                ("Input files and inspection", "3"),
+                ("Project", "4"),
+                ("Species roles", "5"),
+                ("Tools", "6"),
                 ("Quit", "q"),
             ),
             back=False,
@@ -101,14 +104,8 @@ class Tui:
         project = (
             "none" if self.workspace.project is None else str(self.workspace.project.root)
         )
-        workspace = (
-            Path(self.workspace.trajectory).name
-            if self.workspace.loaded
-            else "not loaded"
-        )
         self.terminal.write()
         self.terminal.write(f"Current project: {project}")
-        self.terminal.write(f"Current workspace: {workspace}")
 
     def _load_action(self, choice: str | None) -> None:
         actions = {
@@ -121,8 +118,10 @@ class Tui:
         actions = {
             "1": self._analyses,
             "2": self._results,
-            "3": self._workspace,
-            "4": self._tools,
+            "3": self._inputs,
+            "4": self._projects,
+            "5": self._roles,
+            "6": self._tools,
         }
         self._perform(actions.get(choice or ""))
 
@@ -141,26 +140,6 @@ class Tui:
             record_error(exc, "TUI operation")
             self.terminal.rule("Unexpected internal error")
             self.terminal.write(error_text(exc))
-
-    def _workspace(self) -> None:
-        while True:
-            choice = self.terminal.menu(
-                "Workspace",
-                (
-                    ("Input files and inspection", "1"),
-                    ("Project", "2"),
-                    ("Species roles", "3"),
-                ),
-            )
-            if choice is None:
-                return
-            if choice == "1":
-                self._inputs()
-                return
-            if choice == "2":
-                self._projects()
-                return
-            self._roles()
 
     def _tools(self) -> None:
         while True:
@@ -189,7 +168,7 @@ class Tui:
                     ("Load topology and trajectory", "1"),
                     ("Inspect current inputs", "2"),
                     ("Show current system summary", "3"),
-                    ("Reset the workspace", "4"),
+                    ("Reset the current session", "4"),
                 ),
             )
             if choice is None:
@@ -205,7 +184,7 @@ class Tui:
                 "Clear inputs, project state, drafts, and the in-memory result?"
             ):
                 self.workspace.clear()
-                self.terminal.write("Workspace reset.")
+                self.terminal.write("Session reset.")
 
     def _load_inputs(self) -> None:
         topology = self.terminal.ask(
@@ -277,7 +256,7 @@ class Tui:
             )
             self.terminal.write(f"Current project: {project_label}")
             choice = self.terminal.menu(
-                "Project workspace",
+                "Project",
                 (
                     ("Open an existing project", "1"),
                     ("Create a project from current inputs", "2"),
@@ -467,20 +446,25 @@ class Tui:
             self._analysis_setup(self.workspace.draft(analysis_type))
 
     def _rdf_cn_setup(self) -> None:
-        draft = self.workspace.draft("rdf")
-        self._prepare_setup(draft)
+        draft = self.workspace.rdf_cn()
+        self._prepare_setup(draft, edit_groups=False)
         while True:
             self.terminal.rule("RDF + CN setup")
             self.terminal.write(setup_panel(draft, self.workspace))
             choice = self.terminal.menu(
                 "Options",
                 (
-                    ("Run", "1"),
+                    (
+                        f"Run task queue ({len(draft.queue)})",
+                        "1",
+                    ),
                     ("Change groups", "2"),
                     ("Change frames", "3"),
                     ("Change parameters", "4"),
                     ("Change export folder", "5"),
                     ("Change analysis backend", "6"),
+                    self._task_option(draft),
+                    ("Manage task queue", "8"),
                 ),
             )
             if choice is None:
@@ -498,14 +482,25 @@ class Tui:
                 draft.output = self.terminal.ask("Export directory", draft.output)
             elif choice == "6":
                 self._edit_backend(draft)
+            elif choice == "7":
+                self._edit_task(draft, mixed=True)
+            elif choice == "8":
+                self._manage_tasks(draft)
 
     def _analysis_setup(self, draft: AnalysisDraft) -> None:
-        self._prepare_setup(draft)
+        initialized = self._prepare_setup(draft)
+        if initialized:
+            self._add_task(draft)
         while True:
             self.terminal.rule(f"{analysis_label(draft.analysis_type)} setup")
             self.terminal.write(setup_panel(draft, self.workspace))
             options: list[tuple[str, str]] = [
-                ("Run", "1"),
+                (
+                    "Run current setup"
+                    if draft.analysis_type == "energy"
+                    else f"Run task queue ({len(draft.queue)})",
+                    "1",
+                ),
             ]
             if draft.analysis_type != "energy":
                 options.extend((("Change groups", "2"), ("Change frames", "3")))
@@ -516,6 +511,13 @@ class Tui:
                     ("Change analysis backend", "6"),
                 )
             )
+            if draft.analysis_type != "energy":
+                options.extend(
+                    (
+                        self._task_option(draft),
+                        ("Manage task queue", "8"),
+                    )
+                )
             choice = self.terminal.menu("Options", options)
             if choice is None:
                 return
@@ -532,8 +534,17 @@ class Tui:
                 self._edit_output(draft)
             elif choice == "6":
                 self._edit_backend(draft)
+            elif choice == "7":
+                self._edit_task(draft)
+            elif choice == "8":
+                self._manage_tasks(draft)
 
-    def _prepare_setup(self, draft: AnalysisDraft) -> None:
+    def _prepare_setup(
+        self,
+        draft: AnalysisDraft,
+        *,
+        edit_groups: bool = True,
+    ) -> bool:
         summary = self.workspace.summary
         if summary is not None and set(self.workspace.roles) != set(summary.species):
             self._roles()
@@ -543,14 +554,16 @@ class Tui:
                 self._require_gromacs("energy", "GROMACS Energy")
             if not draft.energy_file or not draft.energy_terms:
                 self._edit_parameters(draft)
-            return
-        if not draft.reference.strip() or (
-            draft.analysis_type in {"rdf", "cumulative_rdf"}
-            and not draft.selection.strip()
+            return False
+        if edit_groups and (
+            not draft.reference.strip() or not draft.selection.strip()
         ):
             self.terminal.rule(f"{analysis_label(draft.analysis_type)} groups")
             self.terminal.write("Choose the groups to analyze.")
             self._edit_selections(draft)
+            return True
+        return False
+
     def _selection(self, title: str, current: str = "") -> str:
         summary = self.workspace.summary
         if self.workspace.index_file:
@@ -620,6 +633,105 @@ class Tui:
             draft.energy_file = energy_file
             draft.energy_terms = list(selected)
 
+    @staticmethod
+    def _task_option(draft: AnalysisDraft) -> tuple[str, str]:
+        return ("Update task" if draft.queue_index is not None else "Add task", "7")
+
+    def _edit_task(self, draft: AnalysisDraft, *, mixed: bool = False) -> None:
+        action = "Update" if draft.queue_index is not None else "Add"
+        self.terminal.rule(f"{action} radial task")
+        if mixed:
+            selected = self.terminal.choose(
+                "Analysis type",
+                (
+                    (analysis_label("rdf"), "rdf"),
+                    (analysis_label("cumulative_rdf"), "cumulative_rdf"),
+                ),
+                draft.analysis_type,
+            )
+            draft.analysis_type = cast(AnalysisType, selected)
+        self._edit_selections(draft)
+        self._edit_parameters(draft)
+        self._add_task(draft)
+
+    def _add_task(self, draft: AnalysisDraft) -> None:
+        issues = draft_issues(draft, self.workspace)
+        if issues:
+            raise InputError(
+                "The current setup cannot be queued.",
+                "Complete every item shown under 'Missing'.",
+                {"required_decisions": issues},
+            )
+        draft.request(self.workspace)
+        task = RadialTask.from_draft(draft)
+        index = draft.queue_index
+        if index is None:
+            index = next(
+                (
+                    number
+                    for number, queued in enumerate(draft.queue)
+                    if (
+                        queued.analysis_type,
+                        queued.reference,
+                        queued.selection,
+                    )
+                    == (task.analysis_type, task.reference, task.selection)
+                ),
+                None,
+            )
+        if index is None:
+            draft.queue.append(task)
+            index = len(draft.queue) - 1
+            action = "Added"
+        else:
+            draft.queue[index] = task
+            action = "Updated"
+        draft.queue_index = None
+        self.terminal.write(f"{action} task {index + 1}: {task_label(task)}")
+
+    def _manage_tasks(self, draft: AnalysisDraft) -> None:
+        if not draft.queue:
+            self.terminal.write("The task queue is empty.")
+            return
+        while draft.queue:
+            self.terminal.rule("Radial task queue")
+            for number, task in enumerate(draft.queue, 1):
+                self.terminal.write(f"  {number}. {task_label(task)}")
+            choice = self.terminal.menu(
+                "Queue actions",
+                (
+                    ("Load a task for editing", "1"),
+                    ("Remove a task", "2"),
+                    ("Clear the task queue", "3"),
+                ),
+            )
+            if choice is None:
+                return
+            if choice == "3":
+                if self.terminal.confirm("Clear every queued task?"):
+                    draft.queue.clear()
+                    draft.queue_index = None
+                    self.terminal.write("Task queue cleared.")
+                return
+            index = self.terminal.choose(
+                "Queued tasks",
+                tuple(
+                    (task_label(task), number)
+                    for number, task in enumerate(draft.queue)
+                ),
+            )
+            if choice == "1":
+                draft.queue[index].load(draft)
+                draft.queue_index = index
+                self.terminal.write(f"Loaded task {index + 1} for editing.")
+                return
+            draft.queue.pop(index)
+            if draft.queue_index == index:
+                draft.queue_index = None
+            elif draft.queue_index is not None and draft.queue_index > index:
+                draft.queue_index -= 1
+            self.terminal.write(f"Removed task {index + 1}.")
+
     def _edit_backend(self, draft: AnalysisDraft) -> None:
         choices: list[tuple[str, str]] = [
             ("Automatic selection", "auto"),
@@ -682,66 +794,67 @@ class Tui:
         draft.output = self.terminal.ask("Export directory", draft.output or None)
 
     def _run_analysis(self, draft: AnalysisDraft) -> bool:
-        issues = draft_issues(draft, self.workspace)
-        if issues:
-            raise InputError(
-                "Setup is incomplete.",
-                "Complete every item shown under 'Missing'.",
-                {"required_decisions": issues},
-            )
-        request = draft.request(self.workspace)
-        self.terminal.rule(f"Review {analysis_label(draft.analysis_type)} setup")
-        self.terminal.write(setup_panel(draft, self.workspace))
-        if not self.terminal.confirm(f"Start {analysis_label(draft.analysis_type)} now?"):
-            self.terminal.write("You can change the setup below.")
-            return False
-        cache_dir = (
-            None if self.workspace.project is None else self.workspace.project.cache_dir
-        )
-        result = self.tasks.run_sync(
-            request, self.terminal.progress, cache_dir=cache_dir
-        )
-        self.terminal.finish_progress()
-        self.workspace.result = result
-        self.workspace.plot_results = (result,)
-        paths = self.application.analyses.export_bundle(
-            default_plot_exports((result,)),
-            draft.output,
-        )
-        project_result = None
-        if self.workspace.project is not None:
-            project_result = self.application.projects.commit_result(
-                self.workspace.project, request, result
-            )
-        self.terminal.rule("Analysis completed")
-        self.terminal.write(result_text(result))
-        self.terminal.write("Exported files:")
-        for path in paths:
-            self.terminal.write(f"  {path}")
-        if project_result is not None:
-            self.terminal.write(f"Project result: {project_result}")
+        runs = (draft,) if draft.analysis_type == "energy" else self._radial_runs(draft)
+        requests = self._requests(runs)
+        results = self._run_requests(requests)
+        self._complete_batch(results, draft.output)
         return True
 
     def _run_rdf_cn(self, draft: AnalysisDraft) -> bool:
-        issues = draft_issues(draft, self.workspace)
+        runs = self._radial_runs(draft)
+        requests = self._requests(runs)
+        results = self._run_requests(requests)
+        self._complete_batch(results, draft.output)
+        return True
+
+    def _radial_runs(
+        self,
+        draft: AnalysisDraft,
+    ) -> tuple[AnalysisDraft, ...]:
+        if not draft.queue:
+            raise InputError(
+                "The task queue is empty.",
+                "Use Add task to configure at least one RDF or CN task.",
+            )
+        runs: list[AnalysisDraft] = []
+        for task in draft.queue:
+            item = replace(
+                draft,
+                analysis_type=task.analysis_type,
+                queue=[],
+                queue_index=None,
+            )
+            task.load(item)
+            runs.append(item)
+        return tuple(runs)
+
+    def _requests(self, drafts: tuple[AnalysisDraft, ...]) -> tuple[AnalysisRequest, ...]:
+        issues: list[str] = []
+        for number, draft in enumerate(drafts, 1):
+            issues.extend(
+                f"task {number}: {issue}"
+                for issue in draft_issues(draft, self.workspace)
+            )
         if issues:
             raise InputError(
                 "Setup is incomplete.",
                 "Complete every item shown under 'Missing'.",
                 {"required_decisions": issues},
             )
-        self.terminal.rule("Review RDF + CN setup")
-        self.terminal.write(setup_panel(draft, self.workspace))
-        if not self.terminal.confirm("Start RDF + CN now?"):
-            self.terminal.write("You can change the setup below.")
-            return False
+        return tuple(draft.request(self.workspace) for draft in drafts)
+
+    def _run_requests(
+        self,
+        requests: tuple[AnalysisRequest, ...],
+    ) -> tuple[AnalysisResult, ...]:
         cache_dir = (
             None if self.workspace.project is None else self.workspace.project.cache_dir
         )
         results: list[AnalysisResult] = []
-        analysis_types: tuple[AnalysisType, ...] = ("rdf", "cumulative_rdf")
-        for analysis_type in analysis_types:
-            request = replace(draft, analysis_type=analysis_type).request(self.workspace)
+        for number, request in enumerate(requests, 1):
+            self.terminal.rule(
+                f"Task {number}/{len(requests)}: {analysis_label(request.analysis_type)}"
+            )
             result = self.tasks.run_sync(
                 request,
                 self.terminal.progress,
@@ -749,19 +862,37 @@ class Tui:
             )
             self.terminal.finish_progress()
             results.append(result)
+        return tuple(results)
+
+    def _export_batch(
+        self,
+        results: tuple[AnalysisResult, ...],
+        output: str | Path,
+    ) -> list[Path]:
+        plots = default_plot_exports(results)
+        paths = self.application.analyses.export_bundle(plots, output)
+        if any(len(plot.items) > 1 for plot in plots):
+            paths.extend(self.application.analyses.save_plots(plots, output))
+        return paths
+
+    def _complete_batch(
+        self,
+        results: tuple[AnalysisResult, ...],
+        output: str | Path,
+    ) -> None:
         self.workspace.result = results[-1]
-        self.workspace.plot_results = tuple(results)
-        paths = self.application.analyses.export_bundle(
-            default_plot_exports(results),
-            draft.output,
-        )
+        self.workspace.plot_results = results
+        paths = self._export_batch(results, output)
         project = self.workspace.project
+        project_paths: list[Path] = []
         if project is not None:
             for result in results:
-                self.application.projects.commit_result(
-                    project,
-                    AnalysisRequest.from_dict(result.request),
-                    result,
+                project_paths.append(
+                    self.application.projects.commit_result(
+                        project,
+                        AnalysisRequest.from_dict(result.request),
+                        result,
+                    )
                 )
         self.terminal.rule("Analysis completed")
         for result in results:
@@ -769,7 +900,8 @@ class Tui:
         self.terminal.write("Exported files:")
         for path in paths:
             self.terminal.write(f"  {path}")
-        return True
+        for path in project_paths:
+            self.terminal.write(f"Project result: {path}")
 
     def _results(self) -> None:
         while True:
@@ -825,10 +957,7 @@ class Tui:
 
     def _export_result(self) -> None:
         output = self.terminal.ask("Export directory")
-        paths = self.application.analyses.export_bundle(
-            default_plot_exports(self._current_plots()),
-            output,
-        )
+        paths = self._export_batch(self._current_plots(), output)
         self.terminal.write(f"Exported {len(paths)} file(s) to {output}.")
 
     def _load_result(self) -> None:

@@ -19,7 +19,7 @@ fi
 "$application" --version
 "$application" tui --smoke-test
 menu=$(printf 'q\n' | "$application")
-if [[ "$menu" != *"Current workspace: not loaded"* ]]; then
+if [[ "$menu" != *"Load topology and trajectory"* ]]; then
     echo "Argument-free startup did not fall back to TUI." >&2
     exit 1
 fi

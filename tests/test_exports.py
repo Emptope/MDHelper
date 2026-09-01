@@ -97,7 +97,7 @@ def test_plot_export_uses_one_canonical_name_for_combined_rdf_cn() -> None:
     )
 
 
-def test_plot_export_uses_one_energy_prefix_for_combined_terms() -> None:
+def test_plot_export_uses_fixed_name_for_combined_energy_terms() -> None:
     results = (
         _energy_result("Total Energy", "kJ/mol", "total"),
         _energy_result("Temperature", "K", "temperature"),
@@ -106,8 +106,78 @@ def test_plot_export_uses_one_energy_prefix_for_combined_terms() -> None:
     combined = plot_exports(results, group_ids=("shared", "shared"))
     standalone = plot_exports((results[0],))
 
-    assert combined[0].name == "energy-Total-Energy-Temperature"
+    assert combined[0].name == "energy"
     assert standalone[0].name == "energy-Total-Energy"
+
+
+@pytest.mark.parametrize(
+    ("analysis_type", "name"),
+    (("rdf", "rdf"), ("cumulative_rdf", "cn")),
+)
+def test_plot_export_uses_fixed_name_for_combined_radial_series(
+    analysis_type: AnalysisType,
+    name: str,
+) -> None:
+    results = (
+        _radial_result(analysis_type, "LI", "O_FSI", f"{name}-fsi"),
+        _radial_result(analysis_type, "LI", "O_DME", f"{name}-dme"),
+    )
+
+    combined = plot_exports(results)
+    standalone = plot_exports((results[0],))
+
+    assert combined[0].name == name
+    assert standalone[0].name == f"{name}-LI-O_FSI"
+
+
+def test_save_plots_numbers_every_combined_analysis_name(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[str] = []
+    plots = {
+        "rdf": plot_exports(
+            (
+                _radial_result("rdf", "LI", "O_FSI", "rdf-fsi"),
+                _radial_result("rdf", "LI", "O_DME", "rdf-dme"),
+            )
+        ),
+        "cn": plot_exports(
+            (
+                _radial_result("cumulative_rdf", "LI", "O_FSI", "cn-fsi"),
+                _radial_result("cumulative_rdf", "LI", "O_DME", "cn-dme"),
+            )
+        ),
+        "energy": plot_exports(
+            (
+                _energy_result("Total Energy", "kJ/mol", "total"),
+                _energy_result("Temperature", "K", "temperature"),
+            ),
+            group_ids=("shared", "shared"),
+        ),
+    }
+    for name in plots:
+        (tmp_path / f"{name}.svg").write_text("existing", encoding="ascii")
+
+    def fake_export(
+        _model: PlotModel,
+        output: str | Path,
+        stem: str,
+        _scheme: str,
+        _limits: PlotLimits | None,
+        _size: PlotSize | None,
+    ) -> list[Path]:
+        path = Path(output) / f"{stem}.png"
+        path.touch()
+        calls.append(stem)
+        return [path]
+
+    monkeypatch.setattr(exports_module, "export_plot_model", fake_export)
+
+    for plan in plots.values():
+        save_plots(plan, tmp_path)
+
+    assert calls == ["rdf-2", "cn-2", "energy-2"]
 
 
 def test_save_plots_increments_combined_names_across_batch_and_disk(

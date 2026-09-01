@@ -31,11 +31,11 @@ energy 数据提取。
 
 不带参数执行 `mdhelper` 时，Qt 和 display 可用则优先打开 GUI，否则降级到编号式 TUI。
 显式 `gui`、`tui`、`cli` 可选择界面，其他参数进入 CLI。TUI 的多级菜单使用 `0` 返回，
-并在分析开始前集中显示设置供用户确认。workspace 未加载时，首页显示当前 project/workspace
-状态且只提供 Load 菜单；加载后主菜单仅保留 Analysis、Results、Workspace 和 Tools。Tools
-中的 Integrations、Templates 和 Configuration 保持为独立入口。未打开项目时，默认导出
-根目录是所选 trajectory 旁的 `results`；项目 workspace 使用 `<project>/exports`。每次
-导出会在该根目录下创建可读分析目录。
+选择 Run 后直接开始分析，不再显示独立的 Review 或二次确认页面。输入未加载时，首页显示
+当前 project 且只提供 Load 菜单；加载后主菜单直接提供 Analysis、Results、Input files、
+Project、Species roles 和 Tools。Tools 中的 Integrations、Templates 和 Configuration 保持为
+独立入口。未打开项目时，默认导出根目录是所选 trajectory 旁的 `results`；项目会话使用
+`<project>/exports`。每次导出会在该根目录下创建可读分析目录。
 
 ## 环境要求与安装
 
@@ -233,18 +233,20 @@ energy term 默认各自在独立窗口中绘图，一个窗口只显示一张�
 energy 行并使用 **Combine** 可将其绘制到同一窗口的共享坐标轴，**Separate** 可恢复独立
 绘图窗口。组合行会在 Plot 列显示 `Combined` 标记；组合关系会保存在项目绘图状态和图像
 导出中。**Save Plot** 会把每个绘图窗口直接保存到项目的 `figures` 目录，不创建图片子目录；
-单项图使用 `rdf-A-B`、`cn-A-B`、`energy-Potential` 等可读名称。包含 RDF 与 CN 的组合图
-统一使用 `rdf-cn`；名称已被占用时依次使用 `rdf-cn-2`、`rdf-cn-3`，不会覆盖已有图片组。
-Energy 组合图只保留一个有序前缀，例如 `energy-Total-Energy-Temperature`。Open Plot Window
-首次显示与文件导出保持相同的绘图内容比例；手动缩放绘图窗口后，后续导出使用调整后的尺寸。
+单项图使用 `rdf-A-B`、`cn-A-B`、`energy-Potential` 等可读名称。同类多序列组合图固定使用
+`rdf`、`cn` 或 `energy`，RDF 与 CN 的混合组合图使用 `rdf-cn`；名称已被占用时从 `-2`
+开始依次追加数字编号，不会覆盖已有图片组。Open Plot Window 首次显示与文件导出保持相同
+的绘图内容比例；手动缩放绘图窗口后，后续导出使用调整后的尺寸。
 
 GUI 与 TUI 导出统一使用 `rdf-A-B`、`cn-A-B` 等可读目录。Energy 每条曲线单独建立目录，例如
-`energy-Potential`；每个目录包含结果数据及独立的 PNG/SVG/PDF 图片，导出根目录不再保存
-合并图片。非法字符会被替换，名称最长 120 个字符，冲突时追加数字后缀。
+`energy-Potential`；每个目录包含结果数据及独立的 PNG/SVG/PDF 图片。非法字符会被替换，
+名称最长 120 个字符，冲突时追加数字后缀。
 
-TUI 分析菜单也提供 **RDF + CN Combined Plot**。它让两项分析复用同一套径向配置，把结果
-及各自的单项图分别保存到可读分析目录。TUI 的 **Save Plot** 保留当前双纵轴组合图，并与
-GUI 使用相同的 `rdf-cn` 命名、递增和项目 `figures` 平铺规则。
+TUI 的 RDF 与 CN 设置会把首次 group 选择直接作为有序任务队列的第 1 项；每项保存分析类型、
+选择 pair、最大半径和 bin width。**RDF + CN Combined Plot** 使用独立的混合队列；每行是一个
+显式 RDF 或 CN 任务，且只执行一次。导出既把结果及单项图保存到各自的可读目录，也会在导出
+根目录写入批量合并图。TUI 的 **Save Plot** 与 GUI 使用相同的固定组合名称、数字递增和项目
+`figures` 平铺规则。
 
 ## 方法与可复现性约定
 

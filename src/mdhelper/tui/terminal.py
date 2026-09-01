@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from typing import TextIO, TypeVar
 
 T = TypeVar("T")
+_CONTENT_WIDTH = 76
 
 
 class EndOfInput(EOFError):
@@ -41,6 +42,16 @@ class Terminal:
         remaining = max(2, width - len(label))
         left = remaining // 2
         self.write(f"{'=' * left}{label}{'=' * (remaining - left)}")
+
+    def _write_grid(self, items: Sequence[str], width: int = _CONTENT_WIDTH) -> None:
+        if not items:
+            return
+        gap = "  "
+        cell_width = max(len(item) for item in items)
+        columns = min(len(items), max(1, (width + len(gap)) // (cell_width + len(gap))))
+        for start in range(0, len(items), columns):
+            row = items[start : start + columns]
+            self.write(gap.join(item.ljust(cell_width) for item in row).rstrip())
 
     def ask(
         self,
@@ -191,9 +202,12 @@ class Terminal:
             self.write()
             self.rule(title)
             width = max(2, len(str(len(options))))
-            for number, (label, value) in enumerate(options, 1):
-                marker = "[x]" if value in chosen else "[ ]"
-                self.write(f" {number:>{width}}  {marker} {label}")
+            self._write_grid(
+                tuple(
+                    f" {number:>{width}}  {'[x]' if value in chosen else '[ ]'} {label}"
+                    for number, (label, value) in enumerate(options, 1)
+                )
+            )
             self.write("  a  Select all")
             self.write("  c  Clear")
             self.write("  0  Done")

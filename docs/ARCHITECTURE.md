@@ -125,12 +125,13 @@ the plot containing the current visible series and synchronizes that title acros
 series; project restore and figure export consume the same state.
 Interactive project figure saving writes one PNG/SVG/PDF set per plot model directly under
 `figures`, using canonical names allocated against both the current batch and existing image sets.
-Mixed RDF/CN models use `rdf-cn`; standalone radial models retain their readable Pair name. GUI and
-TUI result export rebuild one standalone model per result item inside its analysis directory and do
-not create or duplicate a combined figure at the export root. Combined Energy names contain one
-`energy` prefix followed by the source terms in display order. The plot dialog derives its initial
-client size from the Figure canvas and layout margins, so opening it does not change the aspect ratio
-later consumed by Save Plot or Export.
+Models with multiple series of one analysis type use `rdf`, `cn`, or `energy`; mixed RDF/CN models
+use `rdf-cn`. Name collisions append numeric suffixes starting at `-2`. Standalone radial and Energy
+models retain their readable Pair or term name. GUI and TUI result bundles rebuild one standalone
+model per result item inside its analysis directory. A TUI radial task batch additionally saves its
+shared plot model at the export root through the same flat figure plan used by Save Plot. The plot
+dialog derives its initial client size from the Figure canvas and layout margins, so opening it does
+not change the aspect ratio later consumed by Save Plot or Export.
 
 ## 6. Application layer
 
@@ -263,15 +264,17 @@ namespaces. Execution receives only the selected namespace. `analyze rdf` and
 and `--args-file` loads a complete invocation. Output remains script-oriented and errors map to
 stable exit categories.
 
-TUI stores an `AnalysisDraft`, reviews explicit choices, converts it to `AnalysisRequest`, and then
-calls the facade. Its RDF + CN workflow creates two requests from one shared radial setup, exports
-the results and their standalone plots to separate readable directories. TUI Save Plot preserves
-the shared dual-axis model as `rdf-cn` in the flat project-figure layout. TUI Export and Save Plot
-use the same application plans as GUI.
-An unloaded workspace shows explicit project/workspace status and a Load-only menu; the
-reduced main menu is rendered only after input or project loading. Integrations and Templates remain
-separate Tools states. EDR selection invokes shared term discovery and presents an ordered marked
-multi-select. It does not call CLI parsing or GUI widgets.
+TUI stores an `AnalysisDraft`, converts explicit choices to `AnalysisRequest`, and calls the facade
+immediately when Run is selected. RDF and CN drafts add the initial selection to ordered queues of
+typed selection and radial-parameter snapshots. The RDF + CN workflow owns a separate mixed queue
+and creates exactly one request per explicit RDF or CN task. It exports each result and standalone
+plot to a readable directory and writes a shared dual-axis model as `rdf-cn` when both types are
+present. Save Plot uses the same model in the flat project-figure layout, and both paths use the
+GUI's application plans. Before inputs are loaded, the state machine shows the current project and
+a Load-only menu. After loading, Input files, Project, and Species roles are direct main-menu actions
+rather than an extra Workspace submenu. Integrations and Templates remain separate Tools states. EDR selection
+invokes shared term discovery and presents an ordered marked multi-select. It does not call CLI
+parsing or GUI widgets.
 
 GUI separates widgets, application calls, and result formatting. `window.py` coordinates use cases;
 `parameters.py` builds requests; `results.py` renders result text and core plot models; `species.py`

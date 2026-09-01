@@ -18,7 +18,7 @@ from mdhelper.services.config import UserConfig
 from mdhelper.tui.controller import Tui
 from mdhelper.tui.formatting import draft_issues
 from mdhelper.tui.main import main
-from mdhelper.tui.model import AnalysisDraft, Workspace
+from mdhelper.tui.model import AnalysisDraft, RadialTask, Workspace
 from mdhelper.tui.terminal import Terminal
 
 
@@ -47,7 +47,7 @@ def test_tui_unloaded_home_shows_only_load_actions_and_developer() -> None:
     assert "Open an existing project" in text
     assert "Main menu" not in text
     assert "Current project: none" in text
-    assert "Current workspace: not loaded" in text
+    assert "Current inputs:" not in text
     assert "Analysis" not in text
 
 
@@ -61,12 +61,15 @@ def test_loaded_main_menu_contains_only_primary_actions() -> None:
 
     text = output.getvalue()
     assert "Current project: none" in text
-    assert "Current workspace: trajectory.xtc" in text
+    assert "Current inputs:" not in text
     assert "Main menu" in text
     assert "  1  Analysis" in text
     assert "  2  Results and export" in text
-    assert "  3  Workspace" in text
-    assert "  4  Tools" in text
+    assert "  3  Input files and inspection" in text
+    assert "  4  Project" in text
+    assert "  5  Species roles" in text
+    assert "  6  Tools" in text
+    assert "Workspace" not in text
     assert "Confirm species roles" not in text
     assert "Configuration summary" not in text
 
@@ -83,8 +86,9 @@ def test_nested_menus_have_visible_spacing() -> None:
     assert tui.run() == 0
 
     text = output.getvalue()
-    assert "Current workspace: trajectory.xtc\n\n" in text
-    assert "Workspace" in text
+    assert "Current project: none\n\n" in text
+    assert "Input files and inspection" in text
+    assert "Workspace" not in text
     assert "Select:" not in text
     assert "  q  Quit\n\n> " in text
 
@@ -476,6 +480,8 @@ def test_tui_default_export_directory_follows_selected_trajectory(tmp_path: Path
 
     assert workspace.draft("rdf").output == str(trajectory.parent / "results")
     assert workspace.draft("cumulative_rdf").output == str(trajectory.parent / "results")
+    assert workspace.rdf_cn().output == str(trajectory.parent / "results")
+    assert workspace.rdf_cn() is not workspace.draft("rdf")
 
 
 def test_tui_exports_each_energy_curve_to_its_own_directory(
@@ -537,17 +543,24 @@ def test_tui_save_plot_uses_flat_project_figure_names(
     assert "Saved 9 figure file(s)" in output.getvalue()
 
 
-def test_tui_analysis_setup_opens_options_before_run_confirmation() -> None:
+def test_tui_analysis_setup_queues_initial_radial_selection(monkeypatch) -> None:
     output = StringIO()
     tui = Tui(ApplicationService(UserConfig()), Terminal(StringIO("0\n"), output))
     tui.workspace.topology = "topology.gro"
     tui.workspace.trajectory = "trajectory.xtc"
     draft = AnalysisDraft(
         "rdf",
-        reference="Reference",
-        selection="Selection",
         output="results/rdf",
     )
+    selections: list[None] = []
+
+    def edit_selections(current: AnalysisDraft) -> None:
+        selections.append(None)
+        current.reference = "Reference"
+        current.selection = "Selection"
+
+    monkeypatch.setattr(tui, "_edit_selections", edit_selections)
+    monkeypatch.setattr("mdhelper.tui.controller.draft_issues", lambda *_args: [])
 
     try:
         tui._analysis_setup(draft)
@@ -555,8 +568,13 @@ def test_tui_analysis_setup_opens_options_before_run_confirmation() -> None:
         tui.tasks.shutdown()
 
     text = output.getvalue()
+    assert selections == [None]
+    assert draft.queue == [
+        RadialTask("rdf", "Reference", "Selection", 1.0, 0.002)
+    ]
     assert "Radial Distribution Function (RDF) setup" in text
-    assert "Options" in text
+    assert "Run task queue (1)" in text
+    assert "Run current setup" not in text
     assert "Start RDF now?" not in text
 
 
@@ -722,6 +740,11 @@ def test_tui_discovers_and_selects_energy_terms_in_user_order(monkeypatch) -> No
     assert draft.energy_terms == ["Temperature", "Potential"]
     text = output.getvalue()
     assert "Energy terms (comma-separated)" not in text
+    first_listing = next(
+        line for line in text.splitlines() if "[ ] Potential" in line
+    )
+    assert "[ ] Temperature" in first_listing
+    assert "[ ] Pressure" in first_listing
     assert "[ ] Potential" in text
     assert "[x] Potential" in text
     assert "[x] Temperature" in text
@@ -755,12 +778,148 @@ def test_tui_energy_rediscovery_preserves_valid_terms_and_removes_stale_terms(
     assert draft.energy_terms == ["Pressure", "Potential"]
 
 
-def test_tui_runs_rdf_cn_and_exports_standalone_figures(tmp_path: Path) -> None:
+def test_tui_radial_task_queue_adds_updates_and_loads(monkeypatch) -> None:
+    output = StringIO()
+    tui = Tui(
+        ApplicationService(UserConfig()),
+        Terminal(StringIO("1\n1\n"), output),
+    )
+    tui.workspace.topology = "topology.gro"
+    tui.workspace.trajectory = "trajectory.xtc"
+    monkeypatch.setattr("mdhelper.tui.controller.draft_issues", lambda *_args: [])
+    draft = AnalysisDraft(
+        "rdf",
+        reference="Reference",
+        selection="First",
+        output="results",
+        parameter_provenance={
+            "r_max_nm": {"decision": "manual", "selected_value": 1.0}
+        },
+    )
+
+    try:
+        tui._add_task(draft)
+        draft.r_max_nm = 1.5
+        tui._add_task(draft)
+        draft.selection = "Second"
+        tui._add_task(draft)
+        tui._manage_tasks(draft)
+    finally:
+        tui.tasks.shutdown()
+
+    assert draft.queue == [
+        RadialTask("rdf", "Reference", "First", 1.5, 0.002),
+        RadialTask("rdf", "Reference", "Second", 1.5, 0.002),
+    ]
+    assert draft.queue_index == 0
+    assert draft.selection == "First"
+    assert draft.parameter_provenance["r_max_nm"]["selected_value"] == 1.5
+    assert "Added task 1" in output.getvalue()
+    assert "Updated task 1" in output.getvalue()
+    assert "Loaded task 1 for editing" in output.getvalue()
+
+
+def test_tui_mixed_queue_keeps_rdf_and_cn_for_same_pair(monkeypatch) -> None:
+    tui = Tui(ApplicationService(UserConfig()), Terminal(StringIO(), StringIO()))
+    tui.workspace.topology = "topology.gro"
+    tui.workspace.trajectory = "trajectory.xtc"
+    draft = AnalysisDraft(
+        "rdf",
+        reference="Reference",
+        selection="Selection",
+        output="results",
+    )
+    monkeypatch.setattr("mdhelper.tui.controller.draft_issues", lambda *_args: [])
+
+    try:
+        tui._add_task(draft)
+        draft.analysis_type = "cumulative_rdf"
+        tui._add_task(draft)
+    finally:
+        tui.tasks.shutdown()
+
+    assert [task.analysis_type for task in draft.queue] == [
+        "rdf",
+        "cumulative_rdf",
+    ]
+
+
+def test_tui_add_task_option_opens_complete_editor(monkeypatch) -> None:
+    output = StringIO()
+    tui = Tui(
+        ApplicationService(UserConfig()),
+        Terminal(StringIO("7\n0\n"), output),
+    )
+    draft = AnalysisDraft(
+        "rdf",
+        reference="Reference",
+        selection="Selection",
+        output="results",
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(tui, "_prepare_setup", lambda _draft: None)
+    monkeypatch.setattr(
+        tui,
+        "_edit_selections",
+        lambda _draft: calls.append("groups"),
+    )
+    monkeypatch.setattr(
+        tui,
+        "_edit_parameters",
+        lambda _draft: calls.append("parameters"),
+    )
+    monkeypatch.setattr(tui, "_add_task", lambda _draft: calls.append("queue"))
+
+    try:
+        tui._analysis_setup(draft)
+    finally:
+        tui.tasks.shutdown()
+
+    assert calls == ["groups", "parameters", "queue"]
+    assert "  7  Add task" in output.getvalue()
+    assert "Add current setup to task queue" not in output.getvalue()
+
+
+def test_tui_mixed_queue_selects_type_and_runs_each_task_once(monkeypatch) -> None:
+    tui = Tui(
+        ApplicationService(UserConfig()),
+        Terminal(StringIO("2\n"), StringIO()),
+    )
+    draft = AnalysisDraft(
+        "rdf",
+        reference="Reference",
+        selection="Selection",
+        output="results",
+        queue=[
+            RadialTask("rdf", "Reference", "First", 1.0, 0.002),
+            RadialTask("cumulative_rdf", "Reference", "Second", 0.8, 0.004),
+        ],
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(tui, "_edit_selections", lambda _draft: calls.append("groups"))
+    monkeypatch.setattr(tui, "_edit_parameters", lambda _draft: calls.append("parameters"))
+    monkeypatch.setattr(tui, "_add_task", lambda _draft: calls.append("queue"))
+
+    try:
+        runs = tui._radial_runs(draft)
+        tui._edit_task(draft, mixed=True)
+    finally:
+        tui.tasks.shutdown()
+
+    assert [(run.analysis_type, run.selection) for run in runs] == [
+        ("rdf", "First"),
+        ("cumulative_rdf", "Second"),
+    ]
+    assert draft.analysis_type == "cumulative_rdf"
+    assert calls == ["groups", "parameters", "queue"]
+
+
+def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(tmp_path: Path) -> None:
     synthetic_path = tmp_path / "trajectory.gro"
     _write_trajectory(synthetic_path)
     application = ApplicationService(UserConfig())
     output = StringIO()
-    tui = Tui(application, Terminal(StringIO("y\n"), output))
+    tui = Tui(application, Terminal(StringIO(), output))
     summary = application.checks.inspect_system(
         str(synthetic_path), str(synthetic_path)
     )
@@ -784,6 +943,16 @@ def test_tui_runs_rdf_cn_and_exports_standalone_figures(tmp_path: Path) -> None:
         bin_width_nm=0.05,
         frames=FrameRange(stop=1),
         output=str(tmp_path / "rdf-cn-output"),
+        queue=[
+            RadialTask("rdf", "resname REF", "resname LIGA", 0.5, 0.05),
+            RadialTask(
+                "cumulative_rdf", "resname REF", "resname LIGA", 0.5, 0.05
+            ),
+            RadialTask("rdf", "resname REF", "resname LIGB", 0.5, 0.05),
+            RadialTask(
+                "cumulative_rdf", "resname REF", "resname LIGB", 0.5, 0.05
+            ),
+        ],
     )
 
     try:
@@ -802,6 +971,11 @@ def test_tui_runs_rdf_cn_and_exports_standalone_figures(tmp_path: Path) -> None:
     assert {path.name for path in export.iterdir()} == {
         "rdf-resname-REF-resname-LIGA",
         "cn-resname-REF-resname-LIGA",
+        "rdf-resname-REF-resname-LIGB",
+        "cn-resname-REF-resname-LIGB",
+        "rdf-cn.png",
+        "rdf-cn.svg",
+        "rdf-cn.pdf",
     }
     rdf = export / "rdf-resname-REF-resname-LIGA"
     cn = export / "cn-resname-REF-resname-LIGA"
@@ -819,12 +993,25 @@ def test_tui_runs_rdf_cn_and_exports_standalone_figures(tmp_path: Path) -> None:
         "cn-resname-REF-resname-LIGA.svg",
         "cn-resname-REF-resname-LIGA.pdf",
     }
+    for pair in ("rdf-resname-REF-resname-LIGB", "cn-resname-REF-resname-LIGB"):
+        directory = export / pair
+        assert {path.suffix for path in directory.iterdir()} == {
+            ".json",
+            ".csv",
+            ".png",
+            ".svg",
+            ".pdf",
+        }
     rdf_svg = (rdf / "rdf-resname-REF-resname-LIGA.svg").read_text(encoding="utf-8")
     cn_svg = (cn / "cn-resname-REF-resname-LIGA.svg").read_text(encoding="utf-8")
     assert "Radial distribution function" in rdf_svg
     assert "RDF and Cumulative Coordination Number" not in rdf_svg
     assert "Cumulative Coordination Number" in cn_svg
     assert "RDF and Cumulative Coordination Number" not in cn_svg
+    combined_svg = (export / "rdf-cn.svg").read_text(encoding="utf-8")
+    assert "RDF and Cumulative Coordination Number" in combined_svg
+    assert "resname REF-resname LIGA" in combined_svg
+    assert "resname REF-resname LIGB" in combined_svg
     figures = tui.workspace.project.root / "figures"
     assert {path.name for path in figures.iterdir()} == {
         f"{stem}.{suffix}"
@@ -833,8 +1020,12 @@ def test_tui_runs_rdf_cn_and_exports_standalone_figures(tmp_path: Path) -> None:
     }
     assert tui.workspace.result is not None
     assert tui.workspace.result.analysis_type == "cumulative_rdf"
+    assert len(tui.workspace.plot_results) == 4
     text = output.getvalue()
-    assert "Review RDF + CN setup" in text
+    assert "Review RDF + CN setup" not in text
+    assert "Start RDF + CN now?" not in text
+    assert "Task 1/4: Radial Distribution Function (RDF)" in text
+    assert "Task 4/4: Cumulative Coordination Number (CN)" in text
     assert "RDF completed" in text
     assert "CN completed" in text
     assert "Results" in text
@@ -842,12 +1033,12 @@ def test_tui_runs_rdf_cn_and_exports_standalone_figures(tmp_path: Path) -> None:
     assert "Technical details" in text
 
 
-def test_tui_setup_runs_shared_analysis(tmp_path: Path) -> None:
+def test_tui_radial_queue_runs_without_review(tmp_path: Path) -> None:
     synthetic_path = tmp_path / "trajectory.gro"
     _write_trajectory(synthetic_path)
     application = ApplicationService(UserConfig())
     output = StringIO()
-    tui = Tui(application, Terminal(StringIO("y\n"), output))
+    tui = Tui(application, Terminal(StringIO(), output))
     summary = application.checks.inspect_system(
         str(synthetic_path), str(synthetic_path)
     )
@@ -871,6 +1062,15 @@ def test_tui_setup_runs_shared_analysis(tmp_path: Path) -> None:
         bin_width_nm=0.05,
         frames=FrameRange(stop=1),
         output=str(tmp_path / "tui-output"),
+        queue=[
+            RadialTask(
+                "cumulative_rdf",
+                "resname REF",
+                "resname LIGA",
+                0.5,
+                0.05,
+            )
+        ],
     )
 
     try:
@@ -889,11 +1089,39 @@ def test_tui_setup_runs_shared_analysis(tmp_path: Path) -> None:
         "cn-resname-REF-resname-LIGA.pdf",
     }
     text = output.getvalue()
-    assert "Review Cumulative Coordination Number (CN) setup" in text
-    assert "[Groups]" in text
-    assert "[Frames]" in text
-    assert "every 1 frames" in text
-    assert "[Parameters]" in text
-    assert "Bin width:" in text
+    assert "Review" not in text
+    assert "Start Cumulative Coordination Number (CN) now?" not in text
     assert "Analysis completed" in text
     assert result_summary(tui.workspace.result) in text
+
+
+def test_tui_energy_runs_without_review(monkeypatch) -> None:
+    output = StringIO()
+    tui = Tui(ApplicationService(UserConfig()), Terminal(StringIO(), output))
+    draft = AnalysisDraft(
+        "energy",
+        energy_file="energy.edr",
+        energy_terms=["Potential"],
+        output="results",
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(tui, "_requests", lambda _drafts: ("request",))
+    monkeypatch.setattr(
+        tui,
+        "_run_requests",
+        lambda _requests: calls.append("run") or (),
+    )
+    monkeypatch.setattr(
+        tui,
+        "_complete_batch",
+        lambda _results, _output: calls.append("complete"),
+    )
+
+    try:
+        assert tui._run_analysis(draft)
+    finally:
+        tui.tasks.shutdown()
+
+    assert calls == ["run", "complete"]
+    assert "Review" not in output.getvalue()
+    assert "Start Energy Analysis now?" not in output.getvalue()

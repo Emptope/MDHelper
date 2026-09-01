@@ -105,16 +105,13 @@ def _plot_name(items: Sequence[ResultExport]) -> str:
     analysis_types = {item.result.analysis_type for item in items}
     if {"rdf", "cumulative_rdf"}.issubset(analysis_types):
         return "rdf-cn"
-    if analysis_types == {"energy"}:
-        terms: list[str] = []
-        for item in items:
-            request = AnalysisRequest.from_dict(item.result.request)
-            if not isinstance(request, EnergyRequest) or len(request.energy_terms) != 1:
-                raise ConfigurationError(
-                    "An Energy plot source must contain exactly one term."
-                )
-            terms.append(request.energy_terms[0])
-        return _safe_name(("energy", *terms))
+    if len(items) > 1:
+        if analysis_types == {"rdf"}:
+            return "rdf"
+        if analysis_types == {"cumulative_rdf"}:
+            return "cn"
+        if analysis_types == {"energy"}:
+            return "energy"
     return _safe_name(tuple(item.name for item in items))
 
 

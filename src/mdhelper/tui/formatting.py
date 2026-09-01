@@ -6,7 +6,7 @@ from mdhelper.app.reports import report_for
 from mdhelper.core.analysis import AnalysisResult
 from mdhelper.core.errors import MDHelperError
 from mdhelper.core.system import SystemSummary
-from mdhelper.tui.model import AnalysisDraft, Workspace
+from mdhelper.tui.model import AnalysisDraft, RadialTask, Workspace
 
 
 def _name(path: str | None, fallback: str) -> str:
@@ -86,6 +86,14 @@ def draft_issues(draft: AnalysisDraft, workspace: Workspace) -> list[str]:
     return issues
 
 
+def task_label(task: RadialTask) -> str:
+    analysis = "RDF" if task.analysis_type == "rdf" else "CN"
+    return (
+        f"{analysis}: {task.reference} -> {task.selection} | "
+        f"r max {task.r_max_nm:g} nm | bin {task.bin_width_nm:g} nm"
+    )
+
+
 def setup_panel(draft: AnalysisDraft, workspace: Workspace) -> str:
     issues = draft_issues(draft, workspace)
     status = "Ready to run" if not issues else "Incomplete: " + "; ".join(issues)
@@ -148,8 +156,17 @@ def setup_panel(draft: AnalysisDraft, workspace: Workspace) -> str:
             (
                 f"  Maximum radius: {draft.r_max_nm:g} nm",
                 f"  Bin width:     {draft.bin_width_nm:g} nm",
+                "",
+                "[Task Queue]",
             )
         )
+        if draft.queue:
+            lines.extend(
+                f"  {number}. {task_label(task)}"
+                for number, task in enumerate(draft.queue, 1)
+            )
+        else:
+            lines.append("  Empty.")
     lines.extend(
         (
             "",

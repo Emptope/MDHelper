@@ -20,6 +20,39 @@ from mdhelper.core.system import FrameRange, SystemSummary
 from mdhelper.project import Project
 
 
+@dataclass(frozen=True)
+class RadialTask:
+    analysis_type: AnalysisType
+    reference: str
+    selection: str
+    r_max_nm: float
+    bin_width_nm: float
+
+    @classmethod
+    def from_draft(cls, draft: AnalysisDraft) -> RadialTask:
+        return cls(
+            draft.analysis_type,
+            draft.reference,
+            draft.selection,
+            draft.r_max_nm,
+            draft.bin_width_nm,
+        )
+
+    def load(self, draft: AnalysisDraft) -> None:
+        draft.analysis_type = self.analysis_type
+        draft.reference = self.reference
+        draft.selection = self.selection
+        draft.r_max_nm = self.r_max_nm
+        draft.bin_width_nm = self.bin_width_nm
+        for name, value in (
+            ("r_max_nm", self.r_max_nm),
+            ("bin_width_nm", self.bin_width_nm),
+        ):
+            record = draft.parameter_provenance.get(name)
+            if isinstance(record, dict):
+                draft.parameter_provenance[name] = {**record, "selected_value": value}
+
+
 @dataclass
 class AnalysisDraft:
     analysis_type: AnalysisType
@@ -33,6 +66,8 @@ class AnalysisDraft:
     frames: FrameRange = field(default_factory=FrameRange)
     output: str = ""
     parameter_provenance: dict[str, Any] = field(default_factory=dict)
+    queue: list[RadialTask] = field(default_factory=list)
+    queue_index: int | None = None
 
     def request(self, workspace: Workspace) -> AnalysisRequest:
         if self.analysis_type == "energy":
@@ -76,6 +111,7 @@ class Workspace:
     roles: dict[str, str] = field(default_factory=dict)
     role_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     drafts: dict[AnalysisType, AnalysisDraft] = field(default_factory=dict)
+    rdf_cn_draft: AnalysisDraft | None = None
     result: AnalysisResult | None = None
     plot_results: tuple[AnalysisResult, ...] = ()
 
@@ -100,6 +136,7 @@ class Workspace:
         self.roles.clear()
         self.role_decisions.clear()
         self.drafts.clear()
+        self.rdf_cn_draft = None
         self.result = None
         self.plot_results = ()
 
@@ -120,3 +157,11 @@ class Workspace:
             )
             self.drafts[analysis_type] = draft
         return draft
+
+    def rdf_cn(self) -> AnalysisDraft:
+        if self.rdf_cn_draft is None:
+            self.rdf_cn_draft = AnalysisDraft(
+                "rdf",
+                output=self.output_directory(),
+            )
+        return self.rdf_cn_draft

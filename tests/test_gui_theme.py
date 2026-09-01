@@ -1151,7 +1151,7 @@ def test_gui_save_plot_exports_each_plot_window_to_separate_files(
     window.close()
 
 
-def test_gui_save_plot_uses_one_energy_prefix_for_combined_terms(
+def test_gui_save_plot_uses_fixed_name_for_combined_energy_terms(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     energy_result: AnalysisResult,
@@ -1173,7 +1173,7 @@ def test_gui_save_plot_uses_one_energy_prefix_for_combined_terms(
     output = tmp_path / "figures"
     assert {path.name for path in output.iterdir()} == {
         f"{stem}.{suffix}"
-        for stem in ("energy-Potential-Temperature", "energy-Pressure")
+        for stem in ("energy", "energy-Pressure")
         for suffix in ("png", "svg", "pdf")
     }
     window.close()
