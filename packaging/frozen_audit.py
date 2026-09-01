@@ -11,6 +11,34 @@ ALLOWED_WINDOWS_QT_PLUGINS = {
     "qoffscreen.dll",
     "qwindows.dll",
 }
+ALLOWED_LINUX_QT_PLUGINS = {
+    "iconengines/libqsvgicon.so",
+    "imageformats/libqgif.so",
+    "imageformats/libqico.so",
+    "imageformats/libqjpeg.so",
+    "imageformats/libqsvg.so",
+    "platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+    "platforminputcontexts/libibusplatforminputcontextplugin.so",
+    "platforms/libqoffscreen.so",
+    "platforms/libqwayland.so",
+    "platforms/libqxcb.so",
+    "platformthemes/libqgtk3.so",
+    "platformthemes/libqxdgdesktopportal.so",
+    "wayland-decoration-client/libadwaita.so",
+    "wayland-decoration-client/libbradient.so",
+    "wayland-graphics-integration-client/libdmabuf-server.so",
+    "wayland-graphics-integration-client/libdrm-egl-server.so",
+    "wayland-graphics-integration-client/libqt-plugin-wayland-egl.so",
+    "wayland-graphics-integration-client/libshm-emulation-server.so",
+    "wayland-graphics-integration-client/libvulkan-server.so",
+    "wayland-shell-integration/libfullscreen-shell-v1.so",
+    "wayland-shell-integration/libivi-shell.so",
+    "wayland-shell-integration/libqt-shell.so",
+    "wayland-shell-integration/libwl-shell-plugin.so",
+    "wayland-shell-integration/libxdg-shell.so",
+    "xcbglintegrations/libqxcb-egl-integration.so",
+    "xcbglintegrations/libqxcb-glx-integration.so",
+}
 FORBIDDEN_ROOTS = {
     "_pyinstaller_hooks_contrib",
     "_pytest",
@@ -30,6 +58,14 @@ FORBIDDEN_WINDOWS_FILES = {
     "qt6quick.dll",
     "qt6virtualkeyboard.dll",
 }
+FORBIDDEN_LINUX_GUI_PREFIXES = (
+    "libqt6network",
+    "libqt6opengl",
+    "libqt6pdf",
+    "libqt6qml",
+    "libqt6quick",
+    "libqt6virtualkeyboard",
+)
 FORBIDDEN_MODULES = {
     "pyside6.qtnetwork",
     "pyside6.qtopengl",
@@ -44,7 +80,7 @@ FORBIDDEN_MODULES = {
 FORBIDDEN_LINUX_MODULES = {
     "mdhelper.bootstrap.windows_console",
 }
-REQUIRED_OPTIONS = {"windows": set(), "linux": set()}
+REQUIRED_OPTIONS = {"windows": set(), "linux": set(), "linux-gui": set()}
 WINDOWS_CONSOLE_SUBSYSTEM = 3
 
 
@@ -67,7 +103,7 @@ def violations(entries: list[str], platform: str) -> list[str]:
         ):
             invalid.append(raw_name)
             continue
-        if platform == "linux" and any(
+        if platform.startswith("linux") and any(
             module == prefix or module.startswith(f"{prefix}.")
             for prefix in FORBIDDEN_LINUX_MODULES
         ):
@@ -76,6 +112,23 @@ def violations(entries: list[str], platform: str) -> list[str]:
         if platform == "linux" and root == "pyside6":
             invalid.append(raw_name)
             continue
+        if platform == "linux-gui" and filename.startswith(FORBIDDEN_LINUX_GUI_PREFIXES):
+            invalid.append(raw_name)
+            continue
+        if platform == "linux-gui" and name.lower().startswith(
+            ("pyside6/translations/", "pyside6/qt/translations/")
+        ):
+            invalid.append(raw_name)
+            continue
+        if platform == "linux-gui":
+            plugin = None
+            for plugin_root in ("pyside6/plugins/", "pyside6/qt/plugins/"):
+                if name.lower().startswith(plugin_root):
+                    plugin = name.lower().removeprefix(plugin_root)
+                    break
+            if plugin is not None and plugin not in ALLOWED_LINUX_QT_PLUGINS:
+                invalid.append(raw_name)
+                continue
         if platform == "windows" and filename in FORBIDDEN_WINDOWS_FILES:
             invalid.append(raw_name)
             continue

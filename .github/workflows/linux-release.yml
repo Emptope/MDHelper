@@ -14,20 +14,22 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
-      - name: Install locked development environment
+      - name: Install locked GUI development environment
         run: |
           python -m pip install uv==0.12.6
-          uv sync --frozen --group dev
+          uv sync --frozen --extra gui --group dev
       - name: Validate source
         run: |
           uv run ruff check conftest.py packaging src tests
           uv run mypy src
           uv run pytest -q
-      - name: Build and smoke test unified Linux application
+      - name: Build and smoke test Linux applications
         run: ./packaging/linux/build.sh
-      - name: Upload Linux release candidate
+      - name: Upload Linux release candidates
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: mdhelper-0.1.0-linux-x86-64
-          path: dist/linux/MDHelper-*-Linux-x86_64.tar.gz
+          path: |
+            dist/linux/MDHelper-*-Linux-x86_64.tar.gz
+            dist/linux/MDHelper-*-Linux-x86_64-GUI.tar.gz
           if-no-files-found: error

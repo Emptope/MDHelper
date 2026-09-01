@@ -60,7 +60,7 @@ MDHelper can automatically detect and integrate third-party molecular simulation
 - **GROMACS**
 - **VMD**
 
-For detailed configuration instructions, see Configuration.
+For detailed configuration instructions, see [Configuration](docs/CONFIGURATION.md).
 
 ## Documentation Guide
 

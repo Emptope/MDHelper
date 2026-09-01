@@ -129,14 +129,18 @@ def test_windows_spec_builds_one_application_without_bulk_collection() -> None:
     assert len(list(WINDOWS.glob("*entry.py"))) == 1
 
 
-def test_linux_spec_builds_one_headless_application() -> None:
+def test_linux_spec_builds_one_application_for_each_variant() -> None:
     path = LINUX / "mdhelper.spec"
     source = path.read_text(encoding="utf-8")
 
     assert len(_calls(path, "Analysis")) == 1
     assert len(_calls(path, "EXE")) == 1
     assert "collect_all" not in source
+    assert 'os.environ.get("MDHELPER_LINUX_GUI_BUILD") == "1"' in source
+    assert '["Agg", "QtAgg"] if gui_build else ["Agg"]' in source
+    assert "application_analysis.dependencies = [" in source
     assert '"PySide6"' in source
+    assert '"mdhelper.gui.window" if gui_build else "mdhelper.gui.main"' in source
     assert '"mdhelper.bootstrap.windows_console"' in source
     assert 'names = {"ntdll", "ole32", "shell32", "user32"}' in source
     assert '"MDAnalysis.lib._transformations"' in source
@@ -151,6 +155,9 @@ def test_linux_build_has_smoke_and_size_gates() -> None:
     assert source.count("frozen_audit.py") == 2
     assert "packaging/linux/smoke.sh" in source
     assert source.index("-xzf \"$archive\"") < source.index("packaging/linux/smoke.sh")
+    assert '"MDHelper-$version-Linux-x86_64-GUI"' in source
+    assert "--extra gui" in source
+    assert "linux-gui" in source
 
 
 def test_frozen_payload_policy_rejects_duplicate_runtime_weight() -> None:
@@ -179,7 +186,24 @@ def test_frozen_payload_policy_rejects_duplicate_runtime_weight() -> None:
         "mdhelper.bootstrap.windows_console",
     ]
     assert module.violations(linux_rejected, "linux") == linux_rejected
+    linux_gui_accepted = [
+        "PySide6.QtCore",
+        "PySide6/plugins/platforms/libqoffscreen.so",
+        "PySide6/Qt/plugins/platforms/libqwayland.so",
+        "PySide6/Qt/plugins/platforms/libqxcb.so",
+    ]
+    linux_gui_rejected = [
+        "mdhelper.bootstrap.windows_console",
+        "PySide6.QtNetwork",
+        "PySide6/libQt6Network.so.6",
+        "PySide6/Qt/lib/libQt6QmlMeta.so.6",
+        "PySide6/Qt/translations/qtbase_fr.qm",
+        "PySide6/Qt/plugins/platforms/libqminimal.so",
+    ]
+    assert module.violations(linux_gui_accepted, "linux-gui") == []
+    assert module.violations(linux_gui_rejected, "linux-gui") == linux_gui_rejected
     assert module.missing_options([], "linux") == []
+    assert module.missing_options([], "linux-gui") == []
 
 
 def test_windows_frozen_audit_requires_console_subsystem(tmp_path: Path) -> None:
@@ -237,9 +261,11 @@ def test_platform_archives_use_platform_output_directories() -> None:
     assert '[string]$OutputDirectory = "dist/windows"' in windows_source
     assert '$archiveName = "MDHelper-$version-Windows-x64"' in windows_source
     assert 'release_output="$project_root/dist/linux"' in linux_source
-    assert 'name="MDHelper-$version-Linux-x86_64"' in linux_source
+    assert '"MDHelper-$version-Linux-x86_64"' in linux_source
+    assert '"MDHelper-$version-Linux-x86_64-GUI"' in linux_source
     assert "path: dist/windows/MDHelper-*-Windows-x64.zip" in windows_workflow
-    assert "path: dist/linux/MDHelper-*-Linux-x86_64.tar.gz" in linux_workflow
+    assert "dist/linux/MDHelper-*-Linux-x86_64.tar.gz" in linux_workflow
+    assert "dist/linux/MDHelper-*-Linux-x86_64-GUI.tar.gz" in linux_workflow
     combined = "\n".join(
         (windows_source, windows_workflow, linux_source, linux_workflow)
     ).casefold()
@@ -287,8 +313,19 @@ def test_archive_smoke_uses_current_template_command() -> None:
     linux_source = (LINUX / "smoke.sh").read_text(encoding="utf-8")
     assert "Load topology and trajectory" in linux_source
     assert "PYTHONWARNINGS=error" in linux_source
+    assert 'QT_QPA_PLATFORM=offscreen "$application" gui --smoke-test' in linux_source
     windows_source = (WINDOWS / "smoke.ps1").read_text(encoding="utf-8")
     assert '$env:PYTHONWARNINGS = "error"' in windows_source
+
+
+def test_linux_release_installs_gui_extra_and_notices_include_it() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "linux-release.yml").read_text(
+        encoding="utf-8"
+    )
+    notices = (ROOT / "packaging" / "generate_notices.py").read_text(encoding="utf-8")
+
+    assert "uv sync --frozen --extra gui --group dev" in workflow
+    assert 'parser.add_argument("--extra", action="append", default=[])' in notices
 
 
 def test_wheel_audit_compares_every_python_module(tmp_path: Path) -> None:

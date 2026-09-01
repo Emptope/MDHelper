@@ -11,6 +11,8 @@
 
 ## 已完成
 
+- [x] [Feature] Linux 发行版增加 GUI 归档，并构建 Linux 和 Windows 发行版。
+
 ## 完成标准（每轮改动后需重新确认）
 
 - Linux 全部测试通过；Windows `.venv-windows` 全部测试通过。

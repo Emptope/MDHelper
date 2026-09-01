@@ -60,7 +60,7 @@ MDHelper 能够自动识别并集成系统环境中安装的第三方分子模�
 - **GROMACS**
 - **VMD**
 
-详细配置流程请参阅 配置说明。
+详细配置流程请参阅 [配置说明](docs/CONFIGURATION.zh-CN.md)。
 
 ## 文档指南
 
@@ -78,4 +78,5 @@ MDHelper 能够自动识别并集成系统环境中安装的第三方分子模�
 - [打包说明](docs/PACKAGING.zh-CN.md)
 
 ## 许可证
+
 MDHelper 遵循 GNU General Public License version 2 协议开源，SPDX 标识符为 GPL-2.0。项目中包含的第三方依赖及外部示例数据遵循其各自的开源许可证。

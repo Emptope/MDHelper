@@ -2,8 +2,14 @@
 set -euo pipefail
 
 distribution=${1:?distribution directory is required}
+variant=${2:-headless}
 application="$distribution/mdhelper"
 export PYTHONWARNINGS=error
+
+if [[ "$variant" != headless && "$variant" != gui ]]; then
+    echo "Unknown Linux package variant: $variant" >&2
+    exit 1
+fi
 
 if [[ ! -x "$application" ]]; then
     echo "Missing packaged application: $application" >&2
@@ -18,10 +24,23 @@ fi
 
 "$application" --version
 "$application" tui --smoke-test
-menu=$(printf 'q\n' | "$application")
+menu=$(printf 'q\n' | env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM "$application")
 if [[ "$menu" != *"Load topology and trajectory"* ]]; then
     echo "Argument-free startup did not fall back to TUI." >&2
     exit 1
+fi
+
+if [[ "$variant" == gui ]]; then
+    QT_QPA_PLATFORM=offscreen "$application" gui --smoke-test
+elif QT_QPA_PLATFORM=offscreen "$application" gui --smoke-test; then
+    echo "Headless package unexpectedly started the GUI." >&2
+    exit 1
+else
+    status=$?
+    if [[ $status -ne 6 ]]; then
+        echo "Headless GUI startup returned $status instead of 6." >&2
+        exit 1
+    fi
 fi
 
 config="$distribution/config.toml"

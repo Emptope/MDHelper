@@ -4,8 +4,10 @@
 
 MDHelper 的发布包按平台分类，每个平台包都是便携归档：
 
-- Linux x86_64：`tar.gz` 内包含唯一的独立 `mdhelper` 程序、双语文档和同目录可编辑
+- Linux x86_64 无头版：`tar.gz` 内包含唯一的独立 `mdhelper` 程序、双语文档和同目录可编辑
   `config.toml`；程序内置 TUI、CLI，并明确排除 PySide6。
+- Linux x86_64 GUI 版：第二份 `tar.gz` 使用相同的便携目录结构并包含全部三个界面；内置
+  GUI 所需的 Qt Widgets runtime 以及 X11、Wayland、offscreen 平台插件。
 - Windows x64：包含唯一的 `mdhelper.exe`、双语文档和同目录可编辑 `config.toml`
   的 ZIP；不需要安装或管理员权限，是唯一的 Windows 产物。
 
@@ -18,16 +20,19 @@ Python wheel 是独立的源码环境安装路径，包含统一 `mdhelper` 启�
 
 ## Linux 构建
 
-在 Linux x86_64 的锁定核心环境中执行：
+在 Linux x86_64 的锁定 GUI 开发环境中执行：
 
 ```bash
-uv sync --frozen --group dev
+uv sync --frozen --extra gui --group dev
 PYTHON=.venv/bin/python ./packaging/linux/build.sh
 ```
 
-产物为 `dist/linux/MDHelper-0.1.0-Linux-x86_64.tar.gz`。构建会从冻结内容中拒绝 PySide6
-与测试/构建工具，分别检查程序和归档的 256 MB 上限，再解压最终归档并实际启动其中的程序。
-smoke test 会验证版本、显式 TUI、无参数降级 TUI、便携配置和读取资源的 CLI 命令。解压后运行：
+两份产物分别为 `dist/linux/MDHelper-0.1.0-Linux-x86_64.tar.gz` 和
+`dist/linux/MDHelper-0.1.0-Linux-x86_64-GUI.tar.gz`。无头版会拒绝 PySide6，GUI 版只保留
+程序所需的 Qt 模块与桌面插件；两者都会拒绝测试/构建工具，分别检查程序和归档的 256 MB
+上限，再解压最终归档并实际启动其中的程序。smoke test 会验证版本、显式 TUI、无 display
+时的无参数 TUI 降级、便携配置和读取资源的 CLI 命令；GUI 版还会通过 offscreen 平台插件
+启动 Qt。解压无头版后运行：
 
 ```bash
 ./mdhelper
@@ -35,7 +40,8 @@ smoke test 会验证版本、显式 TUI、无参数降级 TUI、便携配置和�
 ./mdhelper cli --help
 ```
 
-用户不需要安装 Python。0.1.0 的 Linux 无头构建保证 TUI 和 CLI；GUI 正式构建仍在 Windows。
+用户不需要安装 Python。在 Linux 桌面解压 GUI 版后，可运行 `./mdhelper` 或
+`./mdhelper gui` 打开 GUI；该归档同样保留 TUI 和 CLI。
 
 ## Windows 构建
 
@@ -50,7 +56,7 @@ uv sync --frozen --group dev
 
 产物为 `dist/windows/MDHelper-0.1.0-Windows-x64.zip`。构建会解压实际 ZIP，并验证
 唯一程序的全部界面模式、同目录配置和内置资源。归档包含 runtime、核心依赖、
-双语 method/validation 文档、配置、schema 和依赖/版本/license inventory，不捆绑 GROMACS。
+method/validation 文档、配置、schema 和依赖/版本/license inventory，不捆绑 GROMACS。
 
 解压后 `config.toml` 和 `mdhelper.exe` 必须放在一起。无参数时优先进入
 GUI，GUI 不可用时降级到 TUI；可用 `gui`、`tui`、`cli` 显式选定模式。启动 GUI 时不会
@@ -58,11 +64,3 @@ GUI，GUI 不可用时降级到 TUI；可用 `gui`、`tui`、`cli` 显式选定�
 连接到启动它的终端，必要时自行创建。所有冻结程序都自动使用同目录 `config.toml`。显式
 `--settings` 或
 `MDHELPER_CONFIG` 仍优先。
-
-## Linux 验证
-
-质量工作流安装不含 GUI extra 的锁定核心环境，确认 PySide6 不存在，在无 display 条件下
-运行 TUI/CLI、完整测试并构建 wheel。Linux 发布工作流还会在 Ubuntu 22.04 冻结并实际启动
-TUI/CLI 独立归档。wheel 还会检查 `mdhelper/` 根目录只保留入口和版本模块，旧兼容壳会使发布失败。
-
-发布 gate 只有在目标平台实际成功运行后才算满足，不能以脚本存在代替执行证据。

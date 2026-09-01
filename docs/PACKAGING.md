@@ -5,9 +5,11 @@
 MDHelper release packages are classified by platform, and every platform package is a portable
 archive:
 
-- Linux x86_64: a `tar.gz` containing one standalone `mdhelper` executable,
+- Linux x86_64 headless: a `tar.gz` containing one standalone `mdhelper` executable,
   documentation, and an editable colocated `config.toml`. The executable bundles the TUI and CLI
   and deliberately excludes PySide6.
+- Linux x86_64 GUI: a second `tar.gz` with the same portable layout and all three interfaces. It
+  bundles the supported Qt Widgets runtime and X11, Wayland, and offscreen platform plugins.
 - Windows x64: a ZIP containing one standalone `mdhelper.exe`, documentation, and an
   editable colocated `config.toml`. It does not require installation or administrator access and
   is the only Windows artifact.
@@ -22,19 +24,22 @@ components.
 
 ## Linux build
 
-Build on Linux x86_64 from the locked core environment:
+Build on Linux x86_64 from the locked GUI development environment:
 
 ```bash
-uv sync --frozen --group dev
+uv sync --frozen --extra gui --group dev
 PYTHON=.venv/bin/python ./packaging/linux/build.sh
 ```
 
-The release archive is written to
-`dist/linux/MDHelper-0.1.0-Linux-x86_64.tar.gz`. The build rejects PySide6 and test/build tooling
-inside the frozen payload, verifies the executable and archive independently against the 256 MB
-limit, extracts the completed archive, and runs that extracted application. The smoke test
-exercises `--version`, explicit TUI startup, argument-free TUI fallback, portable configuration,
-and a CLI resource command. After extraction:
+The two release archives are written to
+`dist/linux/MDHelper-0.1.0-Linux-x86_64.tar.gz` and
+`dist/linux/MDHelper-0.1.0-Linux-x86_64-GUI.tar.gz`. The headless build rejects PySide6; the GUI
+build retains only the Qt modules and desktop plugins required by the application. Both reject
+test/build tooling, verify the executable and archive independently against the 256 MB limit,
+extract the completed archive, and run that extracted application. The smoke tests exercise
+`--version`, explicit TUI startup, argument-free TUI fallback without a display, portable
+configuration, and a CLI resource command. The GUI archive additionally starts Qt through the
+offscreen platform plugin. After extracting the headless archive:
 
 ```bash
 ./mdhelper
@@ -43,7 +48,8 @@ and a CLI resource command. After extraction:
 ```
 
 No Python installation is required. This headless 0.1.0 Linux release guarantees TUI and CLI;
-the Windows build remains the GUI release target.
+extract the GUI archive on a Linux desktop and run `./mdhelper` or `./mdhelper gui` to open the GUI.
+The GUI archive also retains the TUI and CLI modes.
 
 ## Windows build
 
@@ -76,9 +82,9 @@ explicit `--settings` CLI argument or `MDHELPER_CONFIG` environment variable sti
 
 The quality workflow installs the locked core environment without the GUI extra, asserts that
 PySide6 is absent, verifies automatic TUI fallback and the CLI without a display, executes tests,
-and builds the wheel. The Linux release workflow additionally freezes and smoke-tests the
-standalone TUI/CLI archive on Ubuntu 22.04. The built wheel is also inspected to ensure that only
-the package entry points and version module remain at the `mdhelper/` root; stale compatibility
-shells fail the release gate.
+and builds the wheel. The Linux release workflow installs the locked GUI extra, then freezes and
+smoke-tests both standalone archives on Ubuntu 22.04. The built wheel is also inspected to ensure
+that only the package entry points and version module remain at the `mdhelper/` root; stale
+compatibility shells fail the release gate.
 
 Workflow definitions provide repeatable gates; a release gate is satisfied only by a successful run on the target platform, not merely by the presence of these files.

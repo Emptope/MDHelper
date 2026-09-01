@@ -21,12 +21,21 @@ def _license(metadata: importlib.metadata.PackageMetadata) -> str:
     return "; ".join(licenses) if licenses else "unknown"
 
 
-def dependency_notices(root_distribution: str) -> list[dict[str, str]]:
+def _enabled(requirement: Requirement, extras: tuple[str, ...] = ()) -> bool:
+    if requirement.marker is None:
+        return True
+    return any(requirement.marker.evaluate({"extra": extra}) for extra in ("", *extras))
+
+
+def dependency_notices(
+    root_distribution: str,
+    extras: tuple[str, ...] = (),
+) -> list[dict[str, str]]:
     notices: list[dict[str, str]] = []
     pending: list[str] = []
     for raw_requirement in importlib.metadata.requires(root_distribution) or []:
         requirement = Requirement(raw_requirement)
-        if requirement.marker and not requirement.marker.evaluate({"extra": ""}):
+        if not _enabled(requirement, extras):
             continue
         pending.append(requirement.name)
     visited: set[str] = set()
@@ -61,9 +70,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--distribution", default="mdhelper")
+    parser.add_argument("--extra", action="append", default=[])
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    dependencies = dependency_notices(args.distribution)
+    dependencies = dependency_notices(args.distribution, tuple(args.extra))
     unknown = [item["name"] for item in dependencies if item["license"] == "unknown"]
     if unknown:
         parser.error(f"Dependencies have no declared license metadata: {', '.join(unknown)}")
