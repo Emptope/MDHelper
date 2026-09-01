@@ -8,6 +8,13 @@ static MDAnalysis expression to a fixed, ordered tuple of zero-based atom indice
 exact NDX groups or passes the request expression to `gmx rdf` as GROMACS selection syntax. Every
 route records its selection language and source in the same result contract.
 
+Topology and trajectory files must describe the same atoms in the same order. XTC stores ordered
+coordinates and the atom count, while atom and residue metadata come from the selected topology or
+structure. Equal atom counts alone do not prove matching atom order, and MDHelper does not infer a
+pair from filenames. Use files from the same system with unchanged atom ordering. When a matching
+TPR is available, `gmx check -f trajectory.xtc -s1 topology.tpr` can detect some mismatches through
+inconsistent bond lengths.
+
 ## Preferred: GROMACS index groups
 
 Files created with tools such as `gmx make_ndx` can be passed with `--index`. Each analysis selection argument is then an exact group name, including spaces:

@@ -11,13 +11,7 @@
 
 ## 已完成
 
-- [x] [Maintenance] 清理冗余的 tests。
-
-- [x] [Maintenance] 清理 tests 文件夹，并且分析耗时最长的几项 tests，从工程角度优化代码，不改动代码逻辑。
-
 ## 完成标准（每轮改动后需重新确认）
 
 - Linux 全部测试通过；Windows `.venv-windows` 全部测试通过。
-- 架构测试能阻止跨层导入、TUI/GUI/CLI 混放和根目录兼容壳回归。
-- GUI 文件驱动的自动刷新回归测试通过，更新输入不保留过期检测结果。
-- Ruff 和 mypy 通过，包括已安装 Qt 类型信息的 GUI 检查。
+- Ruff 和 mypy 通过。

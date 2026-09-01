@@ -8,6 +8,12 @@ MDHelper 0.1.0 把 selection syntax 留在所选完整 Backend 内。Native 要�
 selection syntax 传给 `gmx rdf`。所有路径都在统一结果契约中记录 selection language 和
 source。
 
+Topology 和 trajectory 文件必须描述原子相同且顺序一致的体系。XTC 只保存有序坐标和
+原子数，原子及残基元数据来自所选 topology 或 structure。原子数相同不能证明原子顺序
+相同，MDHelper 也不会根据文件名猜测配对。应使用来自同一体系且原子顺序未变的文件。
+如果有匹配的 TPR，`gmx check -f trajectory.xtc -s1 topology.tpr` 可通过键长异常发现
+部分配对错误。
+
 ## 首选：GROMACS index group
 
 使用 `gmx make_ndx` 等工具创建的文件可通过 `--index` 传入。分析的 `reference` 和
