@@ -12,6 +12,9 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+from numpy.typing import NDArray
+
 from mdhelper.backends.common import infer_element, require_file
 from mdhelper.core.errors import BackendError, TrajectoryError
 from mdhelper.core.system import Atom, Box, Frame, FrameRange, Vec3
@@ -209,9 +212,8 @@ class MDAnalysisTrajectorySource:
         for raw_index in range(frame_range.start, stop, frame_range.stride):
             try:
                 timestep = self._universe.trajectory[raw_index]
-                positions: tuple[Vec3, ...] = tuple(
-                    (float(row[0]) / 10.0, float(row[1]) / 10.0, float(row[2]) / 10.0)
-                    for row in timestep.positions
+                positions: NDArray[np.float64] = (
+                    np.asarray(timestep.positions, dtype=np.float64) / 10.0
                 )
                 tri = timestep.triclinic_dimensions
                 if tri is None:

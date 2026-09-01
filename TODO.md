@@ -11,7 +11,8 @@
 
 ## 已完成
 
-- [x] [Performance] GUI 启动速度太慢，优化启动速度
+- [x] [Feature] RDF Result 删除 g(r) minimum
+- [x] [Performance] MDAnalysis Backend 分析 RDF/CN 速度显著慢于 gmx ，查找原因并优化
 
 ## 完成标准（每轮改动后需重新确认）
 

@@ -206,15 +206,15 @@ CLI 或 GUI 中直接调用算法文件。
 
 ### 7.2 通用数值基础
 
-`analysis/common.py` 统一帧审计、进度/取消、每帧可靠半径检查、三斜盒最小镜像和
-有界 pair 分块。RDF 和 CN 都依赖这些不变量，
+`analysis/common.py` 统一帧审计、进度/取消、每帧可靠半径检查、三斜盒最小镜像、
+周期分胞剪枝和有界 pair 分块。RDF 和 CN 都依赖这些不变量，
 不能在各自文件中复制一套 PBC 或帧逻辑。
 
 ### 7.3 RDF 与 CN 共享算法
 
-`analysis/radial.py` 是 RDF 和 CN 的共享数值实现：一次累积半宽 pair histogram，再分别
-重采样到中心对齐 RDF grid 和边界对齐 cumulative grid。`rdf.py`、`cumulative_rdf.py` 只把
-共享 profile 组装成各自的结果契约和诊断。
+`analysis/radial.py` 是 RDF 和 CN 的共享数值实现：大型局部搜索先使用周期分胞剪枝，
+再一次累积半宽 pair histogram，分别重采样到中心对齐 RDF grid 和边界对齐 cumulative
+grid。`rdf.py`、`cumulative_rdf.py` 只把共享 profile 组装成各自的结果契约和诊断。
 第一壳层是结果后的独立诊断，不修改原始曲线。
 
 `analysis/gmx_rdf.py` 是显式 GROMACS RDF/CN runner。它保留零基 Python 帧切片语义，通过

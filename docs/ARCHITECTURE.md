@@ -148,10 +148,11 @@ radial computation and does not become an input parameter.
 ## 7. Analysis implementations
 
 `analysis/__init__.py` registers the built-in runners. `analysis/radial.py` performs one
-shared half-width ordered-pair histogram accumulation, then resamples it onto the centered RDF
-grid and edge-aligned cumulative grid. `rdf.py` publishes `g_r`; `cumulative_rdf.py` publishes
-`cumulative_number`. `common.py` owns frame auditing, triclinic
-minimum image, reliable-radius checks, bounded pair chunks, progress, and cancellation checks.
+shared half-width ordered-pair histogram accumulation, using periodic cell pruning for large local
+pair searches, then resamples it onto the centered RDF grid and edge-aligned cumulative grid.
+`rdf.py` publishes `g_r`; `cumulative_rdf.py` publishes `cumulative_number`. `common.py` owns frame
+auditing, triclinic minimum image, reliable-radius checks, bounded pair chunks, progress, and
+cancellation checks.
 
 `gmx_rdf.py` is the explicit GROMACS RDF/CN runner. It preserves zero-based Python frame slicing,
 invokes `gmx rdf` with `-cn` through Integrations, parses both XVG curves into the common result

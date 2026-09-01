@@ -63,12 +63,8 @@ def _curve_rows(
     count = min(len(radii), len(values))
     if not count:
         return []
-    low = min(range(count), key=values.__getitem__)
     high = max(range(count), key=values.__getitem__)
-    return [
-        (f"{label} maximum", _curve_value(radii, values, high)),
-        (f"{label} minimum", _curve_value(radii, values, low)),
-    ]
+    return [(f"{label} maximum", _curve_value(radii, values, high))]
 
 
 def _curve_value(

@@ -7,6 +7,8 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import TextIO
 
+import numpy as np
+
 from mdhelper.backends.common import infer_element, require_file
 from mdhelper.core.errors import FormatError, TopologyError, TrajectoryError
 from mdhelper.core.system import Atom, Box, Frame, FrameRange
@@ -104,7 +106,7 @@ def _read_frame(handle: TextIO, frame_index: int) -> tuple[tuple[Atom, ...], Fra
     frame = Frame(
         frame_index,
         _time(title, float(frame_index)),
-        tuple(positions),
+        np.asarray(positions, dtype=np.float64),
         _parse_box(box_line),
     )
     return tuple(atoms), frame

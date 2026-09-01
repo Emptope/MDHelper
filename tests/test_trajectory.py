@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 from mdhelper.analysis.common import selected_frame_count
@@ -44,7 +45,10 @@ def test_native_gro_reader_accepts_extended_coordinate_precision(tmp_path: Path)
     source = GroTrajectorySource(path, path)
     frame = next(source.iter_frames(FrameRange()))
 
-    assert frame.positions_nm == ((0.123456, 1.234567, 2.345678),)
+    assert isinstance(frame.positions_nm, np.ndarray)
+    assert frame.positions_nm == pytest.approx(
+        np.asarray(((0.123456, 1.234567, 2.345678),))
+    )
 
 
 def test_species_role_suggestions_use_topology_evidence_not_names() -> None:
@@ -90,7 +94,6 @@ def test_species_role_suggestions_use_topology_evidence_not_names() -> None:
 
 def test_mdanalysis_xdr_offsets_are_stored_in_cache(tmp_path: Path) -> None:
     import MDAnalysis as mda
-    import numpy as np
 
     topology = tmp_path / "topology.gro"
     trajectory = tmp_path / "trajectory.xtc"
@@ -117,6 +120,11 @@ def test_mdanalysis_xdr_offsets_are_stored_in_cache(tmp_path: Path) -> None:
     source = MDAnalysisTrajectorySource(topology, trajectory, cache)
 
     assert source.n_frames == 2
+    frame = next(source.iter_frames(FrameRange(stop=1)))
+    assert isinstance(frame.positions_nm, np.ndarray)
+    assert frame.positions_nm == pytest.approx(
+        np.asarray(((0.0, 0.0, 0.0), (0.1, 0.1, 0.1)))
+    )
     assert len(tuple(cache.glob("*.offsets.npz"))) == 1
     assert not (tmp_path / ".trajectory.xtc_offsets.npz").exists()
     assert MDAnalysisTrajectorySource(topology, trajectory, cache).n_frames == 2

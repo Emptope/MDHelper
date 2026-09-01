@@ -48,7 +48,7 @@ def _rdf_result() -> AnalysisResult:
     )
 
 
-def test_result_summary_prioritizes_results_and_reports_extrema() -> None:
+def test_result_summary_prioritizes_results_and_reports_maximum() -> None:
     result = _rdf_result()
     assert isinstance(report_for(result), RdfReport)
     text = result_summary(result)
@@ -57,7 +57,7 @@ def test_result_summary_prioritizes_results_and_reports_extrema() -> None:
     assert text.index("Configuration") < text.index("Technical details")
     assert text.index("Technical details") < text.index("Analysis ID")
     assert "g(r) maximum: 3 at 2 \u00c5" in text
-    assert "g(r) minimum: 0 at 1 \u00c5" in text
+    assert "g(r) minimum" not in text
     assert "First resolved peak: g(r) = 3 at 2 \u00c5" in text
     assert "First resolved minimum: g(r) = 1 at 3 \u00c5" in text
     assert "Calculated distance range: 0 to 8 \u00c5" in text

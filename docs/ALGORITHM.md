@@ -14,6 +14,8 @@ selections, estimate statistical uncertainty, or cache analysis results.
 
 - Internal distance and coordinates use nm; time uses ps and volume uses nm^3.
 - GRO coordinates are already in nm. MDAnalysis coordinates and box vectors are divided by 10.
+- Core frames store coordinates as `float64` NumPy arrays. Readers perform format and unit
+  conversion once at the backend boundary.
 - Radial plots convert nm to angstrom; persisted arrays remain in nm.
 - A frame range is zero-based and follows Python slicing: `start` is inclusive, `stop` is
   exclusive, and `stop = null` means the end of the trajectory. `stride` is relative to `start`.
@@ -118,9 +120,16 @@ delta_mic = fractional @ H
 A pair is retained when its two atom indices differ and its squared distance is no greater than
 the squared cutoff. Distinct atoms at identical coordinates remain valid pairs.
 
-Pair matrices are bounded by `max_pairs_per_chunk`. Selection and reference chunks are sized so
-each temporary distance matrix contains approximately no more than that many pairs. Chunking
-limits memory but does not change worst-case pair-enumeration time.
+Pair matrices are bounded by `max_pairs_per_chunk`. Small searches and searches whose cutoff spans
+most cells use direct selection and reference chunks. Larger local searches first assign both
+selections to periodic fractional-coordinate cells. The reciprocal box vectors define a
+conservative fractional cutoff on each axis, so only neighboring occupied cells can contain a
+retained pair. Candidate blocks still use the triclinic minimum-image calculation above. This cell
+pruning changes neither pair identity nor histogram order-independent results and avoids enumerating
+the full `N_R * N_S` product when the cutoff is local.
+
+The RDF/CN neighbor-search cutoff is exactly the request's user- or template-supplied `r_max`.
+Cell pruning does not infer, reduce, or otherwise adjust this cutoff.
 
 ## 5. In-process radial grid
 
@@ -294,7 +303,7 @@ memory but does not itself guarantee cancellation latency within a very large fr
 
 | Operation | Worst-case time | Main additional memory |
 | --- | --- | --- |
-| RDF/cumulative RDF | `O(F * N_R * N_S)` | `O(M + B)` |
+| RDF/cumulative RDF | worst-case `O(F * N_R * N_S)`; local cells reduce candidates | `O(N_R + N_S + M + B)` |
 | Native GRO scan | `O(F * N_atoms)` | one frame |
 | File fingerprint | input bytes | 4 MiB |
 

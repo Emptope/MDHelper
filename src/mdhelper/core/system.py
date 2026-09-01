@@ -6,6 +6,9 @@ import math
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+import numpy as np
+from numpy.typing import NDArray
+
 from .errors import InputError
 from .species import (
     SPECIES_ROLE_DESCRIPTIONS,
@@ -14,6 +17,7 @@ from .species import (
 )
 
 Vec3 = tuple[float, float, float]
+Coordinates = NDArray[np.float64]
 
 
 @dataclass(frozen=True)
@@ -55,7 +59,7 @@ class Box:
 class Frame:
     index: int
     time_ps: float
-    positions_nm: tuple[Vec3, ...]
+    positions_nm: Coordinates
     box: Box
 
 

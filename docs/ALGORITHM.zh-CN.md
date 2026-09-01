@@ -62,6 +62,7 @@ start, start + stride, start + 2 * stride, ... < stop
 
 当前算法直接使用轨迹中保存并转换为 nm 的坐标：
 
+- core frame 把坐标统一存为 `float64` NumPy 数组，reader 在 backend 边界一次完成格式和单位转换；
 - 不 unwrap；
 - 不做分子重构；
 - 不对齐；
@@ -233,17 +234,26 @@ distance_squared = delta_mic dot delta_mic
 `distance_squared <= cutoff^2` 时保留。使用原子索引而不是距离是否为零判断 self pair，
 因此不同原子坐标重合仍是合法 pair。
 
-### 5.4 有界分块
+### 5.4 周期分胞和有界分块
 
-若配置的 pair 上限为 `M`，目标和参考 chunk 大小为：
+小规模搜索以及 cutoff 覆盖大部分分胞的搜索直接分块。较大的局部搜索先把两个 selection
+映射到周期性分数坐标分胞。倒易盒矢量给出各轴上的保守分数坐标 cutoff，只有相邻且非空的
+分胞可能包含保留 pair。候选 pair 仍使用 5.3 节的三斜盒最小镜像公式，因此分胞剪枝不改变
+pair 身份和与顺序无关的 histogram 结果。
+
+RDF/CN 邻居搜索的 cutoff 严格等于 request 中由用户或模板设置的 `r_max`。分胞剪枝不会
+另行推断、缩小或调整这个 cutoff。
+
+若配置的 pair 上限为 `M`，每个候选块的目标和参考 chunk 大小为：
 
 ```text
 selection_chunk = max(1, min(N_S, floor(sqrt(M))))
 reference_chunk = max(1, floor(M / selection_chunk))
 ```
 
-每个临时距离矩阵至多约有 `M` 个元素。算法遍历 reference chunks 和 selection chunks，
-只 yield 通过 cutoff 的 reference slot、selection slot 和距离，不构造完整 `N_R x N_S` 矩阵。
+每个临时距离矩阵至多约有 `M` 个元素。算法遍历候选 reference chunks 和 selection chunks，
+只 yield 通过 cutoff 的 reference slot、selection slot 和距离。局部 cutoff 不再枚举完整
+`N_R x N_S` 笛卡尔积；不适合分胞时仍不构造完整距离矩阵。
 
 ## 6. 进程内径向网格
 
@@ -686,14 +696,14 @@ pair 分块迭代自身当前没有单独的 cancel 参数；取消通常在下�
 
 | 算法 | 最坏时间量级 | 主要额外内存 |
 | --- | --- | --- |
-| RDF/累积 RDF pair 遍历 | `O(F * N_R * N_S)` | `O(M + B)` |
+| RDF/累积 RDF pair 遍历 | 最坏 `O(F * N_R * N_S)`；局部分胞按候选 pair 缩减 | `O(N_R + N_S + M + B)` |
 | GRO source 构造 | `O(F * N_atoms)` 扫描 | `O(N_atoms)` 每帧 |
 | 文件 SHA-256 | `O(file bytes)` | 4 MiB chunk |
 | 绘图模型 | `O(result points)` | `O(result points)` |
 
-chunking 只降低内存，不改变 pair 遍历的最坏时间复杂度。当前没有空间网格、Verlet list、
-KD-tree 或 GPU 邻居搜索；性能优化若改变 pair 枚举方式，必须保持 self exclusion、三斜 PBC、
-cutoff 边界和结果容差。
+chunking 限制临时距离矩阵，周期分胞在局部 cutoff 下减少候选 pair，但最坏时间复杂度仍不变。
+当前没有 Verlet list、KD-tree 或 GPU 邻居搜索；后续优化若改变 pair 枚举方式，必须保持 self
+exclusion、三斜 PBC、cutoff 边界和结果容差。
 
 ## 19. 算法修改检查表
 
