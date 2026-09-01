@@ -40,6 +40,7 @@ from mdhelper.core.plotting import (
     PlotLimits,
     PlotModel,
     PlotSelection,
+    PlotSize,
     PlotState,
     draw_plot,
     results_plots,
@@ -317,6 +318,10 @@ class ResultPanel(QWidget):
 
     def plot_limits(self) -> PlotLimits:
         return self._limits
+
+    def plot_size(self) -> PlotSize:
+        width, height = self.figure.get_size_inches()
+        return PlotSize(float(width), float(height))
 
     def plot_state(self) -> PlotState:
         selections: list[PlotSelection] = []

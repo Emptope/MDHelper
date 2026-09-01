@@ -6,6 +6,8 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PySide6.QtWidgets import QDialog, QVBoxLayout
 
+from mdhelper.core.plotting import DEFAULT_PLOT_SIZE
+
 
 class PlotWindow(QDialog):
     """Display the current result figure independently from result metadata."""
@@ -16,7 +18,7 @@ class PlotWindow(QDialog):
         self.resize(980, 720)
         self.setMinimumSize(720, 520)
         self.figure = Figure(
-            figsize=(8.8, 6.2),
+            figsize=(DEFAULT_PLOT_SIZE.width, DEFAULT_PLOT_SIZE.height),
             constrained_layout=True,
             facecolor="white",
         )

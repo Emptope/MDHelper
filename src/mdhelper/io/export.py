@@ -14,7 +14,9 @@ from mdhelper.core.analysis import AnalysisResult
 from mdhelper.core.errors import BackendError
 from mdhelper.core.plotting import (
     DEFAULT_PLOT_SCHEME,
+    DEFAULT_PLOT_SIZE,
     PlotLimits,
+    PlotSize,
     draw_plot,
     results_plots,
 )
@@ -194,6 +196,7 @@ def _write_figures(
     titles: Sequence[str | None] | None = None,
     scheme: str = DEFAULT_PLOT_SCHEME,
     limits: PlotLimits | None = None,
+    size: PlotSize | None = None,
 ) -> list[Path]:
     try:
         import matplotlib
@@ -224,8 +227,11 @@ def _write_figures(
             group_ids,
             titles,
         )
+        panel_size = DEFAULT_PLOT_SIZE if size is None else size
+        panel_size.validate()
         figure = plt.figure(
-            figsize=(7.5, max(4.8, 3.8 * len(models))), constrained_layout=True
+            figsize=(panel_size.width, panel_size.height * len(models)),
+            constrained_layout=True,
         )
         figure.set_facecolor("white")
         for index, model in enumerate(models, start=1):
@@ -240,7 +246,6 @@ def _write_figures(
                     temporary,
                     dpi=300 if suffix == "png" else None,
                     format=suffix,
-                    bbox_inches="tight",
                 )
                 os.replace(temporary, path)
                 paths.append(path)
@@ -275,6 +280,7 @@ def export_figures(
     stem: str | None = None,
     scheme: str = DEFAULT_PLOT_SCHEME,
     limits: PlotLimits | None = None,
+    size: PlotSize | None = None,
 ) -> list[Path]:
     """Export only plot files, optionally under a result-specific filename."""
 
@@ -284,6 +290,7 @@ def export_figures(
         stem,
         scheme=scheme,
         limits=limits,
+        size=size,
     )
 
 
@@ -298,6 +305,7 @@ def export_comparison_figures(
     titles: Sequence[str | None] | None = None,
     scheme: str = DEFAULT_PLOT_SCHEME,
     limits: PlotLimits | None = None,
+    size: PlotSize | None = None,
 ) -> list[Path]:
     """Export one figure containing multiple compatible results."""
 
@@ -314,6 +322,7 @@ def export_comparison_figures(
         titles,
         scheme,
         limits,
+        size,
     )
 
 
@@ -323,11 +332,14 @@ def export_result(
     include_figures: bool = True,
     scheme: str = DEFAULT_PLOT_SCHEME,
     limits: PlotLimits | None = None,
+    size: PlotSize | None = None,
 ) -> list[Path]:
     output = _output_directory(output_directory)
     metadata = output / "result.json"
     _atomic_json(metadata, result.to_dict())
     paths = [metadata, *_export_csv(result, output), *_export_artifacts(result, output)]
     if include_figures:
-        paths.extend(_write_figures((result,), output, scheme=scheme, limits=limits))
+        paths.extend(
+            _write_figures((result,), output, scheme=scheme, limits=limits, size=size)
+        )
     return paths

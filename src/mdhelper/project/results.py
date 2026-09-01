@@ -11,8 +11,11 @@ from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialReques
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.project.inputs import InputRepository
 from mdhelper.project.manifests import ManifestRepository
+from mdhelper.project.runs import RunRepository
 from mdhelper.project.storage import atomic_json
 from mdhelper.services.provenance import sha256_file
+
+_RunRecords = list[dict[str, Any]]
 
 
 class ResultRepository:
@@ -21,10 +24,12 @@ class ResultRepository:
         root: Path,
         manifests: ManifestRepository,
         inputs: InputRepository,
+        runs: RunRepository,
     ):
         self.root = root
         self.manifests = manifests
         self.inputs = inputs
+        self.runs = runs
 
     def _path(self, entry: dict[str, Any]) -> Path | None:
         analysis_id = entry.get("analysis_id")
@@ -61,35 +66,40 @@ class ResultRepository:
                 f"Analysis result {result.analysis_id} is already committed.",
                 "Keep each analysis_id unique; reopen the existing result instead.",
             )
-        atomic_json(result_path, result.to_dict())
-        entry = {
-            "analysis_id": result.analysis_id,
-            "analysis_type": result.analysis_type,
-            "result_sha256": sha256_file(result_path),
-            "committed_at": datetime.now(UTC).isoformat(),
-        }
-        updated = dict(manifest)
-        updated["inputs"] = {
-            **manifest["inputs"],
-            **{
-                role: record
-                for role, record in input_records.items()
-                if role not in manifest["inputs"]
-            },
-        }
-        if isinstance(request, RadialRequest) and request.species_roles:
-            updated["species_roles"] = dict(request.species_roles)
-        integration_runs = result.provenance.get("integration_runs", [])
-        if isinstance(integration_runs, list):
+        run_records = self._run_records(result.provenance)
+        log_paths: list[Path] = []
+        try:
+            stored_runs, log_paths = self.runs.store(run_records)
+            stored_result = result.to_dict()
+            if stored_runs:
+                stored_result["provenance"]["integration_runs"] = stored_runs
+            atomic_json(result_path, stored_result)
+            entry = {
+                "analysis_id": result.analysis_id,
+                "analysis_type": result.analysis_type,
+                "result_sha256": sha256_file(result_path),
+                "committed_at": datetime.now(UTC).isoformat(),
+            }
+            updated = dict(manifest)
+            updated["inputs"] = {
+                **manifest["inputs"],
+                **{
+                    role: record
+                    for role, record in input_records.items()
+                    if role not in manifest["inputs"]
+                },
+            }
+            if isinstance(request, RadialRequest) and request.species_roles:
+                updated["species_roles"] = dict(request.species_roles)
             updated["integration_runs"] = [
                 *manifest.get("integration_runs", []),
-                *(dict(item) for item in integration_runs if isinstance(item, dict)),
+                *stored_runs,
             ]
-        updated["analyses"] = [*manifest.get("analyses", []), entry]
-        try:
+            updated["analyses"] = [*manifest.get("analyses", []), entry]
             updated = self.manifests.commit(updated)
         except BaseException:
             result_path.unlink(missing_ok=True)
+            self.runs.remove(log_paths)
             raise
         return updated, result_path
 
@@ -142,6 +152,11 @@ class ResultRepository:
                     "Restore the committed result or rerun the analysis.",
                 )
             value = json.loads(path.read_text(encoding="utf-8"))
+            provenance = value.get("provenance")
+            if isinstance(provenance, dict):
+                stored_runs = self._run_records(provenance)
+                if stored_runs:
+                    provenance["integration_runs"] = self.runs.hydrate(stored_runs)
             result = AnalysisResult.from_dict(value)
             if result.analysis_id != analysis_id:
                 raise ConfigurationError(
@@ -159,3 +174,14 @@ class ResultRepository:
                 f"Could not load analysis result {analysis_id}.",
                 details={"exception": f"{type(exc).__name__}: {exc}"},
             ) from exc
+
+    @staticmethod
+    def _run_records(provenance: dict[str, Any]) -> _RunRecords:
+        raw = provenance.get("integration_runs")
+        if raw is None:
+            return []
+        if not isinstance(raw, list) or any(not isinstance(item, dict) for item in raw):
+            raise ConfigurationError(
+                "Analysis result integration runs must be an array of objects."
+            )
+        return [dict(item) for item in raw]

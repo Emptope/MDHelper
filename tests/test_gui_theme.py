@@ -10,7 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6", reason="GUI dependencies are not installed")
 
 from PySide6.QtCore import QPoint, QPointF, QRect, Qt
-from PySide6.QtGui import QFont, QFontDatabase, QPalette, QWheelEvent
+from PySide6.QtGui import QFont, QFontDatabase, QImage, QPalette, QWheelEvent
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -1022,6 +1022,9 @@ def test_gui_export_includes_every_visible_result_and_current_plot(
     window.results.plot_series.selectRow(0)
     window.results.plot_title.setText("Exported comparison")
     window.results.plot_title.editingFinished.emit()
+    window.results.open_plot_window()
+    _QT_APPLICATION.processEvents()
+    display_width, display_height = window.results.figure.get_size_inches()
     window.session.result = second
     monkeypatch.setattr(
         window_module.QFileDialog,
@@ -1044,6 +1047,11 @@ def test_gui_export_includes_every_visible_result_and_current_plot(
             "rdf.csv",
         }
     assert "Exported comparison" in (tmp_path / "plot.svg").read_text(encoding="utf-8")
+    image = QImage(str(tmp_path / "plot.png"))
+    assert image.width() / image.height() == pytest.approx(
+        display_width / display_height,
+        abs=0.001,
+    )
     window.close()
 
 

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from jsonschema import Draft202012Validator, FormatChecker
+from matplotlib import image as mpimg
 from referencing import Registry, Resource
 
 import mdhelper.project.inputs as input_module
@@ -14,7 +16,8 @@ import mdhelper.project.manifests as manifest_module
 from mdhelper.app import ApplicationService
 from mdhelper.core.analysis import AnalysisResult, EnergyRequest, RadialRequest
 from mdhelper.core.errors import ConfigurationError, InputFileError
-from mdhelper.io.export import export_result
+from mdhelper.core.plotting import PlotSize
+from mdhelper.io.export import export_figures, export_result
 from mdhelper.project import Project
 from mdhelper.services.config import UserConfig
 
@@ -122,6 +125,95 @@ def test_project_result_commit_is_atomic_and_verified(
         reopened.load_result(result.analysis_id)
 
 
+def test_project_result_externalizes_integration_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    topology = tmp_path / "topology"
+    trajectory = tmp_path / "trajectory"
+    topology.write_text("topology", encoding="ascii")
+    trajectory.write_text("trajectory", encoding="ascii")
+    project = Project.create(tmp_path / "project", topology, trajectory)
+    request = RadialRequest(
+        analysis_type="rdf",
+        topology=str(topology),
+        trajectory=str(trajectory),
+        reference="reference",
+        selection="selection",
+    )
+    run = {
+        "name": "tool",
+        "display_name": "Tool",
+        "path": "tool",
+        "version": "1.0",
+        "command": "tool run",
+        "arguments": ["run"],
+        "working_directory": str(tmp_path),
+        "environment_summary": {},
+        "exit_code": 0,
+        "stdout": "standard output\n",
+        "stderr": "standard error\n",
+        "started_at": "2026-01-01T00:00:00+00:00",
+        "output_fingerprints": {},
+        "elapsed_seconds": 1.0,
+        "status": "completed",
+    }
+    result = AnalysisResult(
+        analysis_type="rdf",
+        data={"radius_nm": [0.1], "g_r": [1.0]},
+        parameters={},
+        units={},
+        diagnostics={},
+        provenance={
+            "input_files": {
+                "topology": str(topology.resolve()),
+                "trajectory": str(trajectory.resolve()),
+            },
+            "input_sha256": {
+                str(topology.resolve()): project.manifest["inputs"]["topology"]["sha256"],
+                str(trajectory.resolve()): project.manifest["inputs"]["trajectory"]["sha256"],
+            },
+            "integration_runs": [run],
+        },
+        request=request.to_dict(),
+    )
+
+    result_path = project.commit_result(request, result)
+
+    stored_result = json.loads(result_path.read_text(encoding="utf-8"))
+    stored_run = stored_result["provenance"]["integration_runs"][0]
+    assert stored_run == project.manifest["integration_runs"][0]
+    assert "stdout" not in stored_run
+    assert "stderr" not in stored_run
+    for stream in ("stdout", "stderr"):
+        content = run[stream]
+        path = project.root / stored_run[f"{stream}_path"]
+        assert path.parent == project.root / "results" / "logs"
+        assert path.read_text(encoding="utf-8") == content
+        assert stored_run[f"{stream}_sha256"] == hashlib.sha256(
+            content.encode("utf-8")
+        ).hexdigest()
+    loaded_run = project.load_result(result.analysis_id).provenance["integration_runs"][0]
+    assert loaded_run["stdout"] == run["stdout"]
+    assert loaded_run["stderr"] == run["stderr"]
+    _validate_schema(project.manifest, "project-v1.schema.json")
+
+    existing_logs = set((project.root / "results" / "logs").iterdir())
+    failed = copy.deepcopy(result)
+    failed.analysis_id = str(uuid4())
+    original_atomic_json = manifest_module.atomic_json
+
+    def fail_manifest(path: Path, value: dict[str, object]) -> None:
+        if path == project.manifest_path:
+            raise ConfigurationError("simulated log commit interruption")
+        original_atomic_json(path, value)
+
+    monkeypatch.setattr(manifest_module, "atomic_json", fail_manifest)
+    with pytest.raises(ConfigurationError, match="simulated log commit interruption"):
+        project.commit_result(request, failed)
+    assert set((project.root / "results" / "logs").iterdir()) == existing_logs
+    assert not (project.root / "results" / "data" / f"{failed.analysis_id}.json").exists()
+
+
 def test_export_removes_binary_float_artifacts(tmp_path: Path) -> None:
     request = RadialRequest(
         analysis_type="rdf",
@@ -153,6 +245,30 @@ def test_export_removes_binary_float_artifacts(tmp_path: Path) -> None:
     assert "1.2000000000000002" not in metadata
     assert json.loads(metadata)["data"] == {"radius_nm": [0.009], "g_r": [1.2]}
     assert table.splitlines() == ["radius_nm,g_r", "0.009,1.2"]
+
+
+def test_figure_export_preserves_requested_plot_size(tmp_path: Path) -> None:
+    request = RadialRequest(
+        analysis_type="rdf",
+        topology="topology",
+        trajectory="trajectory",
+        reference="A",
+        selection="B",
+    )
+    result = AnalysisResult(
+        analysis_type="rdf",
+        data={"radius_nm": [0.1, 0.2], "g_r": [0.0, 1.0]},
+        parameters={},
+        units={},
+        diagnostics={},
+        provenance={},
+        request=request.to_dict(),
+    )
+
+    paths = export_figures(result, tmp_path, size=PlotSize(4.0, 3.0))
+
+    image = mpimg.imread(next(path for path in paths if path.suffix == ".png"))
+    assert image.shape[:2] == (900, 1200)
 
 
 def test_project_use_cases_ensure_in_place_without_weakening_create(

@@ -192,6 +192,9 @@ analysis-project/
   results/
     data/
       <analysis-id>.json
+    logs/
+      <run-id>.stdout.log
+      <run-id>.stderr.log
   figures/
   cache/
 ```
@@ -213,7 +216,8 @@ The project path must be new or empty. Pass `--project analysis-project` to `ins
 completed result. Energy commits add the fingerprinted EDR file as the `energy` input. Projects
 can be moved; MDHelper reconnects inputs only when their SHA-256 fingerprints still match. All
 GROMACS command work directories and generated source outputs for project runs are retained under
-the project's `cache/` directory.
+the project's `cache/` directory. Captured integration stdout and stderr are stored in dedicated,
+fingerprinted files under `results/logs/`; the manifest keeps only their relative paths and hashes.
 
 In the Windows GUI, **File > New Project** discovers direct `.tpr`/`.gro` topology,
 `.xtc`/`.trr`/`.gro` trajectory, and optional `.ndx` files in a selected directory. A sole

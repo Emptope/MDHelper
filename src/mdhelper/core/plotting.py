@@ -17,6 +17,23 @@ MAX_PLOT_TITLE_LENGTH = 120
 
 
 @dataclass(frozen=True)
+class PlotSize:
+    """Physical size of one plot panel in inches."""
+
+    width: float = 8.8
+    height: float = 6.2
+
+    def validate(self) -> None:
+        if not math.isfinite(self.width) or not math.isfinite(self.height):
+            raise ConfigurationError("Plot dimensions must be finite numbers.")
+        if self.width <= 0.0 or self.height <= 0.0:
+            raise ConfigurationError("Plot dimensions must be positive.")
+
+
+DEFAULT_PLOT_SIZE = PlotSize()
+
+
+@dataclass(frozen=True)
 class PlotSeries:
     """One labelled data series and its optional pointwise uncertainty."""
 

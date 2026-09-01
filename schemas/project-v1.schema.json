@@ -137,7 +137,8 @@
       "additionalProperties": false,
       "required": [
         "name", "display_name", "path", "version", "command", "arguments", "working_directory",
-        "environment_summary", "exit_code", "stdout", "stderr", "started_at",
+        "environment_summary", "exit_code", "stdout_path", "stdout_sha256", "stderr_path",
+        "stderr_sha256", "started_at",
         "output_fingerprints", "elapsed_seconds", "status"
       ],
       "properties": {
@@ -153,8 +154,16 @@
           "additionalProperties": {"type": "string"}
         },
         "exit_code": {"type": "integer"},
-        "stdout": {"type": "string"},
-        "stderr": {"type": "string"},
+        "stdout_path": {
+          "type": "string",
+          "pattern": "^results/logs/[^/\\\\]+\\.stdout\\.log$"
+        },
+        "stdout_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "stderr_path": {
+          "type": "string",
+          "pattern": "^results/logs/[^/\\\\]+\\.stderr\\.log$"
+        },
+        "stderr_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "started_at": {"type": "string", "format": "date-time"},
         "output_fingerprints": {
           "type": "object",

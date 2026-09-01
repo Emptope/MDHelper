@@ -21,8 +21,8 @@ _ANALYSIS_FIELDS = {
 }
 _RUN_FIELDS = {
     "name", "display_name", "path", "version", "command", "arguments", "working_directory",
-    "environment_summary", "exit_code", "stdout", "stderr", "started_at",
-    "output_fingerprints", "elapsed_seconds", "status",
+    "environment_summary", "exit_code", "stdout_path", "stdout_sha256", "stderr_path",
+    "stderr_sha256", "started_at", "output_fingerprints", "elapsed_seconds", "status",
 }
 
 
@@ -140,9 +140,23 @@ def _integration_run(value: object, field: str) -> None:
         "name", "display_name", "path", "version", "command", "working_directory"
     ):
         _string(record[name], f"{field}.{name}")
-    for name in ("stdout", "stderr"):
-        if not isinstance(record[name], str):
-            raise ConfigurationError(f"Project field {field + '.' + name!r} must be a string.")
+    for stream in ("stdout", "stderr"):
+        path_field = f"{field}.{stream}_path"
+        path = record[f"{stream}_path"]
+        _string(path, path_field)
+        assert isinstance(path, str)
+        name = path.removeprefix("results/logs/")
+        if (
+            name == path
+            or not name
+            or "/" in name
+            or "\\" in name
+            or not name.endswith(f".{stream}.log")
+        ):
+            raise ConfigurationError(
+                f"Project field {path_field!r} must name a dedicated project log."
+            )
+        _sha256(record[f"{stream}_sha256"], f"{field}.{stream}_sha256")
     if any(not isinstance(item, str) for item in _array(record["arguments"], f"{field}.arguments")):
         raise ConfigurationError(f"Project field {field + '.arguments'!r} must contain strings.")
     environment = _object(record["environment_summary"], f"{field}.environment_summary")

@@ -352,6 +352,7 @@ project-root/
   mdhelper-project.json
   results/
     data/
+    logs/
   figures/
   cache/
 ```
@@ -366,17 +367,19 @@ project-root/
 | `project.py` | `Project` 聚合 manifest、input 和 result 仓库，向应用层提供创建、打开、提交和读取。 |
 | `manifests.py` | 严格校验 `mdhelper-project.json`；记录输入、结果索引和 schema 版本，不迁移旧字段。 |
 | `inputs.py` | 每个输入只保存一个路径和 SHA-256；可移植时使用项目相对路径，Windows 跨卷无法表示相对路径时使用绝对路径。移动后的文件只有 SHA-256 相同才重新关联。 |
+| `runs.py` | 将 integration stdout/stderr 原子写入专用日志；manifest 和结果文件只保留项目相对路径与 SHA-256，读取时校验并恢复内存记录。 |
 | `results.py` | 验证请求/结果/provenance，写入结果，计算哈希并更新紧凑 manifest 索引；读取时由 analysis ID 推导结果路径，并检查路径、哈希和契约。 |
 | `schema.py` | 运行时 Python schema 校验器，递归拒绝未知字段、缺失字段和错误类型。 |
 | `storage.py` | JSON 序列化、同目录临时文件和 `os.replace` 原子替换等底层存储原语。 |
 | `__init__.py` | 导出项目公共接口。 |
 
-结果提交顺序是：严格校验请求、结果和输入 provenance；将一份完整结果原子写入
-`results/data/<analysis_id>.json`；计算文件哈希；将 ID、分析类型、提交时间和哈希加入 manifest 并原子提交。manifest 不重复保存 request、method、恒定完成状态和可推导路径。若 manifest
-提交失败，刚创建且未被索引的文件会被删除。
+结果提交顺序是：严格校验请求、结果和输入 provenance；将 integration stdout/stderr
+原子写入 `results/logs/`，并在持久化记录中替换为相对路径和 SHA-256；将完整结果原子写入
+`results/data/<analysis_id>.json`；计算文件哈希；将 ID、分析类型、提交时间和哈希加入 manifest 并原子提交。manifest 不重复保存 request、method、流正文、恒定完成状态和可推导路径。若 manifest
+提交失败，刚创建且未被索引的结果与日志文件都会被删除。
 
 读取时拒绝结果路径逃逸 `results/data/`；每条记录必须带结果哈希，加载时会校验该哈希，
-随后重新解析结果契约。
+随后校验日志路径与指纹、恢复内存中的 stdout/stderr，再重新解析结果契约。
 `schemas/` 中的 JSON Schema 面向发布、测试和外部工具；运行时以 `project/schema.py`
 的严格校验为准，二者变更必须同步。
 

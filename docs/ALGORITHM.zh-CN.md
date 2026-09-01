@@ -540,7 +540,7 @@ RDF 的 `g(r)=1` 参考线也参与 primary 最大值。用户 y/y2 limits 最�
 创建项目时先解析 root，记录 topology/trajectory/可选 index 的 path 与 hash，校验角色，
 然后构造 schema 1 manifest。默认拒绝已有 project 和非空目录；app 的 `ensure()` 用例在
 GUI 自动建立轨迹目录项目时显式允许非空目录。随后创建 `results`、`results/data`、
-`figures`、`cache` 目录并原子写 `mdhelper-project.json`。
+`results/logs`、`figures`、`cache` 目录并原子写 `mdhelper-project.json`。
 
 打开项目时：
 
@@ -570,15 +570,17 @@ relative path；Windows 跨卷时保存 absolute path。恢复时：
 4. 对已有 project input 复用其记录，对新增 input 建立 path 与 hash 记录；
 5. result provenance 提供 hash 时要求它与 project input 一致；
 6. 拒绝重复 `analysis_id` 和已存在结果路径；
-7. 原子写一份完整结果到 `results/data/<analysis_id>.json`；
-8. 对完整结果计算 SHA-256；
-9. 将 analysis ID、分析类型、提交时间、hash 和新 input 记录加入 manifest；结果路径由 ID 推导，request 和 method 只保存在完整结果中；
-10. 严格校验并原子写 manifest；
-11. 第 10 步失败时删除第 7 步新建的未索引文件。
+7. 将每条 integration run 的 stdout/stderr 原子写入 `results/logs/` 下的专用文件，并计算 SHA-256；
+8. 在待持久化 run record 中用项目相对路径和 SHA-256 替换流正文；
+9. 原子写一份完整结果到 `results/data/<analysis_id>.json`；
+10. 对完整结果计算 SHA-256；
+11. 将 analysis ID、分析类型、提交时间、hash 和新 input 记录加入 manifest；结果路径由 ID 推导，request 和 method 只保存在完整结果中；
+12. 严格校验并原子写 manifest；
+13. 第 12 步失败时删除第 7、9 步新建的未索引日志与结果文件。
 
 每个结果条目都必须包含 `result_sha256`。加载结果时先确保 manifest 路径位于
-`results/data/` 内，再检查文件存在、校验内容 hash，最后用 `AnalysisResult.from_dict()`
-重新解析。
+`results/data/` 内，再检查文件存在、校验内容 hash；随后要求日志位于 `results/logs/`，
+校验日志 SHA-256 并恢复内存中的 stdout/stderr，最后用 `AnalysisResult.from_dict()` 重新解析。
 
 ### 13.4 原子 JSON 写入
 

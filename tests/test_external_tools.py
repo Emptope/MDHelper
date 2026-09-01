@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import subprocess
 import sys
@@ -11,7 +12,7 @@ import pytest
 
 import mdhelper.integrations.manager as manager_module
 from mdhelper.app import ApplicationService
-from mdhelper.core.errors import BackendError, TaskCancelled
+from mdhelper.core.errors import BackendError, ConfigurationError, TaskCancelled
 from mdhelper.integrations import DEFAULT_INTEGRATION_REGISTRY
 from mdhelper.integrations.gromacs import GromacsAdapter
 from mdhelper.integrations.gromacs import frame_progress as gromacs_frame_progress
@@ -432,7 +433,17 @@ def test_project_records_portable_integration_requirement_and_run(tmp_path: Path
     preference = reopened.manifest["integration_preferences"]["fake"]
     assert preference == {"preferred": True, "required_capabilities": ["echo"]}
     assert "path" not in preference
-    assert reopened.manifest["integration_runs"][0] == record.to_dict()
+    stored = reopened.manifest["integration_runs"][0]
+    assert "stdout" not in stored
+    assert "stderr" not in stored
+    for stream in ("stdout", "stderr"):
+        content = getattr(record, stream)
+        path = project.root / stored[f"{stream}_path"]
+        assert path.parent == project.root / "results" / "logs"
+        assert path.read_text(encoding="utf-8") == content
+        assert stored[f"{stream}_sha256"] == hashlib.sha256(
+            content.encode("utf-8")
+        ).hexdigest()
 
     reopened.set_integration_preference("fake", True, ("missing",))
     with pytest.raises(BackendError, match="lacks required capabilities"):
@@ -440,3 +451,8 @@ def test_project_records_portable_integration_requirement_and_run(tmp_path: Path
             "fake", ["echo"], tmp_path, project=reopened
         )
     assert len(reopened.manifest["integration_runs"]) == 1
+
+    stdout_path = project.root / stored["stdout_path"]
+    stdout_path.write_text("changed output\n", encoding="utf-8")
+    with pytest.raises(ConfigurationError, match="log fingerprint changed"):
+        Project.open(project.root, verify_inputs=False)

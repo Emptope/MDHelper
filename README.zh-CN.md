@@ -180,6 +180,9 @@ analysis-project/
   results/
     data/
       <analysis-id>.json
+    logs/
+      <run-id>.stdout.log
+      <run-id>.stderr.log
   figures/
   cache/
 ```
@@ -200,7 +203,8 @@ uv run mdhelper project show --path analysis-project
 `--project analysis-project`，即可在适用时复用经过校验的输入，并在成功后提交结果。
 Energy 提交会把 EDR 文件作为带指纹的 `energy` 输入加入项目。项目可以移动；只有输入
 文件的 SHA-256 指纹仍然匹配时，MDHelper 才会重新连接这些文件。项目运行的全部 GROMACS
-命令工作目录和生成的源输出统一保留在当前项目的 `cache/` 目录下。
+命令工作目录和生成的源输出统一保留在当前项目的 `cache/` 目录下。integration 捕获的
+stdout 和 stderr 分别写入 `results/logs/` 下的专用文件；manifest 只保存相对路径和指纹。
 
 Windows GUI 的 **File > New Project** 会发现所选目录直属的 `.tpr`/`.gro` topology、
 `.xtc`/`.trr`/`.gro` trajectory 和可选 `.ndx` 文件。仅有一个索引候选时会自动

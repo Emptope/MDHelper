@@ -22,7 +22,7 @@ from mdhelper.core.errors import (
     MDHelperError,
     TaskCancelled,
 )
-from mdhelper.core.plotting import DEFAULT_PLOT_SCHEME, PlotLimits
+from mdhelper.core.plotting import DEFAULT_PLOT_SCHEME, PlotLimits, PlotSize
 from mdhelper.core.progress import ProgressCallback
 from mdhelper.core.species import role_decision, role_policy
 from mdhelper.core.trajectory import TrajectorySource
@@ -43,8 +43,9 @@ class AnalysisUseCases:
         include_figures: bool = True,
         scheme: str = DEFAULT_PLOT_SCHEME,
         limits: PlotLimits | None = None,
+        size: PlotSize | None = None,
     ) -> list[Path]:
-        return export_result(result, output_directory, include_figures, scheme, limits)
+        return export_result(result, output_directory, include_figures, scheme, limits, size)
 
     def export_figures(
         self,
@@ -53,8 +54,9 @@ class AnalysisUseCases:
         stem: str | None = None,
         scheme: str = DEFAULT_PLOT_SCHEME,
         limits: PlotLimits | None = None,
+        size: PlotSize | None = None,
     ) -> list[Path]:
-        return export_figures(result, output_directory, stem, scheme, limits)
+        return export_figures(result, output_directory, stem, scheme, limits, size)
 
     def export_comparison_figures(
         self,
@@ -68,6 +70,7 @@ class AnalysisUseCases:
         titles: Sequence[str | None] | None = None,
         scheme: str = DEFAULT_PLOT_SCHEME,
         limits: PlotLimits | None = None,
+        size: PlotSize | None = None,
     ) -> list[Path]:
         return export_comparison_figures(
             results,
@@ -80,6 +83,7 @@ class AnalysisUseCases:
             titles,
             scheme,
             limits,
+            size,
         )
 
     def energy_terms(

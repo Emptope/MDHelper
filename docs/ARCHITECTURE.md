@@ -206,9 +206,11 @@ same-directory replacement. RDF exports `radius_nm,g_r`; cumulative RDF exports
 `radius_nm,cumulative_number`. GROMACS results retain the source XVG text as result artifacts so
 direct Export can write the files after the integration temporary directory is removed.
 
-A project is rooted by `mdhelper-project.json` and owns `results/data`, `figures`, and
-`cache`. Its manifest records schema/application version, content-addressed inputs, confirmed roles,
-integration preferences and runs, strict plot state, and committed analysis entries. Every analysis
+A project is rooted by `mdhelper-project.json` and owns `results/data`, `results/logs`, `figures`,
+and `cache`. Its manifest records schema/application version, content-addressed inputs, confirmed
+roles, integration preferences and compact run metadata, strict plot state, and committed analysis
+entries. Captured stdout and stderr are stored in dedicated fingerprinted files under
+`results/logs`; run metadata contains only their relative paths and hashes. Every analysis
 entry includes an ID, analysis type, commit time, and hash. Its result path is derived as
 `results/data/<analysis_id>.json`; request and method metadata live only in that complete result.
 Opening rejects old or incomplete schema-1 data; it never rewrites an incompatible manifest into
@@ -222,9 +224,9 @@ a process-lifetime system directory. Removing cache files only forces regenerati
 change analysis semantics.
 
 Result commit validates request equality, input paths, and any recorded provenance fingerprints,
-writes the result atomically,
-hashes it, and then commits the compact manifest index. The derived path is checked for containment,
-and fingerprints are rechecked on load.
+externalizes integration streams, writes the result atomically, hashes it, and then commits the
+compact manifest index. Result loading verifies and hydrates referenced logs. Derived result and log
+paths are checked for containment, and fingerprints are rechecked on load.
 Relocation changes a path only when content identity is unchanged.
 
 ## 10. Workflow and external tools

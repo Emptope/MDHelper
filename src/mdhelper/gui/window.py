@@ -571,6 +571,7 @@ class MainWindow(QMainWindow):
                     titles,
                     self.results.plot_scheme(),
                     self.results.plot_limits(),
+                    self.results.plot_size(),
                 )
             )
         except Exception as exc:
@@ -604,6 +605,7 @@ class MainWindow(QMainWindow):
                 titles,
                 self.results.plot_scheme(),
                 self.results.plot_limits(),
+                self.results.plot_size(),
             )
         except Exception as exc:
             self._show_error(exc)

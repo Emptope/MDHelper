@@ -14,6 +14,7 @@ from mdhelper.core.species import validate_species_roles
 from mdhelper.project.inputs import InputRecord, InputRepository
 from mdhelper.project.manifests import ManifestRepository
 from mdhelper.project.results import ResultRepository
+from mdhelper.project.runs import RunRepository
 from mdhelper.project.schema import PROJECT_SCHEMA_VERSION
 from mdhelper.version import __version__
 
@@ -24,12 +25,16 @@ class Project:
     manifest: dict[str, Any]
     _manifests: ManifestRepository = field(init=False, repr=False)
     _inputs: InputRepository = field(init=False, repr=False)
+    _runs: RunRepository = field(init=False, repr=False)
     _results: ResultRepository = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._manifests = ManifestRepository(self.root)
         self._inputs = InputRepository(self.root)
-        self._results = ResultRepository(self.root, self._manifests, self._inputs)
+        self._runs = RunRepository(self.root)
+        self._results = ResultRepository(
+            self.root, self._manifests, self._inputs, self._runs
+        )
 
     @property
     def manifest_path(self) -> Path:
@@ -88,6 +93,7 @@ class Project:
         manifest = manifests.load()
         manifests.ensure_layout()
         project = cls(project_root, manifest)
+        project._runs.verify(manifest["integration_runs"])
         if verify_inputs:
             project.resolve_inputs(verify_fingerprints=True)
         return project
@@ -173,15 +179,20 @@ class Project:
         )
 
     def record_integration_run(self, record: dict[str, Any]) -> None:
-        self._commit(
-            {
-                **self.manifest,
-                "integration_runs": [
-                    *self.manifest.get("integration_runs", []),
-                    dict(record),
-                ],
-            }
-        )
+        records, paths = self._runs.store((record,))
+        try:
+            self._commit(
+                {
+                    **self.manifest,
+                    "integration_runs": [
+                        *self.manifest.get("integration_runs", []),
+                        records[0],
+                    ],
+                }
+            )
+        except BaseException:
+            self._runs.remove(paths)
+            raise
 
     def commit_result(self, request: AnalysisRequest, result: AnalysisResult) -> Path:
         self.manifest, path = self._results.commit(self.manifest, request, result)
