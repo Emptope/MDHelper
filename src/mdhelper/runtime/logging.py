@@ -50,3 +50,10 @@ def record_error(error: BaseException, context: str) -> None:
         error,
         exc_info=(type(error), error, error.__traceback__),
     )
+
+
+def record_command(command: str, working_directory: Path) -> None:
+    logger = logging.getLogger(LOGGER_NAME)
+    if not logger.handlers:
+        configure_logging()
+    logger.info("External command: %s cwd=%s", command, working_directory)

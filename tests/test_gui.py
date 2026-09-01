@@ -28,7 +28,8 @@ from mdhelper.app import InputCandidates
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.gui.projects import NewProjectDialog
 from mdhelper.gui.window import MainWindow
-from mdhelper.integrations.models import IntegrationStatus
+from mdhelper.integrations.models import IntegrationConfig, IntegrationStatus
+from mdhelper.services.config import UserConfig, config_path, save_config
 
 gui_main_module = import_module("mdhelper.gui.main")
 
@@ -48,6 +49,9 @@ def test_gui_detects_integrations_outside_the_main_thread(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     QApplication.instance() or QApplication([])
+    config = UserConfig()
+    config.integrations["gromacs"] = IntegrationConfig(path="configured-gmx")
+    save_config(config, config_path())
     started = Event()
     release = Event()
     threads: list[int] = []
@@ -71,12 +75,40 @@ def test_gui_detects_integrations_outside_the_main_thread(
     window = MainWindow()
     try:
         assert started.wait(1)
+        assert window.analysis.parameters.analysis_backend.findData("gromacs") >= 0
         assert len(threads) == 1
         assert threads[0] != main_thread
     finally:
         release.set()
         QTest.qWait(10)
         window.close()
+
+
+def test_gui_does_not_detect_unconfigured_gromacs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    QApplication.instance() or QApplication([])
+    detected: list[str] = []
+
+    def detect(
+        _self: object,
+        name: str,
+        _override: object = None,
+        _config: object = None,
+    ) -> IntegrationStatus:
+        detected.append(name)
+        return IntegrationStatus(name, False)
+
+    monkeypatch.setattr(
+        "mdhelper.app.integrations.IntegrationUseCases.detect",
+        detect,
+    )
+
+    window = MainWindow()
+
+    assert detected == []
+    assert window.analysis.parameters.analysis_backend.findData("gromacs") == -1
+    window.close()
 
 
 def test_gui_startup_reports_configuration_errors_without_traceback(
@@ -133,7 +165,7 @@ def test_gui_completes_coordination_on_generic_system(tmp_path: Path) -> None:
     window = MainWindow()
     window.load.inputs.topology.edit.setText(str(trajectory))
     window.load.inputs.trajectory.edit.setText(str(trajectory))
-    window.load.inputs.backend.setCurrentText("native")
+    window.analysis.parameters.set_analysis_backend("mdanalysis")
     window.load.inputs.selection_source.setCurrentIndex(1)
     window._inspect()
     for row in range(window.load.species.table.rowCount()):
@@ -180,7 +212,6 @@ def test_gui_automatically_reloads_species_and_index_groups(tmp_path: Path) -> N
     )
     index.write_text("[ Reference ]\n1\n[ Neighbors ]\n2 3 4\n", encoding="ascii")
     window = MainWindow()
-    window.load.inputs.set_backend("native")
     window.load.inputs.topology.edit.setText(str(first))
     window.load.inputs.trajectory.edit.setText(str(first))
     QTest.qWait(350)
@@ -257,8 +288,9 @@ def test_gui_backend_does_not_reload_system_or_control_species_detection(
         "inspect_system",
         inspect,
     )
-    window.load.inputs.set_gromacs_available(True)
-    window.load.inputs.set_backend("gromacs")
+    window.analysis.parameters.set_gromacs_configured(True)
+    window.analysis.parameters.set_gromacs_available(True)
+    window.analysis.parameters.set_analysis_backend("gromacs")
     QTest.qWait(350)
 
     assert inspections == []
@@ -272,7 +304,7 @@ def test_gui_backend_does_not_reload_system_or_control_species_detection(
     QTest.qWait(350)
 
     assert inspections == [True]
-    assert window.load.inputs.backend_value() == "gromacs"
+    assert window.analysis.parameters.analysis_backend_value() == "gromacs"
     assert {
         window.load.species.table.item(row, 0).text()
         for row in range(window.load.species.table.rowCount())
@@ -351,7 +383,7 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
     assert window.load.inputs.topology.edit.text() == str(trajectory.resolve())
     assert window.load.inputs.trajectory.edit.text() == str(trajectory_input.resolve())
     assert window.load.inputs.index_file.edit.text() == str(index_input.resolve())
-    assert window.load.inputs.backend.currentText() == "Auto"
+    assert window.analysis.parameters.analysis_backend.currentText() == "Automatic"
     assert not window.results.text.toPlainText()
     assert inspections == [True]
     project = window.application.projects.create(tmp_path / "saved-project", trajectory, trajectory)

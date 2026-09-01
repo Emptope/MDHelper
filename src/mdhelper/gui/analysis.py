@@ -53,6 +53,9 @@ class AnalysisPanel(QWidget):
         self.cancel_button.setEnabled(running)
         if running:
             self.progress.setRange(0, 0)
+        else:
+            self.progress.setRange(0, 100)
+            self.progress.setValue(0)
 
     def set_progress(self, current: int, total: int | None) -> None:
         if total:

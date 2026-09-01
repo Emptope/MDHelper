@@ -41,6 +41,7 @@ class GromacsTrajectorySource:
         self.topology_path = Path(topology).expanduser().resolve()
         self.trajectory_path = Path(trajectory).expanduser().resolve()
         self._temporary: tempfile.TemporaryDirectory[str] | None = None
+        self._source: GroTrajectorySource | None = None
         if cache_dir is None:
             self._temporary = tempfile.TemporaryDirectory(prefix="mdhelper-gromacs-")
             root = Path(self._temporary.name)
@@ -48,25 +49,40 @@ class GromacsTrajectorySource:
             root = Path(cache_dir).expanduser().resolve()
             root.mkdir(parents=True, exist_ok=True)
         try:
-            output = root / f"trajectory-{_cache_key(self.topology_path, self.trajectory_path)}.gro"
-        except OSError as exc:
-            raise BackendError(
-                "Could not inspect inputs for the GROMACS trajectory backend.",
-                details={"exception": f"{type(exc).__name__}: {exc}"},
-            ) from exc
-        self.integration_run = converter(
-            self.topology_path,
-            self.trajectory_path,
-            output,
-        )
-        if self.integration_run.get("status") != "completed" or not output.is_file():
-            raise BackendError(
-                "GROMACS did not produce the converted trajectory.",
-                details={"integration_run": self.integration_run},
+            try:
+                key = _cache_key(self.topology_path, self.trajectory_path)
+            except OSError as exc:
+                raise BackendError(
+                    "Could not inspect inputs for the GROMACS trajectory backend.",
+                    details={"exception": f"{type(exc).__name__}: {exc}"},
+                ) from exc
+            output = root / f"trajectory-{key}.gro"
+            self.integration_run = converter(
+                self.topology_path,
+                self.trajectory_path,
+                output,
             )
-        self._source = GroTrajectorySource(output, output)
-        self.atoms: tuple[Atom, ...] = self._source.atoms
-        self.n_frames: int = self._source.n_frames
+            if self.integration_run.get("status") != "completed" or not output.is_file():
+                raise BackendError(
+                    "GROMACS did not produce the converted trajectory.",
+                    details={"integration_run": self.integration_run},
+                )
+            self._source = GroTrajectorySource(output, output)
+            self.atoms: tuple[Atom, ...] = self._source.atoms
+            self.n_frames: int = self._source.n_frames
+        except BaseException:
+            self.close()
+            raise
 
     def iter_frames(self, frame_range: FrameRange) -> Iterator[Frame]:
+        if self._source is None:
+            raise BackendError("The GROMACS trajectory source is closed.")
         yield from self._source.iter_frames(frame_range)
+
+    def close(self) -> None:
+        if self._source is not None:
+            self._source.close()
+            self._source = None
+        if self._temporary is not None:
+            self._temporary.cleanup()
+            self._temporary = None

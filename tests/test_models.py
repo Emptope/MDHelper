@@ -58,7 +58,7 @@ def test_requests_serialize_only_fields_used_by_the_analysis() -> None:
         "r_max_nm",
         "bin_width_nm",
         "frames",
-        "backend",
+        "analysis_backend",
         "schema_version",
     }
     assert AnalysisRequest.from_dict(radial).to_dict() == radial
@@ -67,13 +67,13 @@ def test_requests_serialize_only_fields_used_by_the_analysis() -> None:
         analysis_type="energy",
         energy_file="energy.edr",
         energy_terms=("Potential",),
-        backend="mdanalysis",
+        analysis_backend="mdanalysis",
     ).to_dict()
     assert energy == {
         "analysis_type": "energy",
         "energy_file": "energy.edr",
         "energy_terms": ["Potential"],
-        "backend": "mdanalysis",
+        "analysis_backend": "mdanalysis",
         "schema_version": 1,
     }
     assert AnalysisRequest.from_dict(energy).to_dict() == energy
@@ -117,13 +117,23 @@ def test_initial_contract_rejects_retired_radial_names() -> None:
         AnalysisRequest.from_dict(value)
 
 
-@pytest.mark.parametrize("field", ["trajectory_backend", "analysis_backend"])
+@pytest.mark.parametrize("field", ["backend", "trajectory_backend"])
 def test_initial_contract_rejects_retired_backend_fields(field: str) -> None:
     value = _request().to_dict()
     value[field] = "native"
 
     with pytest.raises(ConfigurationError, match="unknown fields"):
         AnalysisRequest.from_dict(value)
+
+
+def test_backend_values_are_scoped_to_the_analysis_family() -> None:
+    with pytest.raises(InputError, match="Energy analysis"):
+        EnergyRequest(
+            analysis_type="energy",
+            energy_file="energy.edr",
+            energy_terms=("Potential",),
+            analysis_backend="native",  # type: ignore[arg-type]
+        ).validate()
 
 
 @pytest.mark.parametrize("field", ["bins", "cutoff_nm", "coordination_group_by"])
@@ -164,6 +174,7 @@ def test_result_validation_rejects_unknown_and_non_json_content() -> None:
         request=request.to_dict(),
     )
     value = result.to_dict()
+    assert value["artifacts"] == {}
     assert "uncertainty" not in value
     assert "status" not in value
     value["unknown"] = True
@@ -178,4 +189,14 @@ def test_result_validation_rejects_unknown_and_non_json_content() -> None:
     value = copy.deepcopy(result.to_dict())
     value["data"]["g_r"] = [float("inf")]
     with pytest.raises(ConfigurationError, match="non-finite"):
+        AnalysisResult.from_dict(value)
+
+    value = result.to_dict()
+    value["artifacts"] = {"../raw.xvg": "source"}
+    with pytest.raises(ConfigurationError, match="plain file names"):
+        AnalysisResult.from_dict(value)
+
+    value = result.to_dict()
+    value["artifacts"] = {"raw.xvg": 1}
+    with pytest.raises(ConfigurationError, match="contents must be strings"):
         AnalysisResult.from_dict(value)

@@ -15,7 +15,7 @@
 
 | 类别 | 内容 | 主要实现 |
 | --- | --- | --- |
-| 数值算法 | PBC、pair 距离、RDF、累计 RDF、第一壳层、energy 提取 | `analysis/common.py`、`analysis/radial.py`、`analysis/rdf.py`、`analysis/cumulative_rdf.py`、`analysis/gmx_rdf.py`、`analysis/energy.py` |
+| 数值算法 | PBC、pair 距离、RDF、累计 RDF、第一壳层、energy 提取 | `analysis/common.py`、`analysis/radial.py`、`analysis/rdf.py`、`analysis/cumulative_rdf.py`、`analysis/native.py`、`analysis/mdanalysis.py`、`analysis/gromacs.py`、`analysis/energy.py` |
 | 输入解释算法 | reader 分派、轨迹适配、选择解析、物种角色建议 | `backends/`、`io/ndx.py`、`services/selection.py`、`services/system.py` |
 | 工程确定性算法 | 绘图分组/配色/范围、hash、项目提交、外部软件检测、任务取消 | `core/plotting.py`、`services/provenance.py`、`project/`、`integrations/`、`runtime/`、`workflow/tasks.py` |
 
@@ -56,7 +56,7 @@ start, start + stride, start + 2 * stride, ... < stop
 ```
 
 `stop = null` 表示轨迹末尾。后端将超出轨迹长度的 `stop` 截到实际末尾；若没有任何
-帧满足范围则失败。`FrameAudit` 记录实际帧数、首末索引和首末时间，而不是只重复请求值。
+帧满足范围则失败。`FrameAudit` 记录实际帧数、首末索引和首末时间，包含请求值之外的运行事实。
 
 ### 2.4 坐标预处理
 
@@ -69,25 +69,23 @@ start, start + stride, start + 2 * stride, ... < stop
 - 不拟合参考结构；
 - 每一个 pair、每一帧独立使用三斜盒最小镜像。
 
-## 3. 轨迹 reader 分派
+## 3. 完整 Backend 分派
 
-输入为 topology path、trajectory path 和 backend mode。分派算法是：
+显式分析 Backend 对应一条完整策略：
 
 ```text
-if mode == native:
-    use GroTrajectorySource
-else if mode == auto and both suffixes case-insensitively equal .gro:
-    use GroTrajectorySource
-else if mode is auto or mdanalysis:
-    use MDAnalysisTrajectorySource
-else if mode == gromacs:
-    use GromacsTrajectorySource through Integrations
-else:
-    fail as unknown backend
+native     -> Native reader + NDX selection + Native frame/distance computation
+mdanalysis -> MDAnalysis reader + MDAnalysis selection/frame/distance or Energy
+gromacs    -> GROMACS input processing + GROMACS selection + RDF/CN or Energy
 ```
 
-`auto` 只执行一次确定性选择，不捕获原生解析错误再切换 MDAnalysis。实际后端名进入
-provenance。
+Auto 按优先级排列可用完整策略。径向请求只有在 GRO/GRO 加 NDX 时才先考虑 Native，随后
+是 MDAnalysis，再随后是具备 `rdf` capability 的 GROMACS；抽样 GROMACS 帧子集额外需要
+`trjconv`。Energy 先考虑
+MDAnalysis，再考虑具备 `energy` capability 的 GROMACS。source 加载错误可以进入下一条
+完整策略；显式请求不 fallback；同一次尝试不会组合不同 Backend 的组件。独立体系检查仍
+使用 reader-only Auto：GRO/GRO 选择 Native，其他输入选择 MDAnalysis。provenance 记录解析
+出的完整分析 Backend。
 
 ### 3.1 MDHelper GRO Reader
 
@@ -130,7 +128,7 @@ MDAnalysis reader 创建一个 `Universe(topology, trajectory)`，然后：
 没有字母时返回 `X`；前两个字母若属于 `BR`、`CA`、`CL`、`FE`、`LI`、`MG`、`NA`、
 `SI`、`ZN`，返回首字母大写的二字母元素；否则返回第一个字母。
 
-这是有限的通用 fallback，不是化学拓扑重建。后端提供的明确 element 优先，角色或分析
+该 fallback 只处理通用元素名推断，不重建化学拓扑。后端提供的明确 element 优先，角色或分析
 算法不得把推断 element 当作电荷证据。
 
 ## 4. 选择解析
@@ -176,7 +174,7 @@ NDX 时把 request 值直接作为 GROMACS selection expression 传给 `gmx rdf`
 
 ### 4.4 选择审计记录
 
-每个选择记录：
+每个进程内选择记录：
 
 - 原表达式或组名；
 - 原子数；
@@ -186,6 +184,8 @@ NDX 时把 request 值直接作为 GROMACS selection expression 传给 `gmx rdf`
 - NDX 模式下的 index path 与文件 SHA-256。
 
 索引序列 hash 对顺序敏感，使同样成员但不同顺序仍可被区分。
+直接 GROMACS 选择记录保留原 expression 或组名；选择解析和校验由记录在 Integration
+command 中的 `gmx` 完成。
 
 ## 5. 周期性边界和距离
 
@@ -201,8 +201,7 @@ V = abs(a dot (b cross c))
 
 ### 5.2 可靠球半径
 
-对一般三斜晶胞，最小镜像球壳可靠上限不是最短盒矢量的一半，而是最小晶胞垂直高度的
-一半。代码令：
+对一般三斜晶胞，最小镜像球壳可靠上限取最小晶胞垂直高度的一半。代码令：
 
 ```text
 G = inverse(H)
@@ -231,7 +230,7 @@ distance_squared = delta_mic dot delta_mic
 ```
 
 这里 `round` 由 NumPy `rint` 实现。pair 只有在原子索引不同且
-`distance_squared <= cutoff^2` 时保留。使用原子索引而不是距离是否为零判断 self pair，
+`distance_squared <= cutoff^2` 时保留。self pair 由原子索引判断，距离是否为零不参与判断，
 因此不同原子坐标重合仍是合法 pair。
 
 ### 5.4 周期分胞和有界分块
@@ -347,12 +346,13 @@ N_k = (sum_(j=0..k) H_j) / N_ref_obs
 
 ### GROMACS RDF/CN 后端
 
-显式 `gromacs` request 不用上述公式作为曲线数据源。应用通过内置 reader 取得 metadata
-和帧边界，再用一次带 `-o`、`-cn` 的 `gmx rdf` 同时生成 RDF 与 CN。全帧、单帧和连续帧
-直接传入原 topology 和 trajectory，并在需要时传精确 `-b`/`-e`；stride 范围把零基帧索引
-转换为 `gmx trjconv -fr` 接受的一基 NDX 条目，生成精确的临时 XTC 子集，`gmx rdf -s`
-仍使用原 topology。不能用 `-dt` 代替 Python stride，因为 GROMACS 按绝对时间网格取样，
-不是相对 `start` 取样。
+显式 `gromacs` request 不用上述公式作为曲线数据源。默认 `0:end:1` 范围把所选 topology
+和 trajectory 直接传给一次 `gmx rdf`。RDF request 只使用 `-o`；cumulative RDF request
+额外使用 `-cn`，并保留 RDF 输出供共同的第一壳层诊断使用。有限非默认范围把零基帧索引
+转换为一次 `gmx trjconv -fr` 接受的一基 NDX 条目，生成精确 XTC
+子集，`gmx rdf -s` 仍使用原 topology。开放结束位置的非默认范围可能先读取 GROMACS
+trajectory metadata，再构造原生命令范围参数。`-dt` 按绝对时间网格取样，Python stride
+按相对 `start` 的索引取样，因此两者不能互换。
 
 request 的 `bin_width_nm`、`r_max_nm` 分别传给 `-bin`、`-rmax`。该分支的 pair selection、
 PBC、grid endpoint、RDF normalization 和 cumulative integration 均由 GROMACS 决定。
@@ -408,7 +408,7 @@ contrast = smoothed_peak - smoothed_minimum
 没有可靠第一最小值的警告。CN 分析若得到 minimum index，会把该 index 的离散 CN 值附加
 到诊断中。
 
-这不是误差分析，也不自动修改 cutoff 或 `r_max`。
+该诊断不包含误差分析，也不自动修改 cutoff 或 `r_max`。
 
 ## 10. 物种角色建议算法
 
@@ -510,9 +510,10 @@ RDF 的 `g(r)=1` 参考线也参与 primary 最大值。用户 y/y2 limits 最�
 
 ### 12.1 SHA-256
 
-输入文件每次读取 4 MiB，逐块更新 SHA-256。开始前和每块读取前检查取消事件；每块后报告
-已处理字节和总大小。topology 与 trajectory 指向同一路径时只 hash 一次。NDX 等附加输入
-按相同规则加入。
+进程内分析输入每次读取 4 MiB，逐块更新 SHA-256。开始前和每块读取前检查取消事件；每块
+后报告已处理字节和总大小。topology 与 trajectory 指向同一路径时只 hash 一次。NDX 等
+附加输入按相同规则加入。直接 GROMACS 分析跳过原生命令启动前的输入 hash，记录解析输入
+路径和完整 Integration command。
 
 选择索引 hash 与文件 hash 是不同层次：前者标识解析出的有序原子索引，后者标识整个输入
 文件内容。
@@ -523,14 +524,14 @@ RDF 的 `g(r)=1` 参考线也参与 primary 最大值。用户 y/y2 limits 最�
 
 - MDHelper、Python、MDAnalysis、NumPy、SciPy、Matplotlib 版本；
 - platform 和 byte order；
-- 实际 backend；
-- 输入角色到 path 的映射及 path 到 SHA-256 的映射；
+- 请求及解析出的完整 Backend；
+- 输入角色到 path 的映射，以及存在预先 hash 时 path 到 SHA-256 的映射；
 - 配置来源；
 - 角色状态与确认映射；
 - 参数决策记录。
 
-应用用例在 source 加载后生成 provenance，因此记录的是实际 adapter 的 backend name，
-而不是只记录用户请求的 `auto`。
+应用用例在 source 加载后生成 provenance，因此同时记录用户请求的 `auto` 和实际 adapter
+的 Backend name。
 
 ## 13. 项目算法
 
@@ -565,9 +566,9 @@ relative path；Windows 跨卷时保存 absolute path。恢复时：
 
 1. 校验 result 和 request；
 2. 要求 result 内嵌 request 与提交 request 完全相等；
-3. 对 topology、trajectory、可选 index 重新 hash；
-4. 要求这些 hash 与 result provenance 一致；
-5. 要求同角色已有 project input 的 hash 一致；
+3. 要求 result provenance path 与 request path 一致；
+4. 对已有 project input 复用其记录，对新增 input 建立 path 与 hash 记录；
+5. result provenance 提供 hash 时要求它与 project input 一致；
 6. 拒绝重复 `analysis_id` 和已存在结果路径；
 7. 原子写一份完整结果到 `results/data/<analysis_id>.json`；
 8. 对完整结果计算 SHA-256；
@@ -624,11 +625,12 @@ Windows 的 `gmx.exe`/`gmx_mpi.exe` 或其他平台的 `gmx`/`gmx_mpi`。
 正式运行使用 `[executable, *arguments]`、显式 cwd、受限 environment 和 `shell=False`，
 按调用需求使用 `stdin=DEVNULL` 或受控文本输入，并捕获文本输出。参数包含 NUL 时拒绝。
 
-进程以不超过 0.25 s 的 `communicate` 超时循环轮询：
+独立 pipe reader 在线程中持续读取 stdout/stderr；任务循环以不超过 0.25 s 的间隔发布已捕获
+输出和耗时，并检查进程状态：
 
-- cancel event 被设置：调用 terminate，等待最多 5 s，仍未退出则 kill；构造 cancelled
-  run record 后抛 `TaskCancelled`；
-- 总 timeout 到达：直接 kill，构造 timed_out record 后抛 backend error；
+- cancel event 被设置：终止完整进程组并进行有界等待；构造 cancelled run record 后抛
+  `TaskCancelled`；
+- 总 timeout 到达：强制终止完整进程组，构造 timed_out record 后抛 backend error；
 - 自然结束：exit code 0 标为 completed，否则标为 failed，并返回 record。
 
 run record 包含 argv、cwd、受控环境摘要、stdout/stderr、开始时间、耗时、退出码、状态和
@@ -670,7 +672,7 @@ executor。worker 开始时设 running，应用服务返回时设 completed；�
 进度回调更新 handle 的 current、total 和 message。GUI 每 100 ms 在主线程读取 handle；
 CLI/TUI 的 `run_sync()` 直接调用同一应用分析用例。
 
-取消是状态信号而不是强制终止 Python 线程。真正停止由以下协作点保证：
+取消通过状态信号表达，Python 线程在以下协作点停止：
 
 - provenance hash chunk；
 - 每个分析帧；

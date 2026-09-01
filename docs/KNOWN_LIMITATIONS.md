@@ -20,10 +20,10 @@
   on the bundled MDAnalysis version; a newer TPR may require a compatible GRO/PDB topology
   snapshot. TNG is a GROMACS trajectory format but is not supported in MDHelper 0.1.0 because
   the current MDAnalysis/PyTNG reader does not reliably read valid GROMACS TNG output.
-- GROMACS is optional. `auto` uses an available built-in trajectory backend for RDF/CN and only
-  falls back to GROMACS for Energy; explicit `gromacs` RDF/CN uses the installed `gmx rdf`, so
-  numerical behavior can depend on that GROMACS version. Executable compatibility remains the
-  user's responsibility after version/capability detection.
+- GROMACS is optional. Auto can select a detected complete GROMACS pipeline after earlier complete
+  candidates cannot load the input. Explicit `gromacs` RDF/CN uses the installed `gmx trjconv` and
+  `gmx rdf`, so numerical behavior can depend on that GROMACS version. Executable compatibility
+  remains the user's responsibility after version/capability detection.
 - Windows and Linux portable-archive smoke tests must pass in their release workflows. Their
   workflow definitions are not evidence of a successful target run.
 - The bounded electrolyte regression dataset and hand-checkable generic system cover the

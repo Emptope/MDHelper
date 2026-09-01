@@ -27,7 +27,7 @@ def _add_radial(parser: ArgumentParser) -> None:
         "--selection", required=True, help="Selection expression or GROMACS index group."
     )
     parser.add_argument(
-        "--backend",
+        "--analysis-backend",
         choices=("auto", "native", "mdanalysis", "gromacs"),
         default="auto",
     )
@@ -63,7 +63,7 @@ def add_analysis_commands(commands: Any) -> None:
         help="Ordered energy terms as a JSON or YAML list.",
     )
     energy_parser.add_argument(
-        "--backend",
+        "--analysis-backend",
         choices=("auto", "mdanalysis", "gromacs"),
         default="auto",
     )

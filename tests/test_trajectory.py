@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -61,12 +62,16 @@ def test_explicit_in_process_backends_select_distinct_trajectory_adapters(
     _write_trajectory(trajectory)
 
     native = load_trajectory(trajectory, trajectory, "native")
-    mdanalysis = load_trajectory(trajectory, trajectory, "mdanalysis")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mdanalysis = load_trajectory(trajectory, trajectory, "mdanalysis")
+        frame = next(mdanalysis.iter_frames(FrameRange(stop=1)))
 
     assert isinstance(native, GroTrajectorySource)
-    assert native.backend_name == "native-gro"
+    assert native.backend_name == "native"
     assert isinstance(mdanalysis, MDAnalysisTrajectorySource)
     assert mdanalysis.backend_name == "mdanalysis"
+    assert frame.time_ps == 0.0
 
 
 def test_species_role_suggestions_use_topology_evidence_not_names() -> None:
@@ -131,18 +136,23 @@ def test_mdanalysis_xdr_offsets_are_stored_in_cache(tmp_path: Path) -> None:
     with mda.Writer(str(topology), n_atoms=2) as writer:
         writer.write(universe.atoms)
     with mda.Writer(str(trajectory), n_atoms=2) as writer:
+        universe.trajectory.ts.time = 2.5
         writer.write(universe.atoms)
         universe.atoms.positions += 0.5
+        universe.trajectory.ts.time = 7.5
         writer.write(universe.atoms)
 
-    source = MDAnalysisTrajectorySource(topology, trajectory, cache)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        source = MDAnalysisTrajectorySource(topology, trajectory, cache)
+        frames = list(source.iter_frames(FrameRange()))
 
     assert source.n_frames == 2
-    frame = next(source.iter_frames(FrameRange(stop=1)))
-    assert isinstance(frame.positions_nm, np.ndarray)
-    assert frame.positions_nm == pytest.approx(
+    assert isinstance(frames[0].positions_nm, np.ndarray)
+    assert frames[0].positions_nm == pytest.approx(
         np.asarray(((0.0, 0.0, 0.0), (0.1, 0.1, 0.1)))
     )
+    assert [frame.time_ps for frame in frames] == [2.5, 7.5]
     assert len(tuple(cache.glob("*.offsets.npz"))) == 1
     assert not (tmp_path / ".trajectory.xtc_offsets.npz").exists()
     assert MDAnalysisTrajectorySource(topology, trajectory, cache).n_frames == 2

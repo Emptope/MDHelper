@@ -5,10 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
-from typing import Literal, cast
+from typing import cast
 
 from mdhelper.app import ApplicationService
 from mdhelper.core.analysis import (
+    AnalysisBackend,
     AnalysisRequest,
     AnalysisResult,
     AnalysisType,
@@ -216,25 +217,10 @@ class Tui:
             "GROMACS index path (leave empty for selection expressions)",
             allow_empty=True,
         )
-        backends: list[tuple[str, str]] = [
-            ("Automatic selection", "auto"),
-            ("MDHelper GRO Reader", "native"),
-            ("MDAnalysis", "mdanalysis"),
-        ]
-        if self._gromacs_supports():
-            backends.append(("GROMACS (local gmx)", "gromacs"))
-        backend = self.terminal.choose(
-            "Backend",
-            tuple(backends),
-            "auto",
-        )
         self.workspace.clear()
         self.workspace.topology = topology
         self.workspace.trajectory = trajectory
         self.workspace.index_file = index_file or None
-        self.workspace.backend = cast(
-            Literal["auto", "native", "mdanalysis", "gromacs"], backend
-        )
         self._inspect()
 
     def _inspect(self) -> None:
@@ -458,11 +444,7 @@ class Tui:
                 (analysis_label("rdf"), "1"),
                 (analysis_label("cumulative_rdf"), "2"),
             ]
-            if self.workspace.backend != "native" and (
-                self.workspace.backend != "gromacs"
-                or self._gromacs_supports("energy")
-            ):
-                options.append((analysis_label("energy"), "3"))
+            options.append((analysis_label("energy"), "3"))
             options.append(("RDF + CN Combined Plot", "4"))
             choice = self.terminal.menu(
                 "Choose analysis",
@@ -499,6 +481,7 @@ class Tui:
                     ("Change frames", "3"),
                     ("Change parameters", "4"),
                     ("Change export folder", "5"),
+                    ("Change analysis backend", "6"),
                 ),
             )
             if choice is None:
@@ -516,6 +499,8 @@ class Tui:
                 self.workspace.radial_output = self.terminal.ask(
                     "Export directory", output
                 )
+            elif choice == "6":
+                self._edit_backend(draft)
 
     def _analysis_setup(self, draft: AnalysisDraft) -> None:
         self._prepare_setup(draft)
@@ -527,7 +512,13 @@ class Tui:
             ]
             if draft.analysis_type != "energy":
                 options.extend((("Change groups", "2"), ("Change frames", "3")))
-            options.extend((("Change parameters", "4"), ("Change export folder", "5")))
+            options.extend(
+                (
+                    ("Change parameters", "4"),
+                    ("Change export folder", "5"),
+                    ("Change analysis backend", "6"),
+                )
+            )
             choice = self.terminal.menu("Options", options)
             if choice is None:
                 return
@@ -542,6 +533,8 @@ class Tui:
                 self._edit_parameters(draft)
             elif choice == "5":
                 self._edit_output(draft)
+            elif choice == "6":
+                self._edit_backend(draft)
 
     def _prepare_setup(self, draft: AnalysisDraft) -> None:
         summary = self.workspace.summary
@@ -549,7 +542,7 @@ class Tui:
             self._roles()
             self._require_confirmed_roles()
         if draft.analysis_type == "energy":
-            if self.workspace.backend == "gromacs":
+            if draft.analysis_backend == "gromacs":
                 self._require_gromacs("energy", "GROMACS Energy")
             if not draft.energy_file or not draft.energy_terms:
                 self._edit_parameters(draft)
@@ -608,13 +601,19 @@ class Tui:
             self._manual_parameter(draft, "r_max_nm", radius)
             self._manual_parameter(draft, "bin_width_nm", bin_width)
         else:
-            if self.workspace.backend == "gromacs":
+            if draft.analysis_backend == "gromacs":
                 self._require_gromacs("energy", "GROMACS Energy")
             energy_file = self.terminal.ask(
                 "GROMACS energy file", draft.energy_file or None
             )
             terms = self.application.analyses.energy_terms(
-                energy_file, self.workspace.backend
+                energy_file,
+                draft.analysis_backend,
+                cache_dir=(
+                    None
+                    if self.workspace.project is None
+                    else self.workspace.project.cache_dir
+                ),
             )
             selected = self.terminal.select_many(
                 "Energy terms",
@@ -623,6 +622,27 @@ class Tui:
             )
             draft.energy_file = energy_file
             draft.energy_terms = list(selected)
+
+    def _edit_backend(self, draft: AnalysisDraft) -> None:
+        choices: list[tuple[str, str]] = [
+            ("Automatic selection", "auto"),
+            ("MDAnalysis", "mdanalysis"),
+        ]
+        configured = self.application.integrations.is_configured("gromacs")
+        if draft.analysis_type != "energy":
+            if self.workspace.index_file:
+                choices.insert(1, ("Native", "native"))
+            gromacs = configured and self._gromacs_supports("rdf")
+        else:
+            gromacs = configured and self._gromacs_supports("energy")
+        if gromacs:
+            choices.append(("GROMACS (local gmx)", "gromacs"))
+        selected = self.terminal.choose(
+            "Analysis backend",
+            tuple(choices),
+            draft.analysis_backend,
+        )
+        draft.analysis_backend = cast(AnalysisBackend, selected)
 
     def _gromacs_supports(self, capability: str | None = None) -> bool:
         required = () if capability is None else (capability,)

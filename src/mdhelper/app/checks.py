@@ -23,11 +23,16 @@ class CheckUseCases:
         cache_dir: str | Path | None = None,
     ) -> SystemSummary:
         with trajectory_cache(cache_dir):
-            source = self.context.trajectory_loader(topology, trajectory, "auto")
-        summary = summarize_source(source)
-        if index_file:
-            summary = replace(
-                summary,
-                index_groups=index_group_sizes(index_file, len(source.atoms)),
+            source = self.context.trajectory_loader(
+                topology, trajectory, "auto", None, None
             )
-        return summary
+        try:
+            summary = summarize_source(source)
+            if index_file:
+                summary = replace(
+                    summary,
+                    index_groups=index_group_sizes(index_file, len(source.atoms)),
+                )
+            return summary
+        finally:
+            source.close()

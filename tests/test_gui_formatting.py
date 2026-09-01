@@ -62,7 +62,8 @@ def test_result_summary_prioritizes_results_and_reports_maximum() -> None:
     assert "Calculated distance range: 0 to 8 \u00c5" in text
     assert "Bin width: 1 \u00c5" in text
     assert "Method: RDF 1.0.0" in text
-    assert "Analysis backend: auto" in text
+    assert "Requested backend: auto" in text
+    assert "Resolved backend: auto" in text
 
 
 def test_result_summary_html_keeps_technical_metadata_last() -> None:
@@ -78,7 +79,7 @@ def test_result_summary_reports_every_integration_command_and_backend() -> None:
         analysis_type="energy",
         energy_file="energy.edr",
         energy_terms=("Potential",),
-        backend="gromacs",
+        analysis_backend="gromacs",
     )
     result = AnalysisResult(
         analysis_type="energy",
@@ -108,7 +109,8 @@ def test_result_summary_reports_every_integration_command_and_backend() -> None:
 
     assert isinstance(report_for(result), EnergyReport)
     assert "Method: Energy 1.0.0" in text
-    assert "Analysis backend: GROMACS" in text
+    assert "Requested backend: gromacs" in text
+    assert "Resolved backend: GROMACS" in text
     assert "External software: GROMACS" in text
     assert "Software version: 2020.6-MODIFIED" in text
     assert "Executable: D:/Software/gmx/bin/gmx.exe" in text

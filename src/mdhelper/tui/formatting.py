@@ -70,6 +70,12 @@ def draft_issues(draft: AnalysisDraft, workspace: Workspace) -> list[str]:
         issues.append("choose the reference group")
     if draft.analysis_type in {"rdf", "cumulative_rdf"} and not draft.selection.strip():
         issues.append("choose the selection group")
+    if (
+        draft.analysis_type in {"rdf", "cumulative_rdf"}
+        and draft.analysis_backend == "native"
+        and not workspace.index_file
+    ):
+        issues.append("select an index file for the Native backend")
     if draft.analysis_type == "energy":
         if not draft.energy_file.strip():
             issues.append("choose a GROMACS energy file")
@@ -93,7 +99,7 @@ def setup_panel(draft: AnalysisDraft, workspace: Workspace) -> str:
     topology = _name(workspace.topology, "not loaded")
     trajectory = _name(workspace.trajectory, "not loaded")
     index = _name(workspace.index_file, "none")
-    backend: str = workspace.backend
+    backend: str = draft.analysis_backend
     if backend == "mdanalysis":
         backend = "MDAnalysis"
     lines = [
@@ -104,8 +110,10 @@ def setup_panel(draft: AnalysisDraft, workspace: Workspace) -> str:
         f"  Topology:      {topology}",
         f"  Trajectory:    {trajectory}",
         f"  Index:         {index}",
-        f"  Backend:       {backend}",
         f"  Species roles: {role_count}/{species_count}",
+        "",
+        "[Analysis]",
+        f"  Backend:       {backend}",
     ]
     if draft.analysis_type == "energy":
         lines.extend(

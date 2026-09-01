@@ -3,8 +3,9 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
-from threading import Event
+from threading import Event, Timer
 
 import pytest
 
@@ -13,6 +14,8 @@ from mdhelper.app import ApplicationService
 from mdhelper.core.errors import BackendError, TaskCancelled
 from mdhelper.integrations import DEFAULT_INTEGRATION_REGISTRY
 from mdhelper.integrations.gromacs import GromacsAdapter
+from mdhelper.integrations.gromacs import frame_progress as gromacs_frame_progress
+from mdhelper.integrations.gromacs import output_message as gromacs_output_message
 from mdhelper.integrations.manager import IntegrationManager
 from mdhelper.integrations.models import (
     Detection,
@@ -66,6 +69,16 @@ def _fake_program(path: Path) -> Path:
         "if command == 'fail': print('failed intentionally', file=sys.stderr); "
         "raise SystemExit(9)\n"
         "if command == 'wait': time.sleep(5); raise SystemExit(0)\n"
+        "if command == 'progress':\n"
+        "    for frame in range(3):\n"
+        "        print(f'Reading frame {frame} time {frame * 2.0:.3f}', flush=True)\n"
+        "        time.sleep(0.3)\n"
+        "    raise SystemExit(0)\n"
+        "if command == 'tree':\n"
+        "    import subprocess\n"
+        "    subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(5)'])\n"
+        "    time.sleep(5)\n"
+        "    raise SystemExit(0)\n"
         "print('\\n'.join(sys.argv[1:]))\n",
         encoding="utf-8",
     )
@@ -151,6 +164,18 @@ def test_gromacs_output_parsing() -> None:
     assert adapter.parse_capabilities(
         "gmx rdf\ngmx select\ngmx check\ngmx custom-command", "", 0
     ) == ("rdf", "select", "check", "custom-command")
+    assert gromacs_frame_progress(
+        "", "Reading frame 20 time 40.000\rReading frame 30 time 60.000"
+    ) == (30, 60.0)
+    assert gromacs_frame_progress("unrelated", "output") is None
+    assert gromacs_output_message(
+        "Reading frame 1 time 2.000\rReading frame 2 time 4.000",
+        "",
+    ) == "GROMACS: Reading frame 2 time 4.000"
+    assert gromacs_output_message("", "\nStep 10  Potential -1.0\n") == (
+        "GROMACS: Step 10  Potential -1.0"
+    )
+    assert gromacs_output_message("", "") is None
 
 
 def test_vmd_version_detect_and_output_parsing(tmp_path: Path) -> None:
@@ -215,8 +240,15 @@ def test_detection_materializes_and_removes_version_detect(
     assert not observed[0].exists()
 
 
-def test_generic_detection_status_and_safe_argv(tmp_path: Path) -> None:
+def test_generic_detection_status_and_safe_argv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     manager, _program_path, _ = _fake_integration(tmp_path)
+    logged: list[tuple[str, Path]] = []
+    monkeypatch.setattr(
+        "mdhelper.runtime.execution.record_command",
+        lambda command, cwd: logged.append((command, cwd)),
+    )
     status = manager.detect("fake")
     assert status.available
     assert status.version == "1.2.3"
@@ -226,6 +258,8 @@ def test_generic_detection_status_and_safe_argv(tmp_path: Path) -> None:
 
     injection = "hello;touch should-not-exist"
     record = manager.run("fake", [injection], tmp_path)
+    assert record.command == manager.format_command("fake", [injection])
+    assert logged == [(record.command, tmp_path.resolve())]
     assert injection in record.stdout
     assert not (tmp_path / "should-not-exist").exists()
 
@@ -251,6 +285,42 @@ def test_generic_detection_status_and_safe_argv(tmp_path: Path) -> None:
         manager.run("fake", ["echo"], tmp_path, timeout_seconds=0)
 
 
+def test_running_integration_reports_output_before_completion(tmp_path: Path) -> None:
+    manager, _program_path, _ = _fake_integration(tmp_path)
+    updates: list[tuple[float, str, str]] = []
+    started = time.monotonic()
+
+    record = manager.run(
+        "fake",
+        ["progress"],
+        tmp_path,
+        process_progress=lambda elapsed, stdout, stderr: updates.append(
+            (elapsed, stdout, stderr)
+        ),
+    )
+
+    assert record.status == "completed"
+    assert len(updates) >= 2
+    assert any("Reading frame 0" in stdout for _, stdout, _ in updates[:-1])
+    assert updates[0][0] < record.elapsed_seconds
+    assert time.monotonic() - started < 3
+
+
+def test_running_integration_cancels_process_tree_promptly(tmp_path: Path) -> None:
+    manager, _program_path, _ = _fake_integration(tmp_path)
+    cancel = Event()
+    timer = Timer(0.2, cancel.set)
+    timer.start()
+    started = time.monotonic()
+    try:
+        with pytest.raises(TaskCancelled):
+            manager.run("fake", ["tree"], tmp_path, cancel_event=cancel)
+    finally:
+        timer.cancel()
+
+    assert time.monotonic() - started < 2
+
+
 def test_configured_path_replaces_cached_detection(tmp_path: Path) -> None:
     program = _fake_program(tmp_path / "fake tool.py")
     registry = IntegrationRegistry()
@@ -265,6 +335,7 @@ def test_configured_path_replaces_cached_detection(tmp_path: Path) -> None:
     assert not application.integrations.status("fake").available
     detected = application.integrations.detect("fake", config=draft)
     assert detected.available
+    assert application.integrations.is_configured("fake")
     assert detected.source == "user_config"
     assert not application.integrations.status("fake").available
 

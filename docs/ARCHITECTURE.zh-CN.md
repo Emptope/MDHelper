@@ -2,7 +2,7 @@
 
 [English](ARCHITECTURE.md) | [简体中文](ARCHITECTURE.zh-CN.md)
 
-本文描述仓库当前实现，而不是未来路线图。它面向需要修改、评审、测试或发布
+本文只描述仓库当前实现。它面向需要修改、评审、测试或发布
 MDHelper 的软件工程师。算法的集中说明见 `docs/ALGORITHM.md`，方法的发布定义见
 `docs/methods/`，验证证据见 `docs/validation/`，已知限制见
 `docs/KNOWN_LIMITATIONS.md`。
@@ -116,7 +116,7 @@ TUI/CLI 运行期间保持等待并连接标准流。GUI 启动会创建独立�
 | `selection.py` | 定义选择引擎协议，使 NDX 和 MDAnalysis 选择最终都转换为零基原子索引。 |
 | `species.py` | 定义阳离子、阴离子、溶剂等角色词汇和建议对象。角色是解释性元数据，不能改变选择集合、截断半径或数值算法。 |
 | `plotting.py` | 定义与 Qt/窗口无关的 `PlotSeries`、`PlotModel`、配色、坐标范围、选择和状态对象，负责结果分组及绘图状态规范化。 |
-| `errors.py` | 定义可归类的领域错误。外层据此选择退出码、对话框或日志，而不是匹配任意异常文本。 |
+| `errors.py` | 定义可归类的领域错误。外层根据错误类别选择退出码、对话框或日志。 |
 | `progress.py` | 定义进度回调和取消检查所需的契约。 |
 | `templates.py` | 定义分析模板的领域表示。 |
 | `units.py` | 集中声明内部和展示单位约定。 |
@@ -169,7 +169,7 @@ TUI/CLI 运行期间保持等待并连接标准流。GUI 启动会创建独立�
 | --- | --- |
 | `context.py` | 保存配置文件、已校验配置、轨迹加载器、分析注册表和 Integration 管理器，依赖均可替换。 |
 | `facade.py` | 构造 `ApplicationService`，聚合 analyses、checks、projects、integrations、templates 等用例，形成前端唯一业务入口。 |
-| `analyses.py` | 校验请求，解析可用后端，加载轨迹，检查角色，生成输入指纹，调用分析注册表并校验结果。具体分析函数通过选择服务或所选外部后端处理选择；导出由同一用例对象的独立方法完成。 |
+| `analyses.py` | 校验请求，解析可用后端，按后端能力决定是否加载轨迹和生成输入指纹，调用分析注册表并校验结果。具体分析函数通过选择服务或所选外部后端处理选择；导出由同一用例对象的独立方法完成。 |
 | `checks.py` | 读取系统摘要、选择组大小和角色建议，供前端在真正运行前检查输入。 |
 | `projects.py` | 包装项目输入发现、创建、打开、结果查询和提交，不向表现层泄露仓库细节。New Project 非递归发现所选目录直属的 `.tpr`/`.gro` topology、`.xtc`/`.trr`/`.gro` trajectory 和可选 `.ndx`，进行大小写不敏感匹配并稳定排序。 |
 | `integrations.py` | 检测、查询和运行外部软件，并返回结构化状态与运行记录。 |
@@ -181,28 +181,31 @@ TUI/CLI 运行期间保持等待并连接标准流。GUI 启动会创建独立�
 presentation
   -> ApplicationService
   -> AnalysisUseCases.run(request)
-  -> trajectory loader
+  -> 完整 Backend 选择
+  -> Backend 固定的 trajectory loader 与 selection 路径
   -> provenance service
-  -> AnalysisRegistry.get(analysis_type)
-  -> analysis runner -> selection service
+  -> Backend adapter
   -> AnalysisResult validation
   -> caller-requested export/project commit
   -> presentation
 ```
 
 应用层会记录角色信息，但角色不完整只产生诊断警告；它不会替换用户选择，也不根据数据
-自动改变 `r_max`。第一配位壳位置是运行后的诊断，不是运行前参数推荐器。
+自动改变 `r_max`。第一配位壳位置仅作为运行后诊断。
 
 ## 7. `plugins` 与 `analysis`：分析计算
 
 ### 7.1 分析注册表
 
-`plugins/analysis.py` 提供窄接口注册表：分析名映射到可调用分析函数。
-`analysis/__init__.py` 注册 RDF、CN 和 energy 内置实现。这里的“插件”当前仅是
-进程内函数注册机制，不包含第三方包发现、动态安装、权限隔离或独立进程协议。
+`plugins/analysis.py` 提供完整流水线注册表：一个 Backend 名只映射到一个 adapter。
+adapter 声明其支持的全部分析类型、Auto 优先级并固定自己的输入路径。
+`analysis/__init__.py` 仅注册 Native、MDAnalysis 和 GROMACS 三个 Backend，不再按
+“分析类型 x Backend”重复注册。这里的“插件”当前仅是进程内注册机制，不包含第三方包
+发现、动态安装、权限隔离或独立进程协议。
 
-新增分析应先定义请求/结果形状，再实现与注册函数，最后由应用层和表现层暴露；不应在
-CLI 或 GUI 中直接调用算法文件。
+新增分析应先定义请求/结果形状，再加入支持它的现有 Backend adapter，最后由应用层和
+表现层暴露；新增分析不会产生新的注册项。新增 Backend 时才实现一个完整 adapter 并注册
+一次。不应在 CLI 或 GUI 中直接调用算法文件。
 
 ### 7.2 通用数值基础
 
@@ -217,10 +220,12 @@ CLI 或 GUI 中直接调用算法文件。
 grid。`rdf.py`、`cumulative_rdf.py` 只把共享 profile 组装成各自的结果契约和诊断。
 第一壳层是结果后的独立诊断，不修改原始曲线。
 
-`analysis/gmx_rdf.py` 是显式 GROMACS RDF/CN runner。它保留零基 Python 帧切片语义，通过
-Integrations 调用带 `-cn` 的 `gmx rdf`，把两条 XVG 曲线解析到统一结果契约，并记录
-trajectory conversion 与 RDF 命令。全帧和连续帧可直读原轨迹；stride 范围使用精确转换
-子集。
+`analysis/gromacs.py` 是完整 GROMACS adapter。其 RDF/CN 路径保留零基 Python 帧切片语义，通过
+Integrations 调用 `gmx rdf`。RDF request 只使用 `-o`；cumulative RDF 添加 `-cn` 并解析两条
+XVG 曲线。两者都记录
+trajectory conversion 与 RDF 完整命令。运行时进度来自 GROMACS 原生输出，不显示该命令；
+命令由 execution 层写入诊断日志。默认全帧范围直接读取原轨迹；有限抽样范围只使用一次
+精确转换子集。
 
 PBC、分块、网格、归一化、累计公式、端点和第一壳层峰谷规则集中记录在
 `docs/ALGORITHM.md`；发布定义和验证容差分别见
@@ -230,13 +235,15 @@ PBC、分块、网格、归一化、累计公式、端点和第一壳层峰谷�
 | --- | --- |
 | `rdf.py` | 调用共享径向计算，发布半径、`g(r)` 和第一壳层诊断。 |
 | `cumulative_rdf.py` | 调用同一径向计算，发布 `cumulative_rdf` 的 `N(r)`；若识别到第一壳层最小值，同时报告该半径处配位数。 |
-| `energy.py` | GROMACS 后端通过 Integration 发现 EDR term 并调用 `gmx energy`；MDAnalysis 后端通过 `EDRReader` 直接读取 term、时间、数值和单位；两者共用结果契约和 App 发现用例。 |
-| `gmx_rdf.py` | 通过 Integration 调用 `gmx rdf`/`-cn`，解析 RDF/CN XVG 并记录原生命令 provenance。 |
+| `native.py` | Native 完整 adapter；固定使用 Native reader、NDX selection 和 Native 径向算法。 |
+| `mdanalysis.py` | MDAnalysis 完整 adapter；统一分派 MDAnalysis radial 与 Energy。 |
+| `gromacs.py` | GROMACS 完整 adapter；通过 Integration 调用 `gmx trjconv`、`gmx rdf`、cumulative RDF 的 `-cn` 和 `gmx energy`。 |
+| `energy.py` | 两个软件 Backend 的私有 Energy 实现，共用结果契约和 App 发现用例。 |
 | `radial.py` | RDF/CN 共用直方图、RDF 归一化、CN 累计和壳层诊断。 |
 | `common.py` | PBC、分块距离、帧审计、进度、取消和共享计数。 |
 
 当前分析结果是对明确帧集合的确定性统计，没有 bootstrap、块平均置信区间或其他不确定
-度估计。诊断曲线平滑也不是结果数据的不确定度。
+度估计。诊断曲线平滑不提供结果数据的不确定度。
 
 ## 8. `services`：基础业务服务
 
@@ -251,10 +258,10 @@ PBC、分块、网格、归一化、累计公式、端点和第一壳层峰谷�
 
 ### 8.2 选择服务
 
-进程内分析由 `services/selection.py` 统一两种选择源：请求给出 index file 时，使用
-`io/ndx.py` 的命名组；否则使用 `backends/mdanalysis_selection.py` 解析静态选择表达式。
-GROMACS RDF/CN 有 index 时引用精确 NDX 组名，没有 index 时把 GROMACS selection
-expression 传给 `gmx rdf`。
+Native 只接受 `io/ndx.py` 的命名组。MDAnalysis 在请求给出 index file 时也使用命名组，
+否则使用 `backends/mdanalysis_selection.py` 解析静态 MDAnalysis 表达式。GROMACS RDF/CN
+有 index 时引用精确 NDX 组名，没有 index 时把 GROMACS selection expression 传给
+`gmx rdf`。
 
 服务返回稳定、零基、去重的原子索引，并记录组名或表达式、索引文件哈希、选中原子名、
 残基名和解析器来源。分析开始后选择固定，不随帧动态变化。动态选择关键词会被明确拒绝，
@@ -268,7 +275,7 @@ expression 传给 `gmx rdf`。
 原子替换。详见 `config.example.toml` 与 `docs/CONFIGURATION.md`。
 
 `services/provenance.py` 以 4 MiB 块计算 SHA-256，并在块边界检查取消状态。provenance
-包括应用/Python/关键依赖版本、平台、实际 reader、输入路径和哈希、角色及参数决策。
+包括应用/Python/关键依赖版本、平台、请求及解析出的 Backend、输入路径和哈希、角色及参数决策。
 选择解析和帧审计由分析函数在结果 `diagnostics` 中记录。
 
 `integrations/manager.py` 按本次覆盖、配置路径、配置搜索路径、环境、`PATH` 和 adapter
@@ -287,17 +294,21 @@ expression 传给 `gmx rdf`。
 
 ### 9.1 轨迹分派
 
-`backends/trajectory.py` 根据 reader 模式分派：
+分析运行前，完整 Backend 已经解析完成；`backends/trajectory.py` 只按同一个 Backend 名
+加载对应 source，不再执行第二次分析策略选择：
 
 | 模式 | 行为 |
 | --- | --- |
 | `native` | 强制使用 MDHelper GRO Reader（`GroTrajectorySource`）；输入不受支持或解析失败就报错。 |
 | `mdanalysis` | 强制使用 `MDAnalysisTrajectorySource`。 |
-| `gromacs` | 通过 Integrations 调用本机 `gmx trjconv`，再读取标准化的多帧 GRO。 |
-| `auto` | topology 和 trajectory 都是 GRO 时选择 MDHelper GRO Reader，否则选择 MDAnalysis。 |
+| `gromacs` | 仅在开放结束位置的非默认范围需要 metadata 时，通过 Integrations 调用本机 `gmx trjconv`，再读取标准化的多帧 GRO；默认全帧分析不进入该轨迹端口。 |
+| `auto` | 只供独立体系检查使用；双 GRO 选择 Native，否则选择 MDAnalysis。 |
 
-`auto` 是确定性选择规则，不是失败后的级联重试。这样可避免同一输入因某后端偶发失败而
-静默切换实现，损害可复现性。
+分析请求中的 Auto 由完整 Backend 注册表处理：GRO/GRO 加 NDX 时依次考虑 Native、
+MDAnalysis 和具备 `rdf` 能力的 GROMACS；其他径向输入从 MDAnalysis 开始；抽样帧子集额外
+需要 `trjconv`；
+Energy 依次考虑 MDAnalysis 和具备 `energy` 能力的 GROMACS。source 加载失败可以进入下一
+条完整候选流水线，但同一次尝试不会混合 reader、selection 或 computation。
 
 ### 9.2 后端文件
 
@@ -313,10 +324,10 @@ XTC/TRR reader 通过通用 XDR reader 子类把 MDAnalysis 的 `*_offsets.npz` 
 到应用提供的 cache 目录。非 XDR reader 不创建这类缓存；不得在分析完成后才移动 sidecar，
 因为那会导致下一次加载重新扫描并再次污染输入目录。
 
-`backends/gromacs.py` 只负责转换结果的缓存和标准轨迹端口；可执行文件检测、能力校验与
-`gmx trjconv` 执行均由 Integrations 完成，上层分析不接触可执行程序路径。
-显式 GROMACS RDF/CN 不用该转换端口生成曲线，而是把原输入路径直接传给 `gmx rdf`；
-内置 reader 只提供 metadata 和帧边界。
+`backends/gromacs.py` 只为需要 metadata 的开放结束位置非默认范围提供标准轨迹端口；
+可执行文件检测、能力校验与 `gmx trjconv` 执行均由 Integrations 完成，上层分析不接触
+可执行程序路径。默认全帧 GROMACS RDF/CN 绕过该端口，把原输入路径直接传给 `gmx rdf`；
+有限抽样范围使用一次 GROMACS 生成的精确子集。
 
 `backends/mdanalysis_selection.py` 从 core 原子元数据构造轻量 Universe 解析静态表达式，
 避免应用层依赖 MDAnalysis 对象。`backends/common.py` 提供输入存在性检查和基于原子名的
@@ -328,9 +339,10 @@ XTC/TRR reader 通过通用 XDR reader 子类把 MDAnalysis 的 `*_offsets.npz` 
 一基索引转换为内部零基索引。重复组、非法整数、重复原子、非正索引、越界索引或空组
 都会产生明确错误，不做静默修复。
 
-`io/export.py` 支持 JSON、CSV、PNG、SVG 和 PDF：JSON 保留完整结果契约；CSV 使用
-稳定列和 15 位有效数字；Matplotlib 使用非交互 Agg 后端，PNG 默认 300 dpi；SVG/PDF
-保留矢量输出。所有写入先在目标目录生成临时文件，成功后原子替换。导出以
+`io/export.py` 支持 JSON、CSV、文本附件、PNG、SVG 和 PDF：JSON 保留完整结果契约；CSV
+使用稳定列和 15 位有效数字；Matplotlib 使用非交互 Agg 后端，PNG 默认 300 dpi；SVG/PDF
+保留矢量输出。GROMACS 结果把原始 XVG 文本保存在 result artifact 中，Export 会在
+integration 临时目录删除后仍原样写出这些源输出文件。所有写入先在目标目录生成临时文件，成功后原子替换。导出以
 `AnalysisResult` 或 `PlotModel` 为输入，因此三个表现层的数据语义相同。
 
 ## 11. `project`：项目聚合与持久化
@@ -344,10 +356,10 @@ project-root/
   cache/
 ```
 
-`cache/` 保存 MDAnalysis XDR reader 的帧偏移索引等可重建性能数据，不保存分析结果。
-偏移索引按轨迹路径生成稳定名称，以轨迹大小、纳秒修改时间和原子数校验失效，并使用文件锁
-和原子替换写入。项目分析和检查显式传入项目 cache；尚未绑定项目的轨迹使用轨迹同目录下的
-`cache/`。任何 cache 文件都可以删除，之后只会重新构建而不会改变分析语义。
+`cache/` 保存可重建工作数据，不保存规范分析结果。其中包括 MDAnalysis XDR reader 帧偏移
+索引，以及保留的 GROMACS 命令工作目录、原生输出和精确帧子集。项目分析和检查显式传入
+项目 cache；未绑定项目的 GROMACS 分析使用进程生命周期内的系统目录。任何 cache 文件
+都可以删除，之后只会重新构建而不会改变分析语义。
 
 | 文件 | 工作原理与关系 |
 | --- | --- |
@@ -461,10 +473,12 @@ GUI 的 New Project 先选择目录，由 App 层非递归发现受支持的拓�
 `mdhelper-project.json` manifest，成功校验 manifest 和输入后才替换当前会话。自动打开轨迹
 目录中的既有项目时会先比较输入指纹，禁止把另一套体系的结果提交到该项目。
 
-GUI 与 TUI 使用同一个 Backend 选择器。Energy 始终可通过 MDAnalysis 使用；显式
-GROMACS RDF/CN 需要 `rdf` capability，通用 GROMACS trajectory adapter 需要 `trjconv`，
-GROMACS Energy 需要 `energy`。
-Backend 选择不参与体系检查；切换 Backend 不触发 Species 或 Index groups 刷新。
+GUI 与 TUI 在 Analysis Settings 使用同一个 Backend 选择器；Load 不显示 Backend。
+Energy 始终可通过 MDAnalysis 使用；GROMACS RDF/CN 需要 `rdf` capability，抽样帧子集
+额外需要 `trjconv`，GROMACS Energy 需要 `energy`。Backend 选择不参与体系检查；切换 Backend
+不触发 Species 或 Index groups 刷新。仅在当前会话显式执行过 Integrations 检测，或保存的
+配置包含 GROMACS 可执行文件路径后，交互式 Backend 选择器才显示 GROMACS；Auto 内部探测
+不会显示该选项。
 
 ## 14. 外部工具：`integrations` 与 `runtime`
 
@@ -474,12 +488,12 @@ Backend 选择不参与体系检查；切换 Backend 不触发 Species 或 Index
 | 文件 | 职责 |
 | --- | --- |
 | `runtime/detection.py` | 以参数列表、受限环境、无 shell 和超时检测可执行文件，解析身份、版本和能力。 |
-| `runtime/execution.py` | 使用显式 argv/cwd、可控交互 stdin、捕获输出；取消时先 terminate、等待后再 kill，超时时直接 kill，并记录软件身份、退出码、耗时和输出哈希。 |
+| `runtime/execution.py` | 使用显式 argv/cwd、可控交互 stdin、流式捕获输出；轮询期间发布进度，取消或超时时终止完整进程组，并记录完整命令、软件身份、退出码、耗时和输出哈希。 |
 | `runtime/environment.py` | 构造可控子进程环境，避免无关用户环境改变行为。 |
-| `runtime/logging.py` | 在平台用户日志目录初始化日志；可由 `MDHELPER_LOG` 覆盖，失败时退化为 `NullHandler`。 |
+| `runtime/logging.py` | 在平台用户日志目录初始化日志并记录 integration 完整命令；可由 `MDHELPER_LOG` 覆盖，失败时退化为 `NullHandler`。 |
 
 外部工具运行记录可以写入项目 `integration_runs` 审计历史。显式 GROMACS RDF/CN 通过
-Integration 调用 `gmx rdf`/`-cn`；GROMACS Energy 调用 `gmx energy`。任何对结果有贡献的
+Integration 调用 `gmx rdf`，其中 cumulative RDF 添加 `-cn`；GROMACS Energy 调用 `gmx energy`。任何对结果有贡献的
 命令都在结果中显示软件正式名称、版本、可执行文件和
 子命令。非零退出保留结构化记录，由调用用例决定如何呈现。
 
@@ -507,7 +521,7 @@ Integration 调用 `gmx rdf`/`-cn`；GROMACS Energy 调用 `gmx energy`。任何
 ## 16. 端到端数据流
 
 ```text
-paths + reader mode
+paths
   -> trajectory dispatcher
   -> TrajectorySource
   -> SystemSummary
@@ -520,9 +534,10 @@ paths + reader mode
 
 ```text
 validated AnalysisRequest
-  -> source
+  -> complete Backend resolution
+  -> Backend-owned source and selection path
   -> input hashes and environment provenance
-  -> registered analysis function
+  -> registered Backend adapter
   -> fixed selection indices
   -> frame iteration + PBC + chunked distances
   -> validated AnalysisResult
@@ -579,16 +594,17 @@ Linux 必须能在没有 Qt 的环境运行 CLI/TUI 和非 GUI 测试；Windows 
 ### 20.1 新增分析
 
 1. 在 core 契约中定义通用、版本化的数据字段；
-2. 在 `analysis` 实现不依赖表现层的纯分析函数；
-3. 注册到 `AnalysisRegistry`；
+2. 在支持该分析的完整 Backend adapter 中实现，不依赖表现层；
+3. 更新 adapter 的 `analysis_types`，不增加重复注册项；
 4. 在 app 用例中增加必要编排；
 5. 各表现层只负责构造相同请求；
 6. 增加方法、验证、schema、导出和跨前端测试。
 
-### 20.2 新增轨迹后端
+### 20.2 新增 Backend
 
-实现 `TrajectorySource`，完成单位转换、盒矩阵、原子身份和帧范围测试，再加入 dispatcher。
-`auto` 规则必须确定且可解释，禁止捕获任意异常后无提示回退。
+实现一个包含 reader、selection、frame handling 与 computation 的完整 adapter，只注册一次。
+需要时实现 `TrajectorySource` 并完成单位转换、盒矩阵、原子身份和帧范围测试。Auto 优先级
+必须确定且可解释；显式 Backend 不 fallback，同一次尝试禁止混用。
 
 ### 20.3 新增表现层
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from threading import Event
 from typing import cast
@@ -17,7 +18,7 @@ from mdhelper.integrations.models import (
     IntegrationStatus,
 )
 from mdhelper.runtime.detection import canonical_path, detect_candidate
-from mdhelper.runtime.execution import run_integration
+from mdhelper.runtime.execution import format_command, run_integration
 
 
 class IntegrationManager:
@@ -138,6 +139,14 @@ class IntegrationManager:
             self._statuses.clear()
         return tuple(self.status(name) for name in self.names())
 
+    def format_command(self, name: str, arguments: list[str]) -> str:
+        status = self.status(name)
+        if not status.available or status.path is None:
+            raise BackendError(f"No validated {name} installation is available.")
+        adapter = self.registry.get(name)
+        command = [status.path, *adapter.command_prefix(), *arguments]
+        return format_command(command)
+
     def run(
         self,
         name: str,
@@ -148,6 +157,7 @@ class IntegrationManager:
         cancel_event: Event | None = None,
         output_files: list[str | Path] | None = None,
         input_text: str | None = None,
+        process_progress: Callable[[float, str, str], None] | None = None,
         required_capabilities: tuple[str, ...] = (),
     ) -> IntegrationRunRecord:
         config = self.config(name)
@@ -172,6 +182,7 @@ class IntegrationManager:
                 output_files,
                 self.environment,
                 input_text,
+                process_progress,
                 IntegrationRunRecord,
             ),
         )

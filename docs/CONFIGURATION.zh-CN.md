@@ -37,14 +37,13 @@ palette 并继续响应系统配色变化。
 
 ## Backend
 
-每个分析请求只选择一个 `auto`、`native`、`mdanalysis` 或 `gromacs` Backend。它不是全局
-TOML 设置，因为它决定源数据读取方式，并影响格式支持、单位和可复现性。选择值出现在设置
-复核中并进入 request。`auto` 对双 GRO 优先 native，对其他受支持轨迹和 EDR 优先
-MDAnalysis；MDAnalysis EDR 支持不可用时，Energy 可回退到可用 GROMACS。显式选择不回退。
-选择 `gromacs` 运行 RDF/CN 时由 `gmx rdf`/`-cn` 生成曲线；运行 Energy 时由
-`gmx energy` 提取序列。RDF/CN 把原 topology 和 trajectory 直接传给 `gmx rdf`；只有
-stride 帧范围通过 `gmx trjconv -fr` 生成精确的临时 XTC 子集，`gmx rdf` 仍使用原
-topology。
+每个分析请求只选择一个 `auto`、`native`、`mdanalysis` 或 `gromacs` 完整 Backend。该值不进入
+全局 TOML，因为它固定该请求的 reader、selection language、frame handling 和
+computation。选择值出现在设置复核中并进入 request。Auto 只有在 GRO/GRO 加 NDX 时才先
+考虑 Native，随后是 MDAnalysis 和可用 GROMACS；expression 模式解析为 MDAnalysis。
+Energy 先考虑 MDAnalysis，再考虑可用 GROMACS。显式选择不回退。默认全帧范围把原输入
+直接传给 `gmx rdf`；只有 cumulative RDF 添加 `-cn`。Energy 用 `gmx energy` 提取序列。显式有限抽样径向
+范围通过一次 `gmx trjconv -fr` 生成精确临时 XTC，`gmx rdf` 保留原 topology。
 
 ## 最初版本的严格契约
 
@@ -65,7 +64,7 @@ detect_timeout_seconds = 10.0
 run_timeout_seconds = 3600.0
 ```
 
-`path` 是首选完整可执行路径。`search_paths` 的每一项是额外可执行候选，不是待扫描目录。
+`path` 是首选完整可执行路径。`search_paths` 的每一项是额外可执行候选，程序不扫描其中的目录。
 `use_environment = false` 只关闭 adapter 环境路径，不关闭配置路径或 `PATH`。两个 timeout
 均为正秒数。disabled integration 不加入自动候选，但仍允许本次运行显式传入路径。
 
@@ -90,8 +89,11 @@ GROMACS 环境路径包括 `MDHELPER_GROMACS` 中的完整路径，以及 `GMXBI
 Windows **Tools > Integrations** 仅负责配置与检测。检测成功后会回填已配置的可执行文件
 字段，并以可读字段显示状态、版本、来源和 capabilities。Detect 会使用对话框当前草稿，
 包括尚未保存的 configured executable；保存会使旧检测缓存失效，下一次使用将按新配置
-重新验证。Integration 命令由分析用例或显式 CLI 命令执行，不放在该配置对话框中。完成、非零退出、超时和取消都会记录软件
-名称、可执行文件、版本、参数、工作目录、环境摘要、退出码、日志、耗时、状态和指定输出文件指纹。
+重新验证。仅当用户在当前会话显式执行过该检测操作，或保存的配置包含非空 GROMACS
+可执行文件路径时，分析 Backend 选择器才显示 GROMACS。Integration 命令由分析用例或
+显式 CLI 命令执行，不放在该配置对话框中。完成、非零退出、超时和取消都会记录软件名称、
+可执行文件、版本、参数、工作目录、环境摘要、退出码、日志、耗时、状态和指定输出文件指纹。
+长时间运行的命令会把已捕获输出流式传给进度回调；取消会终止完整进程组。
 
 ## 命令
 

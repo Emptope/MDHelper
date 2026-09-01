@@ -76,14 +76,14 @@ def _request(
             analysis_type="energy",
             energy_file=str(args.energy_file),
             energy_terms=tuple(args.terms),
-            backend=args.backend,
+            analysis_backend=args.analysis_backend,
         )
     common: dict[str, Any] = {
         "topology": topology,
         "trajectory": trajectory,
         "index_file": index_file,
         "frames": _frame_range(args),
-        "backend": args.backend,
+        "analysis_backend": args.analysis_backend,
         "species_roles": species_roles,
     }
     analysis_type: Literal["rdf", "cumulative_rdf"]

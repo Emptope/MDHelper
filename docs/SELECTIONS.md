@@ -2,11 +2,11 @@
 
 [English](SELECTIONS.md) | [Simplified Chinese](SELECTIONS.zh-CN.md)
 
-MDHelper 0.1.0 normally resolves each selection to a fixed, ordered tuple of zero-based atom
-indices before trajectory streaming. The preferred source is a GROMACS `.ndx` group file. Without
-one, built-in analyses use a static MDAnalysis expression. Explicit GROMACS RDF/CN instead passes
-the request expression to `gmx rdf` as GROMACS selection syntax. Every route records its selection
-language and source in the same result contract.
+MDHelper 0.1.0 keeps selection syntax inside the chosen complete backend. Native requires a
+GROMACS `.ndx` group file. MDAnalysis uses exact NDX groups when supplied and otherwise resolves a
+static MDAnalysis expression to a fixed, ordered tuple of zero-based atom indices. GROMACS uses
+exact NDX groups or passes the request expression to `gmx rdf` as GROMACS selection syntax. Every
+route records its selection language and source in the same result contract.
 
 ## Preferred: GROMACS index groups
 
@@ -30,10 +30,10 @@ mdhelper analyze rdf \
 The `.ndx` format uses one-based atom numbers; MDHelper converts them to internal zero-based indices. Group names are case-sensitive and must be unique. Semicolon comments and atom lists spanning multiple lines are supported. MDHelper rejects data before the first header, non-integer or out-of-range atom numbers, duplicate group names, duplicate atoms within a group, a selected empty group, and a file with no groups. It does not silently deduplicate or clamp values.
 
 The request field `index_file` records the file used. When it is non-null, `reference` and
-`selection` are group names. Result diagnostics record the group,
-parser version, resolved count, ordered-index SHA-256, canonical file path, and file SHA-256. The
-index is also a fingerprinted project/provenance input so moving or changing it has the same
-deterministic behavior as moving or changing topology and trajectory inputs.
+`selection` are group names. In-process result diagnostics record the group, parser version,
+resolved count, ordered-index SHA-256, canonical file path, and file SHA-256. Direct GROMACS
+results leave NDX parsing to `gmx` and record the group names, resolved file path, and native
+command. The index remains a fingerprinted project input.
 
 After the topology, trajectory, and optional index files are selected, the GUI automatically loads
 the parsed groups. RDF and Cumulative Coordination Number selections become group pickers.
@@ -42,10 +42,11 @@ the selected index groups.
 
 ## Expression syntax by backend
 
-If no `.ndx` file can be supplied, omitting `--index` selects expression mode. `native`,
-`mdanalysis`, and `auto` trajectory analyses use the MDAnalysis Atom Selection Language described
-below. Explicit `gromacs` RDF/CN passes both expressions directly to GROMACS; use the syntax
-accepted by the installed `gmx rdf -ref` and `-sel`.
+If no `.ndx` file can be supplied, Native is unavailable. Explicit `mdanalysis` uses the
+MDAnalysis Atom Selection Language described below. Explicit `gromacs` RDF/CN passes both
+expressions directly to GROMACS; use the syntax accepted by the installed `gmx rdf -ref` and
+`-sel`. Auto starts with the first available complete expression-capable backend, normally
+MDAnalysis, and does not borrow its parser for another backend.
 
 The fallback uses the **MDAnalysis Atom Selection Language**. Common topology-stable selectors include:
 

@@ -68,6 +68,7 @@ class IntegrationRunRecord:
     display_name: str
     path: str
     version: str
+    command: str
     arguments: list[str]
     working_directory: str
     environment_summary: dict[str, str]

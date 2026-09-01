@@ -22,16 +22,17 @@ from PySide6.QtWidgets import (
 )
 
 from mdhelper.core.analysis import (
+    AnalysisBackend,
     AnalysisRequest,
     AnalysisType,
-    Backend,
+    EnergyBackend,
     EnergyRequest,
     RadialRequest,
     analysis_label,
 )
 from mdhelper.core.errors import InputError
 from mdhelper.core.system import FrameRange
-from mdhelper.gui.choices import choice_enabled
+from mdhelper.gui.choices import choice_enabled, set_choice_enabled
 from mdhelper.gui.dialogs import PathRow
 from mdhelper.gui.queues import ItemQueue
 from mdhelper.gui.selections import (
@@ -46,11 +47,15 @@ from mdhelper.gui.selections import (
 
 class ParameterPanel(QGroupBox):
     energy_terms_requested = Signal(str)
+    analysis_backend_changed = Signal()
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__("Analysis Settings", parent)
         self._energy_source = ""
+        self._selection_source = "expression"
         self._hint_dialog: SelectionHintDialog | None = None
+        self._gromacs_configured = False
+        self._gromacs_available = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(12)
@@ -60,21 +65,113 @@ class ParameterPanel(QGroupBox):
         for analysis_type in ("rdf", "cumulative_rdf", "energy"):
             self.analysis_choice.addItem(analysis_label(analysis_type), analysis_type)
         choice.addWidget(self.analysis_choice, 1)
+        choice.addWidget(QLabel("Analysis backend"))
+        self.analysis_backend = QComboBox()
+        self.analysis_backend.setMinimumWidth(180)
+        choice.addWidget(self.analysis_backend)
         layout.addLayout(choice)
         self.stack = QStackedWidget()
         self.stack.addWidget(self._rdf_page())
         self.stack.addWidget(self._coordination_page())
         self.stack.addWidget(self._energy_page())
         self.analysis_choice.currentIndexChanged.connect(self._analysis_changed)
+        self.analysis_backend.currentIndexChanged.connect(self._backend_changed)
         layout.addWidget(self.stack, 1)
         frames = QGroupBox("Frame Sampling")
         frames.setLayout(self._frames())
         layout.addWidget(frames)
         self.frames = frames
+        self._set_backend_choices()
+
+    def _backend_changed(self, _index: int) -> None:
+        self._sync_selection_hints()
+        self.analysis_backend_changed.emit()
 
     def _analysis_changed(self, index: int) -> None:
         self.stack.setCurrentIndex(index)
         self.frames.setVisible(self._analysis_type() != "energy")
+        self._set_backend_choices()
+
+    def _set_backend_choices(self) -> None:
+        previous = self.analysis_backend.currentData()
+        self.analysis_backend.blockSignals(True)
+        try:
+            self.analysis_backend.clear()
+            if self._analysis_type() == "energy":
+                self.analysis_backend.addItem("Automatic", "auto")
+                self.analysis_backend.addItem("MDAnalysis", "mdanalysis")
+            else:
+                self.analysis_backend.addItem("Automatic", "auto")
+                self.analysis_backend.addItem("Native", "native")
+                self.analysis_backend.addItem("MDAnalysis", "mdanalysis")
+            default = "auto"
+            if self._gromacs_configured:
+                self.analysis_backend.addItem("GROMACS (local gmx)", "gromacs")
+                set_choice_enabled(
+                    self.analysis_backend,
+                    "gromacs",
+                    self._gromacs_available,
+                    default,
+                )
+            target = previous if isinstance(previous, str) else default
+            index = self.analysis_backend.findData(target)
+            if index < 0 or not choice_enabled(self.analysis_backend, target):
+                index = self.analysis_backend.findData(default)
+            self.analysis_backend.setCurrentIndex(index)
+            self._set_gromacs_label()
+        finally:
+            self.analysis_backend.blockSignals(False)
+        self.analysis_backend_changed.emit()
+
+    def set_gromacs_configured(self, configured: bool) -> None:
+        if self._gromacs_configured == configured:
+            return
+        self._gromacs_configured = configured
+        self._set_backend_choices()
+
+    def _set_gromacs_label(self, pending: bool = False) -> None:
+        index = self.analysis_backend.findData("gromacs")
+        if index < 0:
+            return
+        suffix = (
+            " - Checking..."
+            if pending
+            else ""
+            if self._gromacs_available
+            else " - Unavailable"
+        )
+        self.analysis_backend.setItemText(index, f"GROMACS (local gmx){suffix}")
+
+    def set_gromacs_available(self, available: bool) -> None:
+        self._gromacs_available = available
+        if self.analysis_backend.findData("gromacs") >= 0:
+            set_choice_enabled(self.analysis_backend, "gromacs", available, "auto")
+        self._set_gromacs_label()
+
+    def set_gromacs_pending(self) -> None:
+        self._gromacs_available = True
+        if self.analysis_backend.findData("gromacs") >= 0:
+            set_choice_enabled(self.analysis_backend, "gromacs", True, "auto")
+        self._set_gromacs_label(pending=True)
+
+    def analysis_backend_value(self) -> AnalysisBackend:
+        value = self.analysis_backend.currentData()
+        if value not in {"auto", "native", "mdanalysis", "gromacs"}:
+            raise InputError("No analysis backend was selected.")
+        return cast(AnalysisBackend, value)
+
+    def set_analysis_backend(self, value: str) -> None:
+        index = self.analysis_backend.findData(value)
+        if index < 0:
+            raise InputError(
+                f"Analysis backend {value!r} is unavailable for this analysis."
+            )
+        if not choice_enabled(self.analysis_backend, value):
+            raise InputError(
+                f"Analysis backend {value!r} is unavailable.",
+                "Configure a compatible GROMACS executable or select another backend.",
+            )
+        self.analysis_backend.setCurrentIndex(index)
 
     def _rdf_page(self) -> QWidget:
         page = QWidget()
@@ -271,6 +368,7 @@ class ParameterPanel(QGroupBox):
             self.cn_bin_width.blockSignals(False)
 
     def set_selection_source(self, source: str, groups: dict[str, int]) -> None:
+        self._selection_source = source
         for control in (
             self.rdf_reference,
             self.rdf_selection,
@@ -278,7 +376,13 @@ class ParameterPanel(QGroupBox):
             self.cn_selection,
         ):
             control.set_source(source, groups)
-        visible = source == "expression"
+        self._sync_selection_hints()
+
+    def _sync_selection_hints(self) -> None:
+        visible = (
+            self._selection_source == "expression"
+            and self.analysis_backend_value() in {"auto", "mdanalysis"}
+        )
         self.rdf_inputs.set_hint_visible(visible)
         self.cn_inputs.set_hint_visible(visible)
 
@@ -308,7 +412,7 @@ class ParameterPanel(QGroupBox):
                 analysis_type="energy",
                 energy_file=self.energy_file.edit.text().strip(),
                 energy_terms=self.energy_queue.items(),
-                backend=cast(Backend, common["backend"]),
+                analysis_backend=cast(EnergyBackend, self.analysis_backend_value()),
             )
         request.validate()
         return request
@@ -347,6 +451,7 @@ class ParameterPanel(QGroupBox):
         parameters: dict[str, int | float] | None = None,
     ) -> AnalysisRequest:
         values = parameters or {}
+        common = {**common, "analysis_backend": self.analysis_backend_value()}
         if self._analysis_type() == "rdf":
             request = RadialRequest(
                 analysis_type="rdf",
@@ -398,6 +503,7 @@ class ParameterPanel(QGroupBox):
             self.energy_queue.set_items(request.energy_terms)
         else:
             raise InputError("Unknown analysis request type.")
+        self.set_analysis_backend(request.analysis_backend)
 
     def reset(self) -> None:
         self._set_analysis("rdf")

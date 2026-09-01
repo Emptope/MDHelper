@@ -11,7 +11,11 @@
 
 ## 已完成
 
-- [x] [Refactor] 用 [jsonargparse](https://github.com/mauvilsa/jsonargparse) 重构 CLI 模块。
+- [x] [BugFix] GROMACS RDF 多余生成 CN，且项目运行的 GROMACS 工作文件未进入项目 cache。
+- [x] [BugFix] GROMACS 运行时显示完整命令且 Export 缺少原始输出文件。
+- [x] [BugFix] GROMACS 后端分析前执行多余的轨迹预处理与输入指纹，并且运行时不显示原始命令。
+- [x] [BugFix] GROMACS 后端分析时进程卡死。
+- [x] [BugFix] MDHelper GRO Reader 无法使用，并且错误出现后分析进程未终止。
 
 ## 完成标准（每轮改动后需重新确认）
 

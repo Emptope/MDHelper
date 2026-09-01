@@ -58,35 +58,35 @@ def dependency_versions() -> dict[str, str]:
 def analysis_provenance(
     topology: Path,
     trajectory: Path,
-    backend: str,
     configuration_sources: dict[str, str] | None = None,
     additional_inputs: dict[str, Path] | None = None,
     species_roles: dict[str, str] | None = None,
     parameter_provenance: dict[str, Any] | None = None,
     cancel_event: Event | None = None,
     progress: Callable[[int, int | None, str], None] | None = None,
+    fingerprint_inputs: bool = True,
 ) -> dict[str, Any]:
     inputs = {"topology": topology, "trajectory": trajectory}
     inputs.update(additional_inputs or {})
     return input_provenance(
         inputs,
-        backend,
         configuration_sources,
         species_roles,
         parameter_provenance,
         cancel_event,
         progress,
+        fingerprint_inputs,
     )
 
 
 def input_provenance(
     inputs: dict[str, Path],
-    backend: str,
     configuration_sources: dict[str, str] | None = None,
     species_roles: dict[str, str] | None = None,
     parameter_provenance: dict[str, Any] | None = None,
     cancel_event: Event | None = None,
     progress: Callable[[int, int | None, str], None] | None = None,
+    fingerprint_inputs: bool = True,
 ) -> dict[str, Any]:
     input_files: dict[str, str] = {}
     fingerprints: dict[str, str] = {}
@@ -94,16 +94,14 @@ def input_provenance(
         resolved = path.expanduser().resolve()
         value = str(resolved)
         input_files[role] = value
-        if value not in fingerprints:
+        if fingerprint_inputs and value not in fingerprints:
             fingerprints[value] = sha256_file(resolved, cancel_event, progress)
-    return {
+    provenance = {
         "mdhelper_version": __version__,
         "python_version": platform.python_version(),
         "platform": platform.platform(),
-        "backend": backend,
         "backend_versions": dependency_versions(),
         "input_files": input_files,
-        "input_sha256": fingerprints,
         "configuration_sources": configuration_sources or {},
         "species_mapping": {
             "status": "confirmed" if species_roles else "not_provided",
@@ -112,3 +110,6 @@ def input_provenance(
         "parameter_decisions": parameter_provenance or {},
         "byte_order": sys.byteorder,
     }
+    if fingerprint_inputs:
+        provenance["input_sha256"] = fingerprints
+    return provenance

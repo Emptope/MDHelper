@@ -36,20 +36,24 @@ The following notation is used for radial calculations:
 
 `FrameAudit` records the actual first/last frame indices and times as well as `F`.
 
-## 2. Trajectory reader dispatch
+## 2. Complete backend dispatch
 
-Reader selection is deterministic:
+An explicit analysis backend resolves to one complete strategy:
 
 ```text
-native                         -> GroTrajectorySource
-auto + GRO topology and GRO trajectory -> GroTrajectorySource
-auto or mdanalysis             -> MDAnalysisTrajectorySource
-gromacs                        -> GromacsTrajectorySource via Integrations
-anything else                  -> error
+native     -> Native reader + NDX selection + Native frame/distance computation
+mdanalysis -> MDAnalysis reader + MDAnalysis selection/frame/distance or Energy
+gromacs    -> GROMACS input processing + GROMACS selection + RDF/CN or Energy
 ```
 
-`auto` does not retry with MDAnalysis after a native parse error. Provenance records the reader
-that was actually used.
+Auto orders available complete strategies. Radial requests consider Native first only for a
+GRO/GRO pair with NDX, then MDAnalysis, then GROMACS when `rdf` is available. Sampled GROMACS
+frame subsets additionally require `trjconv`. Energy
+considers MDAnalysis, then GROMACS when `energy` is available. A source-loading error may advance to
+the next complete strategy. Explicit requests do not fall back, and one attempt never combines
+components from different backends. Independent system inspection retains a reader-only Auto rule:
+GRO/GRO uses Native and other inputs use MDAnalysis. Provenance records the resolved complete
+analysis backend.
 
 The MDHelper GRO Reader validates both paths and extensions, builds atom metadata from the topology's
 first frame, scans the trajectory to count and validate frames, and then streams requested frames
@@ -63,16 +67,17 @@ format-independent atom-name fallback; this is not chemical perception.
 
 ## 3. Selection resolution
 
-Selection dispatch is:
+Native and MDAnalysis selection dispatch is:
 
 ```text
 injected engine + index file -> error
-index file                   -> NdxSelectionEngine
+Native                       -> NdxSelectionEngine; index file required
+MDAnalysis + index file      -> NdxSelectionEngine
+MDAnalysis without index     -> MDAnalysisSelectionEngine
 injected engine              -> that engine
-otherwise                    -> MDAnalysisSelectionEngine
 ```
 
-This dispatch applies to in-process analyses. Explicit GROMACS RDF/CN quotes an NDX group as
+GROMACS RDF/CN quotes an NDX group as
 `group "name"`; without NDX it passes the request value directly as a GROMACS selection expression.
 
 NDX parsing preserves group and atom order, converts one-based atom numbers to zero-based indices,
@@ -84,9 +89,10 @@ such as `around`, `sphzone`, `sphlayer`, `isolayer`, `cyzone`, `cylayer`, `point
 `same x/y/z as`. The remaining expression is evaluated against a lightweight topology-only
 Universe.
 
-Every resolution record contains the original expression or group, count, an order-sensitive
-SHA-256 of the index sequence, sorted atom/residue names, language and parser version, and, for
-NDX, the index path and file SHA-256.
+Every in-process resolution record contains the original expression or group, count, an
+order-sensitive SHA-256 of the index sequence, sorted atom/residue names, language and parser
+version, and, for NDX, the index path and file SHA-256. Direct GROMACS resolution records contain
+the native expression or group; the Integration command owns selection parsing and validation.
 
 ## 4. Periodic geometry and pair iteration
 
@@ -208,18 +214,20 @@ not the name of the complete distance-dependent array.
 
 ### GROMACS RDF/CN backend
 
-An explicit `gromacs` request does not use the formulas above as its curve source. The application
-uses a built-in reader for metadata and frame bounds, then invokes `gmx rdf` once with both `-o`
-and `-cn`. Full, single-frame, and contiguous ranges pass the original topology and trajectory
-directly, with no time filter or exact `-b`/`-e` bounds. A strided Python range is written as an exact
-temporary XTC subset by translating its zero-based frame indices to the one-based NDX entries
-accepted by `gmx trjconv -fr`. The original topology remains the `gmx rdf -s` input. GROMACS
-`-dt` is not used because it samples an absolute time grid rather than a stride relative to `start`.
+An explicit `gromacs` request does not use the formulas above as its curve source. The default
+`0:end:1` range invokes `gmx rdf` once, passing the selected topology and trajectory directly. RDF
+requests use `-o` only; cumulative RDF requests add `-cn` and retain the RDF output for the shared
+first-shell diagnostic. A finite non-default Python range is written as an exact XTC subset
+by translating its zero-based frame indices to the one-based NDX entries accepted by one
+`gmx trjconv -fr` command. The original topology remains the `gmx rdf -s` input. Open-ended
+non-default ranges may inspect GROMACS trajectory metadata before constructing native range
+arguments. GROMACS `-dt` is not used because it samples an absolute time grid rather than a stride
+relative to `start`.
 
 The request's `bin_width_nm` and `r_max_nm` are passed as `-bin` and `-rmax`. GROMACS owns pair
 selection, PBC, grid endpoints, RDF normalization, and cumulative integration on this branch.
-MDHelper requires two finite numeric XVG columns with strictly increasing radii, maps them to
-`radius_nm` plus `g_r` or `cumulative_number`, applies the common first-shell diagnostic, and
+MDHelper requires finite two-column XVG data with strictly increasing radii, maps it to `radius_nm`
+plus `g_r` or `cumulative_number`, applies the common first-shell diagnostic, and
 records both conversion and `rdf` Integration runs when conversion is required. It does not
 recompute or replace either curve.
 
@@ -268,9 +276,11 @@ current X range and start at zero. Explicit user limits override corresponding a
 
 ## 11. Provenance and project persistence
 
-Input files are SHA-256 hashed in 4 MiB chunks. Provenance records package/runtime versions,
-platform, byte order, actual reader, input paths and hashes, configuration source, role decisions,
-and parameter decisions.
+In-process analysis inputs are SHA-256 hashed in 4 MiB chunks. Direct GROMACS analysis starts the
+native command without a pre-run input hash pass and records resolved input paths plus the complete
+Integration command. Provenance also records package/runtime versions, platform, byte order,
+requested and resolved complete backend, configuration source, role decisions, and parameter
+decisions.
 
 Project manifests, analysis-specific requests, plot state, and results use strict schema-1 parsing.
 Radial requests contain trajectory, selection, and sampling fields; Energy requests contain only
@@ -278,7 +288,8 @@ the EDR path and selected terms. Unknown or missing fields fail; 0.1.0 does not 
 development-era request names or plot states.
 Project input relocation is accepted only when the content hash is unchanged.
 
-Result commit validates the embedded request, input fingerprints, and ID; writes one full result
+Result commit validates the embedded request, input paths, any recorded input fingerprints, and ID;
+writes one full result
 under `results/data/<analysis_id>.json`; hashes that file; and then atomically commits the manifest.
 If manifest commit fails, the new unindexed file is removed. Every compact manifest result entry
 requires the ID, analysis type, commit time, and hash; it does not duplicate the request, method,
@@ -292,7 +303,9 @@ External executable candidates are ordered by per-run override, configured execu
 search paths, adapter environment candidates, `PATH`, then adapter candidate paths. Identity and
 capabilities are detected with an argument vector, restricted environment, timeout, captured output,
 and `shell=False`. Execution records argv, cwd, environment summary, logs, timing, status, exit code,
-and requested output fingerprints.
+and requested output fingerprints. Dedicated pipe readers expose cumulative output to progress
+callbacks while the process runs. Cancellation and timeout signal the complete process group, use a
+bounded wait, and preserve all output captured before termination.
 
 Configuration selection honors an explicit `MDHELPER_CONFIG` and otherwise uses `config.toml`
 next to the executable. Saved TOML is validated before atomic replacement. Templates are discovered in stable

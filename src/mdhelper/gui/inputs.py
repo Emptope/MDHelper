@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QComboBox, QFormLayout, QGroupBox, QLabel, QWidget
 from mdhelper.core.analysis import AnalysisRequest, RadialRequest
 from mdhelper.core.errors import InputError
 from mdhelper.core.trajectory import TOPOLOGY_SUFFIXES, TRAJECTORY_SUFFIXES
-from mdhelper.gui.choices import choice_enabled, set_choice_enabled
+from mdhelper.gui.choices import set_choice_enabled
 from mdhelper.gui.dialogs import PathRow
 
 
@@ -39,20 +39,30 @@ class InputPanel(QGroupBox):
         self.index_summary = QLabel()
         self.index_summary.setWordWrap(True)
         self.index_summary.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.backend = QComboBox()
-        self.backend.addItem("Auto", "auto")
-        self.backend.addItem("MDHelper GRO Reader", "native")
-        self.backend.addItem("MDAnalysis", "mdanalysis")
-        self.backend.addItem("GROMACS (local gmx)", "gromacs")
         form.addRow("Topology", self.topology)
         form.addRow("Trajectory", self.trajectory)
         form.addRow("Index file", self.index_file)
         form.addRow("Selection source", self.selection_source)
         form.addRow("Index groups", self.index_summary)
-        form.addRow("Backend", self.backend)
         self.topology.edit.textChanged.connect(lambda _text: self.system_changed.emit())
         self.trajectory.edit.textChanged.connect(lambda _text: self.system_changed.emit())
         self.index_file.edit.textChanged.connect(lambda _text: self.index_changed.emit())
+
+    def set_analysis_backend(self, backend: str) -> None:
+        labels = {
+            "auto": "MDAnalysis selection expressions",
+            "native": "Selection expressions unavailable for Native",
+            "mdanalysis": "MDAnalysis selection expressions",
+            "gromacs": "GROMACS selection expressions",
+        }
+        index = self.selection_source.findData("expression")
+        self.selection_source.setItemText(index, labels.get(backend, labels["auto"]))
+        set_choice_enabled(
+            self.selection_source,
+            "expression",
+            backend != "native",
+            "index",
+        )
 
     def index_path(self, required: bool = False) -> str | None:
         if self.selection_source.currentData() != "index":
@@ -61,7 +71,7 @@ class InputPanel(QGroupBox):
         if required and not path:
             raise InputError(
                 "No GROMACS index file was selected.",
-                "Select a .ndx file or confirm the MDAnalysis expression fallback.",
+                "Select a .ndx file or choose an expression-capable analysis backend.",
             )
         return path
 
@@ -69,41 +79,12 @@ class InputPanel(QGroupBox):
         path = self.index_file.edit.text().strip()
         return path or None
 
-    def backend_value(self) -> str:
-        value = self.backend.currentData()
-        if not isinstance(value, str):
-            raise InputError("No backend was selected.")
-        return value
-
-    def set_backend(self, value: str) -> None:
-        index = self.backend.findData(value)
-        if index < 0:
-            raise InputError(f"Unknown backend: {value}")
-        if not choice_enabled(self.backend, value):
-            raise InputError(
-                f"Backend {value!r} is unavailable.",
-                "Configure a compatible GROMACS executable or select another reader.",
-            )
-        self.backend.setCurrentIndex(index)
-
-    def set_gromacs_available(self, available: bool) -> None:
-        set_choice_enabled(self.backend, "gromacs", available, "auto")
-        index = self.backend.findData("gromacs")
-        label = "GROMACS (local gmx)" if available else "GROMACS (local gmx) - Unavailable"
-        self.backend.setItemText(index, label)
-
-    def set_gromacs_pending(self) -> None:
-        set_choice_enabled(self.backend, "gromacs", True, "auto")
-        index = self.backend.findData("gromacs")
-        self.backend.setItemText(index, "GROMACS (local gmx) - Checking...")
-
     def apply_request(self, request: AnalysisRequest) -> None:
         if isinstance(request, RadialRequest):
             self.topology.edit.setText(request.topology)
             self.trajectory.edit.setText(request.trajectory)
             self.index_file.edit.setText(request.index_file or "")
             self.selection_source.setCurrentIndex(0 if request.index_file else 1)
-        self.set_backend(request.backend)
 
     def set_index_groups(self, groups: dict[str, int]) -> None:
         if not groups:
@@ -118,5 +99,4 @@ class InputPanel(QGroupBox):
         self.trajectory.edit.clear()
         self.index_file.edit.clear()
         self.selection_source.setCurrentIndex(0)
-        self.set_backend("auto")
         self.set_index_groups({})

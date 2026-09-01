@@ -29,7 +29,11 @@ intermolecular-only RDFs.
 
 ## Selection, frames, units, and PBC
 
-In-process selections use the shared static selection contract. A provided `.ndx` file makes request values exact group names; otherwise they are explicit MDAnalysis expressions. GROMACS RDF uses the same exact NDX names or, without NDX, explicit GROMACS selection expressions. Frame sampling always follows Python slicing: `start` is an inclusive zero-based index, `stop` is exclusive, and `stride` is applied relative to `start`.
+Native requires a provided `.ndx` file and treats request values as exact group names. MDAnalysis
+uses the same exact NDX names when supplied and otherwise accepts static MDAnalysis expressions.
+GROMACS RDF uses exact NDX names or, without NDX, explicit GROMACS selection expressions. Frame
+sampling always follows Python slicing: `start` is an inclusive zero-based index, `stop` is
+exclusive, and `stride` is applied relative to `start`.
 
 Coordinates and radii are nm; `g(r)` is dimensionless. Displacements use the triclinic cell vectors and minimum-image fractional wrapping. `r_max_nm` must not exceed half the smallest perpendicular cell height on any processed frame, because spherical-shell normalization beyond that radius is ambiguous under this convention. A missing, singular, or zero-volume box is an error.
 
@@ -48,19 +52,20 @@ included.
 
 ## GROMACS backend
 
-When `backend = gromacs`, stored `g(r)` samples come directly from `gmx rdf`. MDHelper passes
-`-bin`, `-rmax`, `-ref`, `-sel`, and optional `-n`, requests RDF and cumulative output together,
-then standardizes the RDF XVG as `radius_nm,g_r`. The in-process grid, shell resampling, and
+When `analysis_backend = gromacs`, stored `g(r)` samples come directly from `gmx rdf`. MDHelper passes
+`-bin`, `-rmax`, `-ref`, `-sel`, `-o`, and optional `-n`, without requesting `-cn`, then standardizes
+the RDF XVG as `radius_nm,g_r`. The in-process grid, shell resampling, and
 normalization follow the same default GROMACS definitions; GROMACS still owns its PBC and floating
 point implementation on the external branch. MDHelper preserves zero-based frame slicing:
-strided ranges use an exact converted subset rather than `gmx rdf -dt`. Integration arguments,
+the default full range reads the original inputs directly, while finite sampled ranges use one
+exact converted subset rather than `gmx rdf -dt`. Integration arguments,
 executable identity, version, outputs, and frame audit are retained in provenance. MDHelper does
 not recompute the GROMACS curve. Native float64 values can still differ below practical tolerance
 from serialized XVG values because GROMACS versions use finite output precision.
 
 ## Parameters
 
-The request must record `r_max_nm`, `bin_width_nm`, frame range, backend, and complete selection source. CLI/GUI defaults (`1.0 nm`, `0.002 nm`) are visible convenience defaults, not inferred physical facts. Invalid radii or widths, a grid above one million bins, empty selections, or a pair set containing only self pairs fail.
+The request must record `r_max_nm`, `bin_width_nm`, frame range, `analysis_backend`, and complete selection source. CLI/GUI defaults (`1.0 nm`, `0.002 nm`) are visible convenience defaults, not inferred physical facts. Invalid radii or widths, a grid above one million bins, empty selections, or a pair set containing only self pairs fail.
 
 `r_max_nm`, bin width, and stride are explicit user choices. MDHelper does not infer or recommend an RDF maximum radius. The in-process backend validates every frame against its reliable minimum-image radius; the GROMACS backend delegates radial validity to `gmx rdf`. Neither path silently adjusts the request.
 

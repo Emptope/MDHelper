@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import csv
+import json
 import sys
 from pathlib import Path
 
 import pytest
 
-from mdhelper.analysis.energy import MdaEnergy, parse_energy_terms
-from mdhelper.app import ApplicationService
+from mdhelper.analysis.energy import parse_energy_terms
+from mdhelper.analysis.mdanalysis import MDAnalysisBackend
+from mdhelper.app import ApplicationService, TrajectoryLoader
 from mdhelper.core.analysis import EnergyRequest, RadialRequest
 from mdhelper.core.errors import BackendError, FormatError
 from mdhelper.core.plotting import result_plot
@@ -48,6 +50,7 @@ def _program(path: Path) -> Path:
         "from pathlib import Path\n"
         "import shutil\n"
         "import sys\n"
+        "import time\n"
         "command = sys.argv[1]\n"
         "if command == '--version':\n"
         "    print('GROMACS version: test')\n"
@@ -65,20 +68,29 @@ def _program(path: Path) -> Path:
         "        print('  4  Temperature  5  Pressure', file=sys.stderr)\n"
         "        raise SystemExit(1)\n"
         "    else:\n"
+        "        print('Energy output written', flush=True)\n"
+        "        time.sleep(0.3)\n"
         '        output.write_text(\'@ yaxis label "Energy (kJ/mol)"\\n\' '
         "+ '0 1 10\\n1 2 20\\n', encoding='utf-8')\n"
         "elif command == 'trjconv':\n"
         "    source = Path(sys.argv[sys.argv.index('-f') + 1])\n"
         "    output = Path(sys.argv[sys.argv.index('-o') + 1])\n"
+        "    for frame in range(3):\n"
+        "        print(f'Reading frame {frame} time {frame:.3f}', flush=True)\n"
+        "        time.sleep(0.2)\n"
         "    if '-fr' in sys.argv:\n"
         "        frames = Path(sys.argv[sys.argv.index('-fr') + 1])\n"
         "        print(frames.read_text(encoding='ascii'), end='')\n"
         "    shutil.copyfile(source, output)\n"
         "elif command == 'rdf':\n"
         "    rdf = Path(sys.argv[sys.argv.index('-o') + 1])\n"
-        "    cn = Path(sys.argv[sys.argv.index('-cn') + 1])\n"
+        "    for frame in range(3):\n"
+        "        print(f'Reading frame {frame} time {frame:.3f}', flush=True)\n"
+        "        time.sleep(0.2)\n"
         "    rdf.write_text('0.00 0.0\\n0.05 2.0\\n0.10 1.0\\n', encoding='utf-8')\n"
-        "    cn.write_text('0.05 0.0\\n0.10 1.5\\n0.15 2.0\\n', encoding='utf-8')\n"
+        "    if '-cn' in sys.argv:\n"
+        "        cn = Path(sys.argv[sys.argv.index('-cn') + 1])\n"
+        "        cn.write_text('0.05 0.0\\n0.10 1.5\\n0.15 2.0\\n', encoding='utf-8')\n"
         "else:\n"
         "    raise SystemExit(2)\n",
         encoding="utf-8",
@@ -86,7 +98,10 @@ def _program(path: Path) -> Path:
     return path
 
 
-def _application(tmp_path: Path) -> ApplicationService:
+def _application(
+    tmp_path: Path,
+    trajectory_loader: TrajectoryLoader | None = None,
+) -> ApplicationService:
     registry = IntegrationRegistry()
     registry.register(_GromacsAdapter(_program(tmp_path / "gmx.py")))
     return ApplicationService(
@@ -95,6 +110,7 @@ def _application(tmp_path: Path) -> ApplicationService:
                 "gromacs": IntegrationConfig(path=str(Path(sys.executable)))
             }
         ),
+        trajectory_loader=trajectory_loader,
         integration_registry=registry,
     )
 
@@ -105,21 +121,44 @@ def test_gromacs_energy_backend_standardizes_exports_and_project_data(
     energy = tmp_path / "energy.edr"
     energy.write_bytes(b"energy")
     application = _application(tmp_path)
+    topology = tmp_path / "topology"
+    trajectory = tmp_path / "trajectory"
+    topology.write_bytes(b"topology")
+    trajectory.write_bytes(b"trajectory")
+    project = application.projects.create(
+        tmp_path / "energy.mdhelper", topology, trajectory
+    )
     request = EnergyRequest(
         analysis_type="energy",
         energy_file=str(energy),
         energy_terms=("Potential", "Temperature"),
-        backend="gromacs",
+        analysis_backend="gromacs",
     )
 
-    result = application.analyses.run(request)
+    progress: list[tuple[int, int | None, str]] = []
+    result = application.analyses.run(
+        request,
+        lambda current, total, message: progress.append((current, total, message)),
+        cache_dir=project.cache_dir,
+    )
 
     assert result.data == {
         "time_ps": [0.0, 1.0],
         "series": {"Potential": [1.0, 2.0], "Temperature": [10.0, 20.0]},
     }
-    assert result.provenance["integration_runs"][0]["name"] == "gromacs"
-    assert result.provenance["integration_runs"][0]["display_name"] == "GROMACS"
+    run = result.provenance["integration_runs"][0]
+    assert run["name"] == "gromacs"
+    assert run["display_name"] == "GROMACS"
+    assert run["command"] == application.context.integrations.format_command(
+        "gromacs", run["arguments"]
+    )
+    working_directory = Path(run["working_directory"])
+    assert working_directory.parent == project.cache_dir
+    assert working_directory.name.startswith("gromacs-energy-")
+    assert Path(run["arguments"][run["arguments"].index("-o") + 1]).parent == (
+        working_directory
+    )
+    assert (working_directory / "energy.xvg").is_file()
     assert result.provenance["analysis_backend"] == {
         "name": "gromacs",
         "display_name": "GROMACS",
@@ -128,7 +167,20 @@ def test_gromacs_energy_backend_standardizes_exports_and_project_data(
     assert [series.label for series in model.series] == ["Potential", "Temperature"]
     output = tmp_path / "export"
     paths = application.analyses.export(result, output, include_figures=False)
-    assert {path.name for path in paths} == {"result.json", "energy.csv"}
+    assert {path.name for path in paths} == {
+        "result.json",
+        "energy.csv",
+        "gromacs-energy.xvg",
+    }
+    assert (output / "gromacs-energy.xvg").read_text(encoding="utf-8") == (
+        '@ yaxis label "Energy (kJ/mol)"\n0 1 10\n1 2 20\n'
+    )
+    stored = json.loads((output / "result.json").read_text(encoding="utf-8"))
+    assert stored["provenance"]["integration_runs"][0]["command"] == run["command"]
+    assert progress
+    assert all(message.startswith("GROMACS: ") for _, _, message in progress)
+    assert any("Energy output written" in message for _, _, message in progress)
+    assert all(" -f " not in message and " -o " not in message for _, _, message in progress)
     with (output / "energy.csv").open(encoding="utf-8", newline="") as handle:
         assert list(csv.reader(handle)) == [
             ["time_ps", "Potential", "Temperature"],
@@ -136,13 +188,6 @@ def test_gromacs_energy_backend_standardizes_exports_and_project_data(
             ["1", "2", "20"],
         ]
 
-    topology = tmp_path / "topology"
-    trajectory = tmp_path / "trajectory"
-    topology.write_bytes(b"topology")
-    trajectory.write_bytes(b"trajectory")
-    project = application.projects.create(
-        tmp_path / "energy.mdhelper", topology, trajectory
-    )
     result_path = application.projects.commit_result(project, request, result)
     assert result_path.parent == project.root / "results" / "data"
     assert result_path.is_file()
@@ -156,14 +201,20 @@ def test_gromacs_energy_terms_are_discovered_from_the_selected_edr(
     energy = tmp_path / "energy.edr"
     energy.write_bytes(b"energy")
     application = _application(tmp_path)
+    cache = tmp_path / "project" / "cache"
 
-    assert application.analyses.energy_terms(energy, "gromacs") == (
+    assert application.analyses.energy_terms(
+        energy, "gromacs", cache_dir=cache
+    ) == (
         "Bond",
         "Potential",
         "Kinetic-En.",
         "Temperature",
         "Pressure",
     )
+    directories = tuple(cache.glob("gromacs-energy-terms-*"))
+    assert len(directories) == 1
+    assert directories[0].is_dir()
 
 
 def test_auto_energy_backend_falls_back_to_available_gromacs(
@@ -174,16 +225,16 @@ def test_auto_energy_backend_falls_back_to_available_gromacs(
     application = _application(tmp_path)
 
     def unavailable(
-        _backend: MdaEnergy, _inputs: object
+        _backend: MDAnalysisBackend, _inputs: object
     ) -> object:
         raise BackendError("MDAnalysis EDR support is unavailable.")
 
-    monkeypatch.setattr(MdaEnergy, "run", unavailable)
+    monkeypatch.setattr(MDAnalysisBackend, "run", unavailable)
     request = EnergyRequest(
         analysis_type="energy",
         energy_file=str(energy),
         energy_terms=("Potential", "Temperature"),
-        backend="auto",
+        analysis_backend="auto",
     )
 
     result = application.analyses.run(request)
@@ -207,7 +258,7 @@ def test_mdanalysis_reads_terms_and_selected_series_from_edr() -> None:
         analysis_type="energy",
         energy_file=str(energy),
         energy_terms=("Potential", "Total Energy"),
-        backend="mdanalysis",
+        analysis_backend="mdanalysis",
     )
     result = application.analyses.run(request)
 
@@ -232,7 +283,7 @@ def test_mdanalysis_energy_rejects_a_term_absent_from_the_edr() -> None:
         analysis_type="energy",
         energy_file=str(energy),
         energy_terms=("Not a term",),
-        backend="mdanalysis",
+        analysis_backend="mdanalysis",
     )
 
     with pytest.raises(FormatError, match="does not contain"):
@@ -270,7 +321,7 @@ End your selection with an empty line or a zero.
         ),
     ),
 )
-def test_gmx_rdf_uses_native_commands_and_frame_range(
+def test_gromacs_rdf_uses_native_commands_and_frame_range(
     tmp_path: Path,
     analysis_type: str,
     expected_data: dict[str, list[float]],
@@ -286,6 +337,9 @@ def test_gmx_rdf_uses_native_commands_and_frame_range(
     )
     application = _application(tmp_path)
     progress: list[tuple[int, int | None, str]] = []
+    project = application.projects.create(
+        tmp_path / "project", synthetic_path, synthetic_path, index_file=index
+    )
     request = RadialRequest(
         analysis_type=analysis_type,  # type: ignore[arg-type]
         topology=str(synthetic_path),
@@ -296,31 +350,29 @@ def test_gmx_rdf_uses_native_commands_and_frame_range(
         r_max_nm=0.5,
         bin_width_nm=0.05,
         frames=FrameRange(0, 5, 2),
-        backend="gromacs",
+        analysis_backend="gromacs",
         species_roles={"REF": "other", "LIGA": "other", "LIGB": "other"},
     )
 
     result = application.analyses.run(
         request,
         lambda current, total, message: progress.append((current, total, message)),
-        cache_dir=tmp_path / "cache",
+        cache_dir=project.cache_dir,
     )
 
     assert result.diagnostics["n_frames"] == 3
-    assert result.provenance["backend"] == "gromacs"
     assert result.provenance["analysis_backend"] == {
         "name": "gromacs",
         "display_name": "GROMACS",
-    }
-    assert result.provenance["trajectory_backend"] == {
-        "name": "native-gro",
-        "display_name": "MDHelper GRO Reader",
     }
     runs = result.provenance["integration_runs"]
     assert [run["arguments"][0] for run in runs] == ["trjconv", "rdf"]
     assert all(run["status"] == "completed" for run in runs)
     conversion_run, rdf_run = runs
-    assert conversion_run["stdout"] == "[ frames ]\n1 3 5\n"
+    assert all(
+        Path(run["working_directory"]).parent == project.cache_dir for run in runs
+    )
+    assert conversion_run["stdout"].endswith("[ frames ]\n1 3 5\n")
     rdf_source = rdf_run["arguments"][rdf_run["arguments"].index("-f") + 1]
     assert Path(rdf_source).name == "selected.xtc"
     rdf_topology = rdf_run["arguments"][rdf_run["arguments"].index("-s") + 1]
@@ -328,40 +380,74 @@ def test_gmx_rdf_uses_native_commands_and_frame_range(
     assert rdf_run["arguments"][rdf_run["arguments"].index("-ref") + 1] == (
         'group "Reference group"'
     )
-    gromacs_progress = [item for item in progress if "GROMACS" in item[2]]
-    assert gromacs_progress == [
-        (3, 3, "Selected 3 GROMACS RDF frames"),
-        (0, None, "Running GROMACS trajectory conversion"),
-        (3, 3, "Prepared GROMACS RDF frames"),
-        (0, None, "Running GROMACS RDF"),
-        (3, 3, "Completed GROMACS RDF"),
-    ]
+    if analysis_type == "rdf":
+        assert "-cn" not in rdf_run["arguments"]
+    else:
+        assert Path(
+            rdf_run["arguments"][rdf_run["arguments"].index("-cn") + 1]
+        ).parent == Path(rdf_run["working_directory"])
+    assert Path(rdf_run["arguments"][rdf_run["arguments"].index("-o") + 1]).parent == (
+        Path(rdf_run["working_directory"])
+    )
+    assert all("Preparing GROMACS input" not in message for _, _, message in progress)
+    assert all("Fingerprinting" not in message for _, _, message in progress)
+    assert all(message.startswith("GROMACS: ") for _, _, message in progress)
+    assert all("-fr" not in message and "-rmax" not in message for _, _, message in progress)
+    assert any("Reading frame" in message for _, _, message in progress)
+    assert any(
+        current > 0 and total == 3 and "Reading frame" in message
+        for current, total, message in progress
+    )
     assert result.data == expected_data
+    output = tmp_path / f"export-{analysis_type}"
+    paths = application.analyses.export(result, output, include_figures=False)
+    assert {path.name for path in paths} == {
+        "result.json",
+        "rdf.csv" if analysis_type == "rdf" else "cn.csv",
+        "gromacs-rdf.xvg",
+        *(() if analysis_type == "rdf" else ("gromacs-cn.xvg",)),
+    }
+    assert (output / "gromacs-rdf.xvg").read_text(encoding="utf-8") == (
+        "0.00 0.0\n0.05 2.0\n0.10 1.0\n"
+    )
+    if analysis_type == "cumulative_rdf":
+        assert (output / "gromacs-cn.xvg").read_text(encoding="utf-8") == (
+            "0.05 0.0\n0.10 1.5\n0.15 2.0\n"
+        )
 
 
-def test_gmx_rdf_reads_original_inputs_without_trjconv(tmp_path: Path) -> None:
+def test_gromacs_pipeline_uses_its_own_input_and_expression_processing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from test_synthetic_system import _write_trajectory
 
     trajectory = tmp_path / "trajectory.gro"
     _write_trajectory(trajectory, 3)
-    index = tmp_path / "groups.ndx"
-    index.write_text(
-        "[ Reference group ]\n1\n[ Selection group ]\n2 3\n",
-        encoding="ascii",
-    )
-    result = _application(tmp_path).analyses.run(
+    def reject_loader(*_args: object) -> object:
+        raise AssertionError("The direct GROMACS pipeline must not load the trajectory")
+
+    def reject_fingerprint(*_args: object, **_kwargs: object) -> str:
+        raise AssertionError("The direct GROMACS pipeline must not fingerprint inputs")
+
+    monkeypatch.setattr("mdhelper.services.provenance.sha256_file", reject_fingerprint)
+    progress: list[tuple[int, int | None, str]] = []
+    result = _application(
+        tmp_path,
+        trajectory_loader=reject_loader,  # type: ignore[arg-type]
+    ).analyses.run(
         RadialRequest(
             analysis_type="rdf",
             topology=str(trajectory),
             trajectory=str(trajectory),
-            index_file=str(index),
-            reference="Reference group",
-            selection="Selection group",
+            reference="resname REF",
+            selection="resname LIGA",
             r_max_nm=0.5,
             bin_width_nm=0.05,
-            backend="gromacs",
+            analysis_backend="gromacs",
             species_roles={"REF": "other", "LIGA": "other", "LIGB": "other"},
-        )
+        ),
+        lambda current, total, message: progress.append((current, total, message)),
     )
 
     runs = result.provenance["integration_runs"]
@@ -369,6 +455,17 @@ def test_gmx_rdf_reads_original_inputs_without_trjconv(tmp_path: Path) -> None:
     arguments = runs[0]["arguments"]
     assert Path(arguments[arguments.index("-f") + 1]) == trajectory
     assert Path(arguments[arguments.index("-s") + 1]) == trajectory
+    assert arguments[arguments.index("-ref") + 1] == "resname REF"
+    assert arguments[arguments.index("-sel") + 1] == "resname LIGA"
+    assert result.diagnostics["selection_resolution"]["reference"]["source"] == (
+        "gromacs_selection"
+    )
     assert result.parameters["trajectory_preprocessing"]["source"] == (
         "original trajectory"
     )
+    assert "input_sha256" not in result.provenance
+    assert progress
+    assert all(message.startswith("GROMACS: ") for _, _, message in progress)
+    assert any("Reading frame" in message for _, _, message in progress)
+    assert all(" -f " not in message for _, _, message in progress)
+    assert all("Fingerprinting" not in message for _, _, message in progress)

@@ -71,16 +71,17 @@ class Report(ABC):
                 f"{self.result.method_version}",
             ),
             (
-                "Analysis backend",
+                "Requested backend",
+                self.request.analysis_backend,
+            ),
+            (
+                "Resolved backend",
                 component_name(
                     provenance.get("analysis_backend"),
-                    self.request.backend,
+                    self.request.analysis_backend,
                 ),
             ),
         ]
-        trajectory = provenance.get("trajectory_backend")
-        if trajectory is not None:
-            rows.append(("Trajectory backend", component_name(trajectory, "Unknown")))
         raw_runs = provenance.get("integration_runs")
         runs = (
             tuple(item for item in raw_runs if isinstance(item, dict))
@@ -168,6 +169,9 @@ def component_name(value: object, fallback: str) -> str:
 
 
 def integration_command(run: Mapping[str, object]) -> str:
+    command = run.get("command")
+    if isinstance(command, str) and command:
+        return command
     arguments = run.get("arguments")
     if not isinstance(arguments, list) or not arguments:
         return "Unknown"

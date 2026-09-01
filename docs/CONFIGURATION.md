@@ -43,16 +43,15 @@ controls.
 
 ## Backend
 
-One Backend is selected per analysis request (`auto`, `native`, `mdanalysis`, or `gromacs`) in the
-GUI, TUI, or CLI. It is intentionally not a machine-wide TOML setting: it controls where source
-data are read and affects format support, units, and reproducibility. The value is visible in the
-setup review and stored in the request. `auto` prefers native for GRO pairs and MDAnalysis for
-other supported trajectories and EDR files. Energy can fall back to available GROMACS when
-MDAnalysis EDR support is unavailable. Explicit selections never fall back. Selecting `gromacs`
-for RDF/CN delegates curve generation to `gmx rdf`/`-cn`; selecting it for Energy delegates series
-extraction to `gmx energy`. RDF/CN passes the original topology and trajectory directly to
-`gmx rdf`; a strided frame range uses `gmx trjconv -fr` to create an exact temporary XTC subset
-and keeps the original topology for `gmx rdf`.
+One complete Backend is selected per analysis request (`auto`, `native`, `mdanalysis`, or
+`gromacs`) in the GUI, TUI, or CLI. It is intentionally not a machine-wide TOML setting: it fixes
+the reader, selection language, frame handling, and computation for that request. The value is
+visible in setup review and stored in the request. Auto considers Native only for GRO/GRO plus
+NDX, then MDAnalysis, then an available GROMACS pipeline; expression mode resolves to MDAnalysis.
+Energy considers MDAnalysis before available GROMACS. Explicit selections never fall back.
+GROMACS RDF passes the original inputs directly to `gmx rdf`; cumulative RDF adds `-cn` for the
+default full frame range. Energy uses `gmx energy`. An explicit finite sampled frame range uses one `gmx trjconv -fr`
+command to create an exact temporary XTC subset and keeps the original topology for `gmx rdf`.
 
 ## Strict initial-version contracts
 
@@ -102,13 +101,16 @@ On Windows, **Tools > Integrations** is limited to configuration and detection. 
 detection fills the configured executable field and presents status, version, source, and
 capabilities as readable fields. Detect uses the current dialog draft, including an unsaved
 configured executable. Saving replaces any cached detection status so the next use validates the
-new configuration. Integration commands are invoked by analysis use cases or the explicit CLI
-command instead of this configuration dialog.
+new configuration. The analysis backend selector does not show GROMACS until the user explicitly
+runs this detection action in the current session or the saved configuration contains a non-empty
+GROMACS executable path. Integration commands are invoked by analysis use cases or the explicit
+CLI command instead of this configuration dialog.
 
 Completed, non-zero, timed-out, and cancelled invocations record the resolved executable, detected
 version, argument vector, working directory, relevant environment summary, exit code, captured
 logs, elapsed time, status, and fingerprints of requested output files. Timeout and cancellation
-return this record inside the actionable error details.
+return this record inside the actionable error details. Long-running commands stream captured
+output into progress callbacks, and cancellation terminates the complete process group.
 
 ## Commands
 

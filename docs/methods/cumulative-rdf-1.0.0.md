@@ -42,7 +42,7 @@ selection.
 
 ## GROMACS backend
 
-When `backend = gromacs`, the stored cumulative samples come directly from the `-cn` output of the
+When `analysis_backend = gromacs`, the stored cumulative samples come directly from the `-cn` output of the
 same `gmx rdf` run that produces the diagnostic RDF. MDHelper standardizes the XVG as
 `radius_nm,cumulative_number`; it does not integrate `g(r)` or recompute pair counts. GROMACS owns
 the cumulative definition, grid, PBC, and endpoints on this branch. Exact Python frame slicing,

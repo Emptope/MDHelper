@@ -160,10 +160,13 @@ class MDAnalysisTrajectorySource:
                     str(self.trajectory_path),
                     format=cached_reader,
                     cache_dir=cache,
+                    to_guess=("types",),
                 )
             else:
                 self._universe = mda.Universe(
-                    str(self.topology_path), str(self.trajectory_path)
+                    str(self.topology_path),
+                    str(self.trajectory_path),
+                    to_guess=("types",),
                 )
         except Exception as exc:
             raise BackendError(
@@ -230,7 +233,12 @@ class MDAnalysisTrajectorySource:
                     )
                 box = Box(vectors)
                 box.validate()
-                time_ps = float(timestep.time) if timestep.time is not None else float(raw_index)
+                raw_time = timestep.data.get("time")
+                time_ps = float(raw_index) if raw_time is None else float(raw_time)
+                if not math.isfinite(time_ps):
+                    raise TrajectoryError(
+                        f"Frame {raw_index} has a non-finite time value."
+                    )
             except Exception as exc:
                 if isinstance(exc, TrajectoryError):
                     raise
@@ -242,3 +250,6 @@ class MDAnalysisTrajectorySource:
             yield Frame(raw_index, time_ps, positions, box)
         if yielded == 0:
             raise TrajectoryError("The requested frame range produced no frames.")
+
+    def close(self) -> None:
+        self._universe.trajectory.close()

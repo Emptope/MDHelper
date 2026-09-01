@@ -1,5 +1,5 @@
 """Narrow registries for controlled extension points."""
 
-from .analysis import AnalysisRegistry, AnalysisRunner
+from .analysis import AnalysisRegistry, BackendAdapter, BackendQuery
 
-__all__ = ["AnalysisRegistry", "AnalysisRunner"]
+__all__ = ["AnalysisRegistry", "BackendAdapter", "BackendQuery"]

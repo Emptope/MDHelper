@@ -58,7 +58,6 @@ class LoadPanel(QWidget):
             "trajectory": self.inputs.trajectory.edit.text().strip(),
             "index_file": self.inputs.index_path(required=require_selections),
             "frames": frames,
-            "backend": self.inputs.backend_value(),
             "species_roles": self.species.roles(require_all=require_selections),
             "parameter_provenance": {"species_roles": dict(role_provenance)},
         }
@@ -66,7 +65,5 @@ class LoadPanel(QWidget):
     def apply_request(self, request: AnalysisRequest, preserve_inputs: bool = False) -> None:
         if not preserve_inputs:
             self.inputs.apply_request(request)
-        else:
-            self.inputs.set_backend(request.backend)
         if isinstance(request, RadialRequest):
             self.species.apply_roles(request.species_roles)

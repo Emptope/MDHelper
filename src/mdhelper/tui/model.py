@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, cast
 
 from mdhelper.core.analysis import (
+    AnalysisBackend,
     AnalysisRequest,
     AnalysisResult,
     AnalysisType,
+    EnergyBackend,
     EnergyRequest,
+    RadialBackend,
     RadialRequest,
 )
 from mdhelper.core.system import FrameRange, SystemSummary
@@ -20,6 +23,7 @@ from mdhelper.project import Project
 @dataclass
 class AnalysisDraft:
     analysis_type: AnalysisType
+    analysis_backend: AnalysisBackend = "auto"
     reference: str = ""
     selection: str = ""
     r_max_nm: float = 1.0
@@ -37,7 +41,7 @@ class AnalysisDraft:
                 analysis_type="energy",
                 energy_file=self.energy_file,
                 energy_terms=tuple(self.energy_terms),
-                backend=workspace.backend,
+                analysis_backend=cast(EnergyBackend, self.analysis_backend),
                 parameter_provenance=dict(self.parameter_provenance),
             )
             energy_request.validate()
@@ -52,7 +56,7 @@ class AnalysisDraft:
             r_max_nm=self.r_max_nm,
             bin_width_nm=self.bin_width_nm,
             frames=self.frames,
-            backend=workspace.backend,
+            analysis_backend=cast(RadialBackend, self.analysis_backend),
             species_roles=dict(workspace.roles),
             parameter_provenance={
                 **self.parameter_provenance,
@@ -68,7 +72,6 @@ class Workspace:
     topology: str = ""
     trajectory: str = ""
     index_file: str | None = None
-    backend: Literal["auto", "native", "mdanalysis", "gromacs"] = "auto"
     project: Project | None = None
     summary: SystemSummary | None = None
     roles: dict[str, str] = field(default_factory=dict)
@@ -93,7 +96,6 @@ class Workspace:
         self.topology = ""
         self.trajectory = ""
         self.index_file = None
-        self.backend = "auto"
         self.project = None
         self.summary = None
         self.roles.clear()

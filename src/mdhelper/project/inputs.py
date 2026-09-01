@@ -108,31 +108,41 @@ class InputRepository:
             raise ConfigurationError("Project result has an unsupported request type.")
         provenance_files = result.provenance.get("input_files")
         provenance_hashes = result.provenance.get("input_sha256")
-        if not isinstance(provenance_files, dict) or not isinstance(provenance_hashes, dict):
+        if not isinstance(provenance_files, dict):
             raise ConfigurationError(
                 "The analysis result lacks auditable input provenance.",
                 "Only commit results produced through the shared application service.",
             )
         records: dict[str, InputRecord] = {}
         for role, request_path in requested.items():
-            record = self.record(request_path)
-            project_record = manifest["inputs"].get(role)
-            if project_record is not None and project_record["sha256"] != record["sha256"]:
-                raise InputFileError(
-                    f"The analysis {role} does not match the project's recorded input.",
-                    "Create a new project for different inputs.",
-                    {
-                        "project_sha256": project_record["sha256"],
-                        "analysis_sha256": record["sha256"],
-                    },
-                )
+            resolved = Path(request_path).expanduser().resolve()
             provenance_path = provenance_files.get(role)
+            if not isinstance(provenance_path, str) or Path(provenance_path).resolve() != resolved:
+                raise ConfigurationError(
+                    f"The result provenance does not match its {role} input.",
+                    "Rerun the analysis through the shared application service.",
+                )
+            project_record = manifest["inputs"].get(role)
+            if project_record is not None:
+                project_path = self.resolve(project_record, verify_fingerprint=False)
+                if project_path != resolved:
+                    raise InputFileError(
+                        f"The analysis {role} does not match the project's recorded input.",
+                        "Create a new project for different inputs.",
+                        {
+                            "project_path": str(project_path),
+                            "analysis_path": str(resolved),
+                        },
+                    )
+                record = project_record
+            else:
+                record = self.record(resolved)
             provenance_digest = (
                 provenance_hashes.get(provenance_path)
-                if isinstance(provenance_path, str)
+                if isinstance(provenance_hashes, dict)
                 else None
             )
-            if provenance_digest != record["sha256"]:
+            if provenance_digest is not None and provenance_digest != record["sha256"]:
                 raise ConfigurationError(
                     f"The result provenance does not match its {role} input.",
                     "Rerun the analysis through the shared application service.",

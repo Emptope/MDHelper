@@ -8,17 +8,16 @@ from typing import Literal, TypedDict
 import numpy as np
 import pytest
 
-from mdhelper.analysis import AnalysisRegistry
+from mdhelper.analysis import DEFAULT_ANALYSIS_REGISTRY, AnalysisRegistry
 from mdhelper.app import ApplicationService
 from mdhelper.backends.gro import GroTrajectorySource
 from mdhelper.cli import main
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
-from mdhelper.core.errors import InputFileError
+from mdhelper.core.errors import ConfigurationError, InputError, InputFileError
 from mdhelper.core.plotting import PlotLimits, PlotSelection, PlotState
-from mdhelper.core.progress import ProgressCallback
 from mdhelper.core.system import FrameRange
-from mdhelper.core.trajectory import TrajectorySource
-from mdhelper.plugins.analysis import FunctionBackend
+from mdhelper.integrations.manager import IntegrationManager
+from mdhelper.plugins.analysis import AnalysisInput, BackendQuery
 from mdhelper.services.config import UserConfig
 
 
@@ -80,7 +79,7 @@ class _Common(TypedDict):
     trajectory: str
     reference: str
     frames: FrameRange
-    backend: Literal["native"]
+    analysis_backend: Literal["mdanalysis"]
     species_roles: dict[str, str]
 
 
@@ -90,20 +89,33 @@ def _common(path: Path) -> _Common:
         "trajectory": str(path),
         "reference": "resname REF",
         "frames": FrameRange(stop=2),
-        "backend": "native",
+        "analysis_backend": "mdanalysis",
         "species_roles": {"REF": "other", "LIGA": "other", "LIGB": "other"},
     }
 
 
-def test_hand_checkable_rdf_and_coordination(synthetic_path: Path) -> None:
+def test_hand_checkable_rdf_and_coordination(
+    synthetic_path: Path, tmp_path: Path
+) -> None:
+    index = tmp_path / "groups.ndx"
+    index.write_text("[ ref ]\n1\n[ sel ]\n2 3\n", encoding="ascii")
     application = ApplicationService(UserConfig())
+    common = {
+        "topology": str(synthetic_path),
+        "trajectory": str(synthetic_path),
+        "index_file": str(index),
+        "reference": "ref",
+        "selection": "sel",
+        "frames": FrameRange(stop=2),
+        "analysis_backend": "native",
+        "species_roles": {"REF": "other", "LIGA": "other", "LIGB": "other"},
+    }
     rdf = application.analyses.run(
         RadialRequest(
             analysis_type="rdf",
-            selection="resname LIGA",
             r_max_nm=0.5,
             bin_width_nm=0.1,
-            **_common(synthetic_path),
+            **common,
         )
     )
     histogram = np.asarray([0, 1, 1, 1, 1], dtype=float)
@@ -116,10 +128,9 @@ def test_hand_checkable_rdf_and_coordination(synthetic_path: Path) -> None:
     coordination = application.analyses.run(
         RadialRequest(
             analysis_type="cumulative_rdf",
-            selection="resname LIGA",
             r_max_nm=0.5,
             bin_width_nm=0.1,
-            **_common(synthetic_path),
+            **common,
         )
     )
     cumulative_histogram = np.asarray([0, 2, 0, 1, 1], dtype=float)
@@ -145,7 +156,7 @@ def test_rdf_normalization_matches_gromacs_for_overlapping_selections(
             r_max_nm=0.5,
             bin_width_nm=0.1,
             frames=FrameRange(stop=2),
-            backend="native",
+            analysis_backend="mdanalysis",
         )
     )
     edges = np.asarray([0.0, 0.05, 0.15, 0.25, 0.35, 0.45])
@@ -156,27 +167,103 @@ def test_rdf_normalization_matches_gromacs_for_overlapping_selections(
     assert result.diagnostics["normalization_ordered_pairs_per_frame"] == 4
 
 
-def test_application_accepts_backend_neutral_trajectory_loader(synthetic_path: Path) -> None:
+def test_application_rejects_a_mixed_backend_loader(synthetic_path: Path) -> None:
     source = GroTrajectorySource(synthetic_path, synthetic_path)
     calls: list[tuple[str, str, str]] = []
 
-    def loader(topology: str, trajectory: str, backend: str) -> GroTrajectorySource:
+    def loader(
+        topology: str,
+        trajectory: str,
+        backend: str,
+        _cancel_event: Event | None,
+        _progress: object,
+    ) -> GroTrajectorySource:
         calls.append((topology, trajectory, backend))
         return source
 
     application = ApplicationService(UserConfig(), trajectory_loader=loader)
-    result = application.analyses.run(
-        RadialRequest(
-            analysis_type="cumulative_rdf",
-            selection="resname LIGA",
-            r_max_nm=0.5,
-            bin_width_nm=0.05,
-            **_common(synthetic_path),
+    with pytest.raises(ConfigurationError, match="do not match"):
+        application.analyses.run(
+            RadialRequest(
+                analysis_type="cumulative_rdf",
+                selection="resname LIGA",
+                r_max_nm=0.5,
+                bin_width_nm=0.05,
+                **_common(synthetic_path),
+            )
         )
+
+    assert calls == [(str(synthetic_path), str(synthetic_path), "mdanalysis")]
+
+
+def test_native_and_mdanalysis_radial_pipelines_are_distinct_and_consistent(
+    synthetic_path: Path, tmp_path: Path
+) -> None:
+    index = tmp_path / "groups.ndx"
+    index.write_text("[ ref ]\n1\n[ sel ]\n2 3\n", encoding="ascii")
+    app = ApplicationService(UserConfig())
+    common = {
+        "analysis_type": "rdf",
+        "topology": str(synthetic_path),
+        "trajectory": str(synthetic_path),
+        "index_file": str(index),
+        "reference": "ref",
+        "selection": "sel",
+        "r_max_nm": 0.5,
+        "bin_width_nm": 0.1,
+        "frames": FrameRange(stop=1),
+    }
+
+    native = app.analyses.run(RadialRequest(**common, analysis_backend="native"))
+    mda = app.analyses.run(RadialRequest(**common, analysis_backend="mdanalysis"))
+
+    assert native.provenance["analysis_backend"]["name"] == "native"
+    assert mda.provenance["analysis_backend"]["name"] == "mdanalysis"
+    assert native.data["g_r"] == pytest.approx(mda.data["g_r"], abs=1e-5)
+
+
+def test_auto_selects_one_complete_radial_pipeline(
+    synthetic_path: Path, tmp_path: Path
+) -> None:
+    index = tmp_path / "groups.ndx"
+    index.write_text("[ ref ]\n1\n[ sel ]\n2 3\n", encoding="ascii")
+    app = ApplicationService(UserConfig())
+    indexed = RadialRequest(
+        analysis_type="rdf",
+        topology=str(synthetic_path),
+        trajectory=str(synthetic_path),
+        index_file=str(index),
+        reference="ref",
+        selection="sel",
+        analysis_backend="auto",
+    )
+    expression = RadialRequest(
+        analysis_type="rdf",
+        topology=str(synthetic_path),
+        trajectory=str(synthetic_path),
+        reference="resname REF",
+        selection="resname LIGA",
+        analysis_backend="auto",
     )
 
-    assert calls == [(str(synthetic_path), str(synthetic_path), "native")]
-    assert result.data["cumulative_number"][-1] == pytest.approx(2.0)
+    assert app.analyses.run(indexed).provenance["analysis_backend"]["name"] == "native"
+    assert app.analyses.run(expression).provenance["analysis_backend"]["name"] == (
+        "mdanalysis"
+    )
+
+
+def test_explicit_native_requires_index_groups(synthetic_path: Path) -> None:
+    request = RadialRequest(
+        analysis_type="rdf",
+        topology=str(synthetic_path),
+        trajectory=str(synthetic_path),
+        reference="resname REF",
+        selection="resname LIGA",
+        analysis_backend="native",
+    )
+
+    with pytest.raises(InputError, match="requires index groups"):
+        ApplicationService(UserConfig()).analyses.run(request)
 
 
 def test_system_inspection_always_uses_auto_trajectory_reader(
@@ -185,7 +272,13 @@ def test_system_inspection_always_uses_auto_trajectory_reader(
     source = GroTrajectorySource(synthetic_path, synthetic_path)
     calls: list[tuple[str, str, str]] = []
 
-    def loader(topology: str, trajectory: str, backend: str) -> GroTrajectorySource:
+    def loader(
+        topology: str,
+        trajectory: str,
+        backend: str,
+        _cancel_event: Event | None,
+        _progress: object,
+    ) -> GroTrajectorySource:
         calls.append((topology, trajectory, backend))
         return source
 
@@ -202,27 +295,43 @@ def test_analysis_algorithm_is_replaceable_behind_application_contract(
     source = GroTrajectorySource(synthetic_path, synthetic_path)
     registry = AnalysisRegistry()
 
-    def runner(
-        source_value: TrajectorySource,
-        request: AnalysisRequest,
-        provenance: dict[str, object],
-        progress: ProgressCallback | None,
-        cancel_event: Event | None,
-        max_pairs: int,
-    ) -> AnalysisResult:
-        assert source_value is source
-        assert max_pairs > 0
-        return AnalysisResult(
-            analysis_type=request.analysis_type,
-            data={"marker": 1},
-            parameters={},
-            units={"marker": "dimensionless"},
-            diagnostics={},
-            provenance=provenance,
-            request=request.to_dict(),
-        )
+    class TestBackend:
+        name = "native"
+        display_name = "Test"
+        analysis_types = frozenset(("rdf",))
 
-    registry.register("rdf", FunctionBackend(runner))
+        def auto_priority(
+            self,
+            _query: BackendQuery,
+            _integrations: IntegrationManager,
+        ) -> int:
+            return 10
+
+        def validate_request(self, request: AnalysisRequest) -> None:
+            request.validate()
+
+        def opens_trajectory(self, request: AnalysisRequest) -> bool:
+            del request
+            return True
+
+        def fingerprints_inputs(self, request: AnalysisRequest) -> bool:
+            del request
+            return True
+
+        def run(self, inputs: AnalysisInput) -> AnalysisResult:
+            assert inputs.source is source
+            assert inputs.max_pairs_per_chunk > 0
+            return AnalysisResult(
+                analysis_type=inputs.request.analysis_type,
+                data={"marker": 1},
+                parameters={},
+                units={"marker": "dimensionless"},
+                diagnostics={},
+                provenance=inputs.provenance,
+                request=inputs.request.to_dict(),
+            )
+
+    registry.register(TestBackend())
     application = ApplicationService(
         UserConfig(),
         trajectory_loader=lambda *_: source,
@@ -230,13 +339,32 @@ def test_analysis_algorithm_is_replaceable_behind_application_contract(
     )
     request = RadialRequest(
         analysis_type="rdf",
+        analysis_backend="native",
+        topology=str(synthetic_path),
+        trajectory=str(synthetic_path),
+        reference="resname REF",
         selection="resname LIGA",
         r_max_nm=0.5,
         bin_width_nm=0.05,
-        **_common(synthetic_path),
+        frames=FrameRange(stop=2),
+        species_roles={"REF": "other", "LIGA": "other", "LIGB": "other"},
     )
 
     assert application.analyses.run(request).data == {"marker": 1}
+
+
+def test_each_complete_backend_is_registered_once_for_all_supported_analyses() -> None:
+    assert DEFAULT_ANALYSIS_REGISTRY.names() == (
+        "gromacs",
+        "mdanalysis",
+        "native",
+    )
+    native = DEFAULT_ANALYSIS_REGISTRY.get("native", "rdf")
+    assert DEFAULT_ANALYSIS_REGISTRY.get("native", "cumulative_rdf") is native
+    mdanalysis = DEFAULT_ANALYSIS_REGISTRY.get("mdanalysis", "rdf")
+    assert DEFAULT_ANALYSIS_REGISTRY.get("mdanalysis", "energy") is mdanalysis
+    gromacs = DEFAULT_ANALYSIS_REGISTRY.get("gromacs", "rdf")
+    assert DEFAULT_ANALYSIS_REGISTRY.get("gromacs", "energy") is gromacs
 
 
 def test_project_plot_state_round_trips_all_comparison_controls(
@@ -308,7 +436,7 @@ def test_project_commit_binds_result_to_fingerprinted_inputs(
         r_max_nm=0.5,
         bin_width_nm=0.05,
         frames=FrameRange(stop=2),
-        backend="native",
+        analysis_backend="mdanalysis",
     )
     result = application.analyses.run(request)
     project = application.projects.create(
@@ -340,7 +468,7 @@ def test_project_atomically_registers_explicit_index_on_first_commit(
         r_max_nm=0.5,
         bin_width_nm=0.05,
         frames=FrameRange(stop=2),
-        backend="native",
+        analysis_backend="native",
     )
     result = application.analyses.run(request)
     project = application.projects.create(
@@ -360,8 +488,8 @@ def test_cli_completes_all_analyses_and_project_round_trip(
     common = [
         "--project",
         str(project),
-        "--backend",
-        "native",
+        "--analysis-backend",
+        "mdanalysis",
         "--roles",
         '{"REF":"other","LIGA":"other","LIGB":"other"}',
         "--stop",

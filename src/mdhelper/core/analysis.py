@@ -42,7 +42,9 @@ def _json_issue(value: object, path: str) -> str | None:
 
 
 AnalysisType = Literal["rdf", "cumulative_rdf", "energy"]
-Backend = Literal["auto", "native", "mdanalysis", "gromacs"]
+AnalysisBackend = Literal["auto", "native", "mdanalysis", "gromacs"]
+RadialBackend = Literal["auto", "native", "mdanalysis", "gromacs"]
+EnergyBackend = Literal["auto", "mdanalysis", "gromacs"]
 
 ANALYSIS_LABELS: dict[str, str] = {
     "rdf": "Radial Distribution Function (RDF)",
@@ -60,7 +62,7 @@ def analysis_label(analysis_type: str) -> str:
 @dataclass(frozen=True, kw_only=True)
 class AnalysisRequest(ABC):
     analysis_type: AnalysisType
-    backend: Backend = "auto"
+    analysis_backend: AnalysisBackend = "native"
     parameter_provenance: dict[str, Any] = field(default_factory=dict)
     schema_version: int = 1
 
@@ -72,8 +74,8 @@ class AnalysisRequest(ABC):
             )
         if self.analysis_type not in {"rdf", "cumulative_rdf", "energy"}:
             raise InputError(f"Unknown analysis type: {self.analysis_type}")
-        if self.backend not in {"auto", "native", "mdanalysis", "gromacs"}:
-            raise InputError(f"Unknown backend: {self.backend!r}.")
+        if self.analysis_backend not in {"auto", "native", "mdanalysis", "gromacs"}:
+            raise InputError(f"Unknown analysis backend: {self.analysis_backend!r}.")
         if not isinstance(self.parameter_provenance, dict):
             raise InputError("parameter_provenance must be an object.")
         issue = _json_issue(self.parameter_provenance, "parameter_provenance")
@@ -90,7 +92,7 @@ class AnalysisRequest(ABC):
             raise ConfigurationError("An analysis request must be a JSON object.")
         data = dict(value)
         analysis_type = data.get("analysis_type")
-        common = {"analysis_type", "backend", "schema_version"}
+        common = {"analysis_type", "analysis_backend", "schema_version"}
         optional = {"parameter_provenance"}
         if analysis_type in {"rdf", "cumulative_rdf"}:
             required = common | {
@@ -161,6 +163,7 @@ class AnalysisRequest(ABC):
 
 @dataclass(frozen=True, kw_only=True)
 class RadialRequest(AnalysisRequest):
+    analysis_backend: RadialBackend = "auto"
     topology: str
     trajectory: str
     reference: str
@@ -173,6 +176,10 @@ class RadialRequest(AnalysisRequest):
 
     def validate(self) -> None:
         super().validate()
+        if self.analysis_backend not in {"auto", "native", "mdanalysis", "gromacs"}:
+            raise InputError(
+                "RDF and CN require Auto, Native, MDAnalysis, or GROMACS."
+            )
         if self.analysis_type not in {"rdf", "cumulative_rdf"}:
             raise InputError(f"Unknown radial analysis type: {self.analysis_type}")
         for name, value in (
@@ -227,7 +234,7 @@ class RadialRequest(AnalysisRequest):
             "r_max_nm": self.r_max_nm,
             "bin_width_nm": self.bin_width_nm,
             "frames": asdict(self.frames),
-            "backend": self.backend,
+            "analysis_backend": self.analysis_backend,
             "schema_version": self.schema_version,
         }
         if self.index_file is not None:
@@ -251,6 +258,7 @@ class RadialRequest(AnalysisRequest):
 
 @dataclass(frozen=True, kw_only=True)
 class EnergyRequest(AnalysisRequest):
+    analysis_backend: EnergyBackend = "auto"
     energy_file: str
     energy_terms: tuple[str, ...]
 
@@ -258,7 +266,7 @@ class EnergyRequest(AnalysisRequest):
         super().validate()
         if self.analysis_type != "energy":
             raise InputError(f"Unknown energy analysis type: {self.analysis_type}")
-        if self.backend not in {"auto", "gromacs", "mdanalysis"}:
+        if self.analysis_backend not in {"auto", "gromacs", "mdanalysis"}:
             raise InputError(
                 "Energy analysis requires the GROMACS or MDAnalysis backend."
             )
@@ -279,7 +287,7 @@ class EnergyRequest(AnalysisRequest):
             "analysis_type": self.analysis_type,
             "energy_file": self.energy_file,
             "energy_terms": list(self.energy_terms),
-            "backend": self.backend,
+            "analysis_backend": self.analysis_backend,
             "schema_version": self.schema_version,
         }
         if self.parameter_provenance:
@@ -295,6 +303,7 @@ class AnalysisResult:
     units: dict[str, str]
     diagnostics: dict[str, Any]
     provenance: dict[str, Any]
+    artifacts: dict[str, str] = field(default_factory=dict)
     request: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     analysis_id: str = field(default_factory=lambda: str(uuid4()))
@@ -348,6 +357,25 @@ class AnalysisResult:
             for key, unit in self.units.items()
         ):
             raise ConfigurationError("Analysis result units must map string fields to strings.")
+        if not isinstance(self.artifacts, dict):
+            raise ConfigurationError("Analysis result artifacts must be an object.")
+        for name, content in self.artifacts.items():
+            if (
+                not isinstance(name, str)
+                or not name
+                or name != name.strip()
+                or name in {".", ".."}
+                or "/" in name
+                or "\\" in name
+                or "\x00" in name
+            ):
+                raise ConfigurationError(
+                    "Analysis result artifact names must be plain file names."
+                )
+            if not isinstance(content, str):
+                raise ConfigurationError(
+                    "Analysis result artifact contents must be strings."
+                )
         if not isinstance(self.warnings, list) or any(
             not isinstance(warning, str) for warning in self.warnings
         ):

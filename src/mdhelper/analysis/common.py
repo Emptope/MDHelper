@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import math
+import tempfile
 from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import product
+from pathlib import Path
 from threading import Event
 
 import numpy as np
 from numpy.typing import NDArray
 
-from mdhelper.core.errors import InputError, TaskCancelled
+from mdhelper.core.errors import BackendError, InputError, TaskCancelled
 from mdhelper.core.progress import ProgressCallback
 from mdhelper.core.system import Box, Coordinates, Frame, FrameRange
 
@@ -38,6 +41,24 @@ class FrameAudit:
             "first_time_ps": self.first_time_ps,
             "last_time_ps": self.last_time_ps,
         }
+
+
+@contextmanager
+def analysis_directory(cache_dir: Path | None, name: str) -> Iterator[Path]:
+    if cache_dir is None:
+        with tempfile.TemporaryDirectory(prefix=f"mdhelper-{name}-") as directory:
+            yield Path(directory)
+        return
+    root = cache_dir.expanduser().resolve()
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        directory = tempfile.mkdtemp(prefix=f"{name}-", dir=root)
+    except OSError as exc:
+        raise BackendError(
+            f"Could not prepare analysis cache directory: {root}",
+            details={"exception": f"{type(exc).__name__}: {exc}"},
+        ) from exc
+    yield Path(directory)
 
 
 def preprocessing_record() -> dict[str, str]:

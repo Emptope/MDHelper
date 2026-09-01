@@ -1,27 +1,33 @@
-"""GROMACS RDF and cumulative RDF backend."""
+"""Complete GROMACS analysis pipeline."""
 
 from __future__ import annotations
 
 import math
-import tempfile
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from threading import Event
 
 import numpy as np
 from numpy.typing import NDArray
 
 from mdhelper.analysis.common import (
     FrameAudit,
+    analysis_directory,
     check_cancel,
     report_progress,
     selected_frame_count,
 )
 from mdhelper.analysis.radial import first_shell, first_shell_warnings
-from mdhelper.core.analysis import AnalysisResult, RadialRequest
+from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, EnergyRequest, RadialRequest
 from mdhelper.core.errors import BackendError, FormatError
+from mdhelper.core.system import FrameRange
 from mdhelper.core.trajectory import TrajectorySource
-from mdhelper.plugins.analysis import AnalysisInput
+from mdhelper.integrations.gromacs import frame_progress, frame_progresses, output_message
+from mdhelper.integrations.manager import IntegrationManager
+from mdhelper.plugins.analysis import AnalysisInput, BackendQuery
 from mdhelper.services.selection import resolve_selections, selection_resolution_record
+
+from .energy import _GromacsEnergy
 
 
 def _request(inputs: AnalysisInput) -> RadialRequest:
@@ -134,6 +140,49 @@ def _frame_args(
     return [*arguments, "-b", str(times[0]), "-e", str(times[-1])]
 
 
+def _requested_paths(request: RadialRequest) -> tuple[Path, Path]:
+    return (
+        Path(request.topology).expanduser().resolve(),
+        Path(request.trajectory).expanduser().resolve(),
+    )
+
+
+def _requested_indices(frame_range: FrameRange) -> tuple[int, ...]:
+    if frame_range.stop is None:
+        raise BackendError("An open-ended sampled frame range requires trajectory metadata.")
+    indices = tuple(range(frame_range.start, frame_range.stop, frame_range.stride))
+    if not indices:
+        raise BackendError("The selected GROMACS RDF frame range is empty.")
+    return indices
+
+
+def _run_audit(
+    stdout: str,
+    stderr: str,
+    indices: tuple[int, ...] = (),
+) -> FrameAudit:
+    values = frame_progresses(stdout, stderr)
+    if indices:
+        count = len(indices)
+        first_index = indices[0]
+        last_index = indices[-1]
+    elif values:
+        count = values[-1][0] + 1
+        first_index = 0
+        last_index = values[-1][0]
+    else:
+        count = 0
+        first_index = None
+        last_index = None
+    return FrameAudit(
+        count=count,
+        first_index=first_index,
+        last_index=last_index,
+        first_time_ps=values[0][1] if values else None,
+        last_time_ps=values[-1][1] if values else None,
+    )
+
+
 def _parse_curve(path: Path, label: str) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     rows: list[tuple[float, float]] = []
     try:
@@ -182,7 +231,7 @@ def _selection(value: str, index_file: str | None) -> str:
 
 
 def _selection_records(
-    source: TrajectorySource,
+    source: TrajectorySource | None,
     inputs: AnalysisInput,
 ) -> tuple[dict[str, object], int | None, int | None, int | None]:
     request = _request(inputs)
@@ -197,6 +246,20 @@ def _selection_records(
                 "expression": request.selection or "",
                 "source": "gromacs_selection",
                 "language": "GROMACS selection",
+            },
+        }
+        return records, None, None, None
+    if source is None:
+        records = {
+            "reference": {
+                "expression": request.reference,
+                "source": "gromacs_index",
+                "language": "GROMACS index group",
+            },
+            "selection": {
+                "expression": request.selection or "",
+                "source": "gromacs_index",
+                "language": "GROMACS index group",
             },
         }
         return records, None, None, None
@@ -218,51 +281,131 @@ def _selection_records(
     return records, len(reference), len(selection), possible_pairs
 
 
-class GmxRdf:
+def _process_progress(
+    inputs: AnalysisInput,
+    total: int | None,
+) -> Callable[[float, str, str], None]:
+    def update(_elapsed: float, stdout: str, stderr: str) -> None:
+        message = output_message(stdout, stderr)
+        if message is None:
+            return
+        parsed = frame_progress(stdout, stderr)
+        if parsed is None:
+            report_progress(inputs.progress, 0, total, message)
+            return
+        frame, _time_ps = parsed
+        current = frame + 1 if total is None else min(frame + 1, total)
+        report_progress(
+            inputs.progress,
+            current,
+            total,
+            message,
+        )
+
+    return update
+
+
+class GromacsBackend:
     name = "gromacs"
     display_name = "GROMACS"
-    needs_trajectory = True
+    analysis_types = frozenset(("rdf", "cumulative_rdf", "energy"))
+
+    def __init__(self) -> None:
+        self._energy = _GromacsEnergy()
+
+    def auto_priority(
+        self,
+        query: BackendQuery,
+        integrations: IntegrationManager,
+    ) -> int | None:
+        if query.analysis_type != "energy" and query.index_file is None:
+            return None
+        capabilities = ("energy",) if query.analysis_type == "energy" else ("rdf",)
+        status = integrations.status("gromacs")
+        if not status.available or not set(capabilities).issubset(status.capabilities):
+            return None
+        return 30
+
+    def validate_request(self, request: AnalysisRequest) -> None:
+        request.validate()
+
+    def opens_trajectory(self, request: AnalysisRequest) -> bool:
+        return (
+            isinstance(request, RadialRequest)
+            and request.frames.stop is None
+            and request.frames != FrameRange()
+        )
+
+    def fingerprints_inputs(self, request: AnalysisRequest) -> bool:
+        del request
+        return False
+
+    def terms(
+        self,
+        integrations: IntegrationManager,
+        energy_file: str | Path,
+        cancel_event: Event | None = None,
+        cache_dir: Path | None = None,
+    ) -> tuple[str, ...]:
+        return self._energy.terms(integrations, energy_file, cancel_event, cache_dir)
 
     def run(self, inputs: AnalysisInput) -> AnalysisResult:
+        if isinstance(inputs.request, EnergyRequest):
+            return self._energy.run(inputs)
         request = _request(inputs)
         request.validate()
-        if inputs.source is None:
-            raise BackendError("The GROMACS RDF backend requires trajectory metadata.")
-        with tempfile.TemporaryDirectory(prefix="mdhelper-gromacs-rdf-") as directory:
-            root = Path(directory)
+        topology_path, trajectory_path = _requested_paths(request)
+        with analysis_directory(inputs.cache_dir, "gromacs-rdf") as root:
             subset = root / "selected.xtc"
             frame_index = root / "frames.ndx"
             rdf_output = root / "rdf.xvg"
             cn_output = root / "cn.xvg"
-            audit, times, indices = _audit_bounds(inputs.source, inputs)
-            frame_args = _frame_args(inputs.source, inputs, times)
+            cn_radius: NDArray[np.float64] | None = None
+            cumulative: NDArray[np.float64] | None = None
+            raw_cn: str | None = None
+            if inputs.source is not None:
+                audit, times, indices = _audit_bounds(inputs.source, inputs)
+                frame_args = _frame_args(inputs.source, inputs, times)
+            elif request.frames == FrameRange():
+                audit = FrameAudit()
+                indices = ()
+                frame_args = [
+                    "-f",
+                    str(trajectory_path),
+                    "-s",
+                    str(topology_path),
+                ]
+            else:
+                indices = _requested_indices(request.frames)
+                audit = FrameAudit(
+                    count=len(indices),
+                    first_index=indices[0],
+                    last_index=indices[-1],
+                )
+                frame_args = None
             direct_source = frame_args is not None
             conversion_record = None
             if frame_args is None:
                 _write_frame_index(indices, frame_index)
-                report_progress(
-                    inputs.progress,
-                    0,
-                    None,
-                    "Running GROMACS trajectory conversion",
-                )
+                conversion_arguments = [
+                    "trjconv",
+                    "-f",
+                    str(trajectory_path),
+                    "-s",
+                    str(topology_path),
+                    "-fr",
+                    str(frame_index),
+                    "-o",
+                    str(subset),
+                ]
                 conversion_record = inputs.integrations.run(
                     "gromacs",
-                    [
-                        "trjconv",
-                        "-f",
-                        str(inputs.source.trajectory_path),
-                        "-s",
-                        str(inputs.source.topology_path),
-                        "-fr",
-                        str(frame_index),
-                        "-o",
-                        str(subset),
-                    ],
+                    conversion_arguments,
                     root,
                     cancel_event=inputs.cancel_event,
                     output_files=[subset],
                     input_text="0\n",
+                    process_progress=_process_progress(inputs, audit.count),
                     required_capabilities=("trjconv",),
                 )
                 if conversion_record.status != "completed" or not subset.is_file():
@@ -270,17 +413,17 @@ class GmxRdf:
                         "GROMACS did not produce the selected RDF trajectory.",
                         details={"integration_run": conversion_record.to_dict()},
                     )
-                report_progress(
-                    inputs.progress,
-                    audit.count,
-                    audit.count,
-                    "Prepared GROMACS RDF frames",
-                )
+                if audit.first_time_ps is None:
+                    audit = _run_audit(
+                        conversion_record.stdout,
+                        conversion_record.stderr,
+                        indices,
+                    )
                 frame_args = [
                     "-f",
                     str(subset),
                     "-s",
-                    str(inputs.source.topology_path),
+                    str(topology_path),
                 ]
             arguments = ["rdf"]
             arguments.extend(frame_args)
@@ -294,8 +437,14 @@ class GmxRdf:
                     _selection(request.selection or "", request.index_file),
                     "-o",
                     str(rdf_output),
-                    "-cn",
-                    str(cn_output),
+                )
+            )
+            output_files: list[str | Path] = [rdf_output]
+            if request.analysis_type == "cumulative_rdf":
+                arguments.extend(("-cn", str(cn_output)))
+                output_files.append(cn_output)
+            arguments.extend(
+                (
                     "-bin",
                     str(request.bin_width_nm),
                     "-rmax",
@@ -304,13 +453,14 @@ class GmxRdf:
                     "none",
                 )
             )
-            report_progress(inputs.progress, 0, None, "Running GROMACS RDF")
+            total = audit.count or None
             record = inputs.integrations.run(
                 "gromacs",
                 arguments,
                 root,
                 cancel_event=inputs.cancel_event,
-                output_files=[rdf_output, cn_output],
+                output_files=output_files,
+                process_progress=_process_progress(inputs, total),
                 required_capabilities=("rdf",),
             )
             if record.status != "completed":
@@ -318,17 +468,26 @@ class GmxRdf:
                     f"GROMACS RDF exited with code {record.exit_code}.",
                     details={"integration_run": record.to_dict()},
                 )
-            report_progress(
-                inputs.progress,
-                audit.count,
-                audit.count,
-                "Completed GROMACS RDF",
-            )
+            if audit.count == 0:
+                audit = _run_audit(record.stdout, record.stderr)
+            elif audit.first_time_ps is None:
+                audit = _run_audit(record.stdout, record.stderr, indices)
             rdf_radius, rdf = _parse_curve(rdf_output, "RDF")
-            cn_radius, cumulative = _parse_curve(cn_output, "cumulative RDF")
+            with rdf_output.open(
+                "r", encoding="utf-8", errors="replace", newline=""
+            ) as handle:
+                raw_rdf = handle.read()
+            if request.analysis_type == "cumulative_rdf":
+                cn_radius, cumulative = _parse_curve(cn_output, "cumulative RDF")
+                with cn_output.open(
+                    "r", encoding="utf-8", errors="replace", newline=""
+                ) as handle:
+                    raw_cn = handle.read()
         check_cancel(inputs.cancel_event)
         shell = first_shell(rdf_radius, rdf)
         if request.analysis_type == "cumulative_rdf" and shell.get("available"):
+            assert cn_radius is not None
+            assert cumulative is not None
             raw_minimum = shell.get("first_minimum_nm")
             if isinstance(raw_minimum, bool) or not isinstance(raw_minimum, (int, float)):
                 raise FormatError("The GROMACS RDF shell diagnostic has no numeric minimum.")
@@ -383,6 +542,8 @@ class GmxRdf:
                 "normalization": "GROMACS gmx rdf norm=rdf",
             }
         else:
+            assert cn_radius is not None
+            assert cumulative is not None
             data = {
                 "radius_nm": cn_radius.tolist(),
                 "cumulative_number": cumulative.tolist(),
@@ -392,6 +553,9 @@ class GmxRdf:
                 **common_parameters,
                 "definition": "GROMACS gmx rdf -cn cumulative number RDF",
             }
+        artifacts = {"gromacs-rdf.xvg": raw_rdf}
+        if raw_cn is not None:
+            artifacts["gromacs-cn.xvg"] = raw_cn
         return AnalysisResult(
             analysis_type=request.analysis_type,
             method_version=METHOD_VERSION,
@@ -400,6 +564,7 @@ class GmxRdf:
             units=units,
             diagnostics=diagnostics,
             provenance=provenance,
+            artifacts=artifacts,
             request=request.to_dict(),
             warnings=first_shell_warnings(shell),
         )

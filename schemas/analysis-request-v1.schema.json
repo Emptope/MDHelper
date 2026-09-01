@@ -19,7 +19,7 @@
         "r_max_nm",
         "bin_width_nm",
         "frames",
-        "backend",
+        "analysis_backend",
         "schema_version"
       ],
       "properties": {
@@ -32,7 +32,7 @@
         "r_max_nm": {"type": "number", "exclusiveMinimum": 0},
         "bin_width_nm": {"type": "number", "exclusiveMinimum": 0},
         "frames": {"$ref": "#/$defs/frames"},
-        "backend": {"enum": ["auto", "native", "mdanalysis", "gromacs"]},
+        "analysis_backend": {"enum": ["auto", "native", "mdanalysis", "gromacs"]},
         "species_roles": {"$ref": "#/$defs/species_roles"},
         "parameter_provenance": {"type": "object"},
         "schema_version": {"const": 1}
@@ -45,7 +45,7 @@
         "analysis_type",
         "energy_file",
         "energy_terms",
-        "backend",
+        "analysis_backend",
         "schema_version"
       ],
       "properties": {
@@ -57,7 +57,7 @@
           "uniqueItems": true,
           "items": {"type": "string", "minLength": 1}
         },
-        "backend": {"enum": ["auto", "mdanalysis", "gromacs"]},
+        "analysis_backend": {"enum": ["auto", "mdanalysis", "gromacs"]},
         "parameter_provenance": {"type": "object"},
         "schema_version": {"const": 1}
       }

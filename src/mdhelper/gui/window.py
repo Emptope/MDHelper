@@ -78,7 +78,9 @@ class MainWindow(QMainWindow):
         self.load = LoadPanel()
         self.analysis = AnalysisPanel()
         self.results = ResultPanel()
-        self.load.inputs.set_gromacs_pending()
+        self.analysis.parameters.set_gromacs_configured(
+            self.application.integrations.is_configured("gromacs")
+        )
         self._connect_panels()
         self.menu_actions = install_menu(
             self,
@@ -125,7 +127,7 @@ class MainWindow(QMainWindow):
         self.analysis.run_requested.connect(self._run)
         self.analysis.cancel_requested.connect(self._cancel)
         self.analysis.parameters.energy_terms_requested.connect(self._load_energy_terms)
-        self.load.inputs.backend.currentIndexChanged.connect(self._backend_changed)
+        self.analysis.parameters.analysis_backend_changed.connect(self._backend_changed)
         self.load.species.role_edited.connect(self._role_edited)
         self.results.load_requested.connect(self._load_project_result)
         self.results.save_project_requested.connect(self._save_project_figures)
@@ -139,10 +141,18 @@ class MainWindow(QMainWindow):
         self.detection_tasks.failed.connect(self._integration_detection_failed)
 
     def _load_energy_terms(self, path: str) -> None:
-        backend = self.load.inputs.backend_value()
+        backend = self.analysis.parameters.analysis_backend_value()
         self.statusBar().showMessage("Reading energy terms...")
         try:
-            terms = self.application.analyses.energy_terms(path, backend)
+            terms = self.application.analyses.energy_terms(
+                path,
+                backend,
+                cache_dir=(
+                    None
+                    if self.session.project is None
+                    else self.session.project.cache_dir
+                ),
+            )
             self.analysis.parameters.set_energy_terms(path, terms)
         except Exception as exc:
             self._show_error(exc)
@@ -154,22 +164,30 @@ class MainWindow(QMainWindow):
 
     def _backend_changed(self) -> None:
         parameters = self.analysis.parameters
+        self.load.inputs.set_analysis_backend(parameters.analysis_backend_value())
         path = parameters.energy_file.edit.text().strip()
         parameters.set_energy_terms("", ())
         if Path(path).expanduser().is_file():
             self._load_energy_terms(path)
 
     def _detect_gromacs_availability(self) -> None:
-        self.load.inputs.set_gromacs_pending()
+        configured = self.application.integrations.is_configured("gromacs")
+        self.analysis.parameters.set_gromacs_configured(configured)
+        if not configured:
+            self.analysis.parameters.set_gromacs_available(False)
+            return
+        self.analysis.parameters.set_gromacs_pending()
         self.detection_tasks.submit("gromacs")
 
     def _integration_detected(self, name: str, status: object) -> None:
         if name == "gromacs":
-            self.load.inputs.set_gromacs_available(bool(getattr(status, "available", False)))
+            self.analysis.parameters.set_gromacs_available(
+                bool(getattr(status, "available", False))
+            )
 
     def _integration_detection_failed(self, name: str, _error: object) -> None:
         if name == "gromacs":
-            self.load.inputs.set_gromacs_available(False)
+            self.analysis.parameters.set_gromacs_available(False)
 
     def _system_input_changed(self) -> None:
         if self._suspend_auto_inspect:
@@ -308,11 +326,13 @@ class MainWindow(QMainWindow):
             answer = QMessageBox.question(
                 self,
                 "No GROMACS Index File",
-                "No .ndx file was provided. Use MDAnalysis selection expressions instead?",
+                "No .ndx file was provided. Use backend-specific selection expressions instead?",
             )
             if answer != QMessageBox.StandardButton.Yes:
                 self.statusBar().showMessage("Select a GROMACS index file to continue.", 10000)
                 return
+            if self.analysis.parameters.analysis_backend_value() == "native":
+                self.analysis.parameters.set_analysis_backend("mdanalysis")
             self.load.inputs.selection_source.setCurrentIndex(1)
         try:
             runs = list(
@@ -420,7 +440,6 @@ class MainWindow(QMainWindow):
         self.load.inputs.topology.edit.setText(str(topology))
         self.load.inputs.trajectory.edit.setText(str(trajectory))
         self.load.inputs.index_file.edit.setText("" if index_file is None else str(index_file))
-        self.load.inputs.set_backend("auto")
         self._inspect()
 
     def _open_existing_project(self, directory: str) -> None:

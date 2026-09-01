@@ -15,9 +15,9 @@ contracts, schemas, documentation, and tests; compatibility and migration branch
 The current product goal is a reproducible vertical slice from trajectory or EDR input and explicit
 atom or energy-term selection through analysis, interpretation, export, and project persistence in
 CLI, TUI, and GUI. The released analyses are RDF, cumulative RDF, and energy
-extraction. Optional GROMACS integration is an audited RDF/CN and Energy backend as well as a
-trajectory adapter. It is selected explicitly, or by the declared Energy `auto` fallback, and the
-request and resolved backend are always recorded.
+extraction. Native, MDAnalysis, and optional GROMACS are complete, non-mixing pipelines. Each owns
+its reader, selection path, frame handling, and analysis implementation. The requested and resolved
+backend are always recorded.
 
 When goals compete, use this order:
 
@@ -31,7 +31,7 @@ When goals compete, use this order:
 
 ## 2. G1: complete vertical slices
 
-Every released analysis must have a method definition, request/result contract, registered runner,
+Every released analysis must have a method definition, request/result contract, supporting backend adapters,
 application use case, CLI/TUI/GUI exposure where applicable, persistence, export, reference tests,
 and user documentation. A menu item or algorithm module alone is not a completed feature.
 
@@ -59,7 +59,7 @@ cross-presentation imports, or presentation code placed outside its package fail
 ## 5. G4: explicit selection, parameters, and sampling
 
 Reference/selection identity, index file, radial limits, bin width, cutoffs, grouping mode, frame
-range, reader, and role decisions are explicit request data. No filename, residue name, sample,
+range, analysis backend, and role decisions are explicit request data. No filename, residue name, sample,
 test, software name, or prior output may secretly alter them.
 
 Acceptance requires reviewable setup in interactive frontends, complete CLI arguments, strict
@@ -87,9 +87,9 @@ compact index containing an ID, analysis type, commit time, and content fingerpr
 
 ## 8. G7: complete provenance
 
-An analysis result records application/runtime/library versions, platform, actual trajectory
-reader, input paths and SHA-256 values, selection-resolution identity, role decisions, and parameter
-decisions. `auto` is not sufficient as a reader record; the resolved adapter is required.
+An analysis result records application/runtime/library versions, platform, requested and resolved
+complete backend, input paths and SHA-256 values, selection-resolution identity, role decisions,
+and parameter decisions. `auto` is not sufficient as a resolved backend record.
 
 Acceptance verifies that changed input content cannot be silently committed, loaded, or relocated.
 
@@ -114,14 +114,16 @@ every frame or an unbounded
 Acceptance covers configured pair bounds, multi-frame streaming, progress, cancellation, timeout,
 and deterministic cleanup.
 
-## 11. G10: deterministic trajectory backends
+## 11. G10: deterministic complete backends
 
-Reader dispatch is explicit and recorded. Backend adapters convert third-party objects to core
-contracts and do not implement analysis formulas. Unit conversion, box conversion, atom identity,
-and frame-range behavior are tested against the shared protocol.
+Analysis backend selection is explicit and recorded. One registered adapter owns the reader,
+selection path, frame handling, and computation for every analysis it supports. Backend adapters
+convert third-party objects to core contracts before shared result assembly. Unit conversion, box
+conversion, atom identity, frame-range behavior, and computation ownership are tested.
 
-`auto` follows declared suffix rules and does not hide a native parse failure by retrying another
-backend.
+`auto` evaluates declared complete strategies in priority order. A source-loading failure can try
+the next complete strategy, but components from separate backends are never combined in one
+attempt. Explicit selection never falls back.
 
 ## 12. G11: equivalent frontends with clear ownership
 

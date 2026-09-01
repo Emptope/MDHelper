@@ -5,14 +5,19 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Event
 
+from mdhelper.core.progress import ProgressCallback
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.integrations.manager import IntegrationManager
 from mdhelper.plugins.analysis import AnalysisRegistry
 from mdhelper.services.config import UserConfig
 from mdhelper.services.system import load_source
 
-TrajectoryLoader = Callable[[str, str, str], TrajectorySource]
+TrajectoryLoader = Callable[
+    [str, str, str, Event | None, ProgressCallback | None],
+    TrajectorySource,
+]
 
 
 @dataclass(frozen=True)

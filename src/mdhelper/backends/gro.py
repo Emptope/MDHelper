@@ -115,8 +115,8 @@ def _read_frame(handle: TextIO, frame_index: int) -> tuple[tuple[Atom, ...], Fra
 class GroTrajectorySource:
     """Read single- or multi-frame GRO files through the trajectory port."""
 
-    backend_name = "native-gro"
-    backend_display_name = "MDHelper GRO Reader"
+    backend_name = "native"
+    backend_display_name = "Native"
 
     def __init__(self, topology: str | Path, trajectory: str | Path):
         self.topology_path = require_file(topology, "Topology")
@@ -201,3 +201,6 @@ class GroTrajectorySource:
                 raw_index += 1
         if yielded == 0:
             raise TrajectoryError("The requested frame range produced no frames.")
+
+    def close(self) -> None:
+        pass

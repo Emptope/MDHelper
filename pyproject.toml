@@ -67,9 +67,6 @@ link-mode = "copy"
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers"
 testpaths = ["tests"]
-filterwarnings = [
-  "ignore:Unknown masses are set to 0.0:PendingDeprecationWarning",
-]
 
 [tool.ruff]
 extend-exclude = [".uv-cache", ".venv", ".venv-windows", "build", "dist"]

@@ -31,14 +31,14 @@ N(r) = 4 * pi * rho_selection * integral_0^r g_reference,selection(r') * r'^2 dr
 或 `P(N)` 概率分布。
 
 selection 决定计数基准并始终显示在报告中。例如 `Li-O_FSI` 表示每个所选 Li 的 O_FSI atom
-contact 数；除非每个 FSI 只选一个代表原子，否则它不是不同 FSI 阴离子数。MDHelper 不会
+contact 数。每个 FSI 只选一个代表原子时，该值才等同于不同 FSI 阴离子数。MDHelper 不会
 静默把 atom contact 改成 molecule count。
 
 累积分析必须显式运行或加载。RDF 结果只含 `g(r)`，不会隐式附带 `N(r)`。
 
 ## GROMACS 后端
 
-`backend = gromacs` 时，存储的累计 sample 直接来自同一次 `gmx rdf` 的 `-cn` 输出；该次
+`analysis_backend = gromacs` 时，存储的累计 sample 直接来自同一次 `gmx rdf` 的 `-cn` 输出；该次
 运行也生成用于第一壳层诊断的 RDF。MDHelper 把 XVG 标准化为
 `radius_nm,cumulative_number`，不积分 `g(r)`，也不重算 pair count。该分支的累计定义、
 grid、PBC 和 endpoint 由 GROMACS 决定；精确 Python 帧切片、selection syntax 和
@@ -58,8 +58,8 @@ self pair、非法 box/径向参数或超过一百万 RDF sample 会产生可行
 ## 第一壳层 coordination number
 
 `N(r)` 是非递减累计曲线；全局最小值通常位于零距离端，全局最大值通常位于
-`r_max_nm`。二者都不是自动有化学意义的壳层 coordination number，因此 MDHelper 不用全局
-极值或终点值总结曲线。
+`r_max_nm`。全局极值与终点值缺少自动化学意义，因此 MDHelper 不用这些值总结壳层
+coordination number。
 
 第一壳层报告遵循常用电解液模拟约定：
 

@@ -18,6 +18,7 @@ from mdhelper.project import Project
 class IntegrationUseCases:
     def __init__(self, context: ApplicationContext):
         self.context = context
+        self._configured: set[str] = set()
 
     def detect(
         self,
@@ -25,7 +26,14 @@ class IntegrationUseCases:
         override: str | None = None,
         config: IntegrationConfig | None = None,
     ) -> IntegrationStatus:
+        self._configured.add(name.casefold())
         return self.context.integrations.detect(name, override, config)
+
+    def is_configured(self, name: str) -> bool:
+        key = name.casefold()
+        return key in self._configured or bool(
+            self.context.config.integration(key).path.strip()
+        )
 
     def configure(self, configs: dict[str, IntegrationConfig]) -> None:
         normalized: dict[str, IntegrationConfig] = {}
@@ -34,6 +42,9 @@ class IntegrationUseCases:
             self.context.integrations.registry.get(key)
             normalized[key] = config
         self.context.config.integrations.update(normalized)
+        self._configured.update(
+            name for name, config in normalized.items() if config.path.strip()
+        )
         self.context.integrations.invalidate(tuple(normalized))
 
     def status(self, name: str) -> IntegrationStatus:
@@ -84,8 +95,8 @@ class IntegrationUseCases:
                 timeout_seconds,
                 cancel_event,
                 output_files,
-                input_text,
-                required,
+                input_text=input_text,
+                required_capabilities=required,
             )
         except MDHelperError as exc:
             integration_run = (exc.details or {}).get("integration_run")

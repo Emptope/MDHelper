@@ -38,8 +38,8 @@ class ApplicationService:
         loader = (
             trajectory_loader
             if trajectory_loader is not None
-            else lambda topology, trajectory, backend: load_source(
-                topology, trajectory, backend, integrations
+            else lambda topology, trajectory, backend, cancel_event, progress: load_source(
+                topology, trajectory, backend, integrations, cancel_event, progress
             )
         )
         self.context = ApplicationContext(

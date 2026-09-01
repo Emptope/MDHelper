@@ -6,13 +6,16 @@ from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
+from threading import Event
 from typing import cast
 
 from mdhelper.backends.trajectory import load_trajectory
 from mdhelper.core.errors import BackendError
+from mdhelper.core.progress import ProgressCallback
 from mdhelper.core.species import SpeciesRoleSuggestion
 from mdhelper.core.system import Atom, SystemSummary
 from mdhelper.core.trajectory import TrajectorySource
+from mdhelper.integrations.gromacs import frame_progress, output_message
 from mdhelper.integrations.manager import IntegrationManager
 
 _TRAJECTORY_CACHE: ContextVar[str | Path | None] = ContextVar(
@@ -36,6 +39,8 @@ def load_source(
     trajectory: str,
     backend: str,
     integrations: IntegrationManager | None = None,
+    cancel_event: Event | None = None,
+    progress: ProgressCallback | None = None,
 ) -> TrajectorySource:
     """Load a trajectory behind the application-facing service boundary."""
 
@@ -44,22 +49,37 @@ def load_source(
             raise BackendError(
                 "The GROMACS trajectory backend requires the GROMACS integration."
             )
+        arguments = [
+            "trjconv",
+            "-s",
+            str(topology_path),
+            "-f",
+            str(trajectory_path),
+            "-o",
+            str(output),
+            "-ndec",
+            "6",
+        ]
+        def process_progress(_elapsed: float, stdout: str, stderr: str) -> None:
+            if progress is None:
+                return
+            message = output_message(stdout, stderr)
+            if message is None:
+                return
+            frame = frame_progress(stdout, stderr)
+            if frame is None:
+                progress(0, None, message)
+                return
+            progress(frame[0] + 1, None, message)
+
         record = integrations.run(
             "gromacs",
-            [
-                "trjconv",
-                "-s",
-                str(topology_path),
-                "-f",
-                str(trajectory_path),
-                "-o",
-                str(output),
-                "-ndec",
-                "6",
-            ],
+            arguments,
             output.parent,
+            cancel_event=cancel_event,
             output_files=[output],
             input_text="0\n",
+            process_progress=process_progress,
             required_capabilities=("trjconv",),
         )
         if record.status != "completed":

@@ -8,6 +8,40 @@ from pathlib import Path
 
 from mdhelper.integrations.models import IntegrationAdapter
 
+_FRAME_PROGRESS = re.compile(
+    r"(?i)(?:reading|last)\s+frame\s+(\d+)\s+time\s+([-+0-9.eE]+)"
+)
+_ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def _output_line(value: str) -> str | None:
+    for raw in reversed(value.splitlines()):
+        line = _ANSI.sub("", raw)
+        line = "".join(" " if ord(character) < 32 else character for character in line)
+        if line := line.strip():
+            return line
+    return None
+
+
+def output_message(stdout: str, stderr: str) -> str | None:
+    line = _output_line(stderr) or _output_line(stdout)
+    return f"GROMACS: {line}" if line is not None else None
+
+
+def frame_progresses(stdout: str, stderr: str) -> tuple[tuple[int, float], ...]:
+    values: list[tuple[int, float]] = []
+    for match in _FRAME_PROGRESS.finditer(f"{stdout}\n{stderr}"):
+        try:
+            values.append((int(match.group(1)), float(match.group(2))))
+        except ValueError:
+            continue
+    return tuple(values)
+
+
+def frame_progress(stdout: str, stderr: str) -> tuple[int, float] | None:
+    values = frame_progresses(stdout, stderr)
+    return values[-1] if values else None
+
 
 class GromacsAdapter(IntegrationAdapter):
     name = "gromacs"

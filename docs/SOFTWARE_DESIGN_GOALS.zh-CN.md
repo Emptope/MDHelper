@@ -8,13 +8,13 @@
 实现的功能写成当前能力。
 
 0.1.0 是最初开发版本，不承担历史 API、文件格式或行为兼容义务。需要改变错误的早期设计
-时，应直接更新实现、契约、schema、文档和测试，而不是叠加兼容分支。版本号仍必须在所有
+时，应直接更新实现、契约、schema、文档和测试，禁止叠加兼容分支。版本号仍必须在所有
 发行入口保持一致。
 
 ## 1. 产品任务与范围
 
 MDHelper 的当前任务是把轨迹或 EDR 输入、原子或 energy term 选择、分析计算、结果解释、
-项目保存和多前端操作组成一个可复现的完整闭环，而不是追求分析类型数量。
+项目保存和多前端操作组成一个可复现的完整闭环。分析类型数量不作为产品目标。
 
 0.1.0 的闭环包含：
 
@@ -29,9 +29,9 @@ load trajectory or EDR input
   -> reload, inspect, and plot the same result
 ```
 
-支持的产品形态是 Linux TUI/CLI 和 Windows TUI/CLI/GUI。外部 GROMACS 可作为显式、可审计
-的 RDF/CN、Energy 后端和 trajectory adapter；request 与结果必须记录所选后端，不能隐藏
-调用。
+支持的产品形态是 Linux TUI/CLI 和 Windows TUI/CLI/GUI。Native、MDAnalysis 和可选
+GROMACS 都是显式、可审计且互不混用的完整分析流水线；request 与结果必须记录请求及解析
+出的 Backend，不能隐藏调用。
 
 ## 2. 目标优先级
 
@@ -153,7 +153,7 @@ load trajectory or EDR input
 - 物种角色建议依据分子净电荷和数量，使用 0.25 e 容差；模糊结果需要用户确认；
 - 第一配位壳诊断依据已计算 RDF 的平滑峰谷，只作为运行后解释信息。
 
-角色不改变原子选择或算法。第一壳层诊断不改变 RDF/CN 数组，也不是 `r_max` 推荐器。
+角色不改变原子选择或算法。第一壳层诊断不改变 RDF/CN 数组，`r_max` 始终由用户决定。
 当前没有通用 `ParameterRecommender`。
 
 ### 验收标准
@@ -206,7 +206,7 @@ load trajectory or EDR input
 
 - 输入文件和结果文件使用 SHA-256；
 - 记录 MDHelper、Python、关键依赖和平台版本；
-- request、diagnostics 和 provenance 共同记录轨迹 reader、选择证据、物种角色、参数决策和帧审计；
+- request、diagnostics 和 provenance 共同记录请求及解析出的 Backend、选择证据、物种角色、参数决策和帧审计；
 - 项目移动后只按相同 hash 重连输入；
 - 每个项目结果条目都必须包含结果 hash；项目加载时重新验证全部 hash 和结果契约。
 
@@ -214,7 +214,7 @@ load trajectory or EDR input
 
 - 路径相同但内容变化可以被检测；
 - 路径变化但内容相同可以安全恢复；
-- `auto` reader 最终选中的实际后端可追踪；
+- Auto 最终选中的完整 Backend 可追踪；
 - 实际消费帧数与请求范围可核对；
 - 外部工具若参与辅助流程，其身份、版本、argv、退出码和输出 hash 可记录。
 
@@ -237,7 +237,7 @@ load trajectory or EDR input
 - 任意写入失败后，旧版本仍可打开或失败原因明确；
 - 项目不能引用根目录外的结果文件；
 - 未完成任务不会进入 manifest；
-- 手工修改结果后加载失败而不是静默接受；
+- 手工修改结果后必须明确加载失败；
 - `cache/` 只保存可重建的 XDR 帧偏移等性能数据，不保存分析结果；删除后重建且不改变语义。
 
 ## 11. G9：资源使用有界且任务可取消
@@ -260,33 +260,33 @@ load trajectory or EDR input
 
 ### 验收标准
 
-- 峰值 pair 内存由配置上限约束，而非原子对总数决定；
+- 配置上限决定峰值 pair 内存，原子对总数不改变该上限；
 - 删除或失效的 XDR 帧偏移只触发重扫，不改变分析结果；
 - 取消后 task 状态明确，不写结果、不提交项目；
 - 进度单调且能区分运行、成功、失败、取消；
 - 外部进程取消时先 terminate、等待后再 kill；超时时直接 kill；
 - 新的长循环必须增加取消点和进度测试。
 
-## 12. G10：轨迹后端行为确定
+## 12. G10：完整 Backend 行为确定
 
 ### 目标
 
-相同请求的 Backend 选择必须可预测。trajectory adapter 负责格式和单位；analysis backend
-决定由进程内方法或显式 GROMACS 原生命令生成数据，并必须进入 provenance。
+相同请求的 Backend 选择必须可预测。一个已注册 adapter 负责所支持分析的 reader、selection、
+frame handling 与 computation，并必须进入 provenance。同一次尝试禁止混合不同 Backend 的组件。
 
 ### 当前机制
 
-- `native` 强制原生 GRO reader；
-- `mdanalysis` 强制 MDAnalysis adapter；
-- `gromacs` RDF/CN 把原输入直接传给 `gmx rdf`/`-cn`，其他轨迹分析使用 GROMACS conversion adapter；
-- `auto` 在 topology 和 trajectory 都为 GRO 时用 native，否则用 MDAnalysis；
-- `auto` 不在解析异常后悄悄 fallback；
-- 两个后端都输出 nm、ps、盒矩阵和稳定原子身份。
+- `native` 固定使用 Native GRO reader、NDX selection 和 Native 径向算法；
+- `mdanalysis` 固定使用 MDAnalysis reader、selection、frame handling、distance 与 Energy；
+- `gromacs` 默认把原输入直接传给 `gmx rdf`，仅 cumulative RDF 添加 `-cn`；有限抽样范围只用一次 `gmx trjconv -fr`，并使用 GROMACS selection 与 `gmx energy`；
+- `auto` 按 adapter 声明的优先级选择完整策略；source 加载失败时可尝试下一条完整策略；
+- 显式 Backend 不 fallback；一次尝试内不混用；
+- 所有 Backend 都输出统一的 nm、ps 与结果契约。
 
 ### 验收标准
 
-- reader 决策有单元测试并进入 provenance；
-- native 拒绝不支持输入，而不是猜测；
+- requested/resolved Backend 决策有单元测试并进入 provenance；
+- native 明确拒绝不支持的输入；
 - 多帧 GRO 的原子数和身份变化会失败；
 - MDAnalysis 的埃到 nm 转换和三斜盒转换有测试；
 - 同一可表达体系在不同后端的分析结果满足明确数值容差。
@@ -308,7 +308,7 @@ CLI、TUI 和 GUI 可以有适合媒介的交互，但不能拥有不同的分�
 ### 验收标准
 
 - 同一配置跨入口形成等价 request；
-- 前端测试验证 request，而不是只验证控件存在；
+- 前端测试同时验证 request 和控件行为；
 - CLI stdout 可直接被 JSON 消费者解析；
 - TUI 的不同分析草稿不会串扰；
 - GUI 主线程保持响应，错误回到主线程呈现；
@@ -318,7 +318,7 @@ CLI、TUI 和 GUI 可以有适合媒介的交互，但不能拥有不同的分�
 
 ### 目标
 
-绘图是结果的可重复视图，而不是结果数据的第二个存储位置。标题、配色、可见性和坐标
+绘图提供结果的可重复视图，结果数据只保存在结果契约中。标题、配色、可见性和坐标
 范围可以改变，但不能改写结果数组。
 
 ### 当前机制
@@ -360,8 +360,8 @@ CLI、TUI 和 GUI 可以有适合媒介的交互，但不能拥有不同的分�
 - 不通过 shell 拼接用户输入；
 - 可执行路径和 argv 保持独立；
 - 超时、取消、启动失败和非零退出可区分；
-- 外部工具只有在明确选择 GROMACS 后端，或命中已声明的 Energy `auto` 回退时才能产生
-  结果数据；实际后端必须记录；
+- 外部工具只有在明确选择 GROMACS，或 Auto 选中完整 GROMACS 流水线时才能产生结果数据；
+  实际 Backend 必须记录；
 - 新工具复用 runtime，不复制子进程管理代码。
 
 ## 16. G14：配置和模板可验证、可迁移环境
@@ -440,10 +440,9 @@ CLI、TUI 和 GUI 可以有适合媒介的交互，但不能拥有不同的分�
 | 统一入口 | 无参数优先 GUI、不可用时降级 TUI；显式模式选择 GUI/TUI/CLI | 单一产物不混合表现层实现。 |
 | 桌面入口 | Windows GUI，Linux 可选 GUI | Windows 默认提供，Linux wheel 不强制 Qt。 |
 | 产物大小 | 每个发布产物不超过 256 MB | 防止重复 runtime 和无用依赖回归。 |
-| 分析后端 | 进程内实现；显式 GROMACS RDF/CN 与 Energy | 后端选择可测试、可复现并完整记录。 |
-| 轨迹 reader | `auto`、`native`、`mdanalysis`、`gromacs` | 兼顾 GRO 轻量路径、通用格式和原生工具。 |
-| `auto` 语义 | 双 GRO 用 native，否则 MDAnalysis | 确定性强，不做异常后静默回退。 |
-| 选择 | NDX 或静态 MDAnalysis 表达式 | 结果在运行中固定、可记录。 |
+| 分析 Backend | Native、MDAnalysis、GROMACS 三条完整流水线 | reader、selection、frame/computation 不混用，选择可测试、可复现并完整记录。 |
+| Auto 语义 | 按 adapter 优先级选择可用完整策略 | source 加载失败可尝试下一条完整策略，显式选择不 fallback。 |
+| 选择 | Native 仅 NDX；MDAnalysis 使用 NDX 或静态 MDAnalysis 表达式；GROMACS 使用 NDX 或 GROMACS expression | 语法所有权明确，结果在运行中固定、可记录。 |
 | 分析参数 | 请求显式给出 | 避免不可审计的参数推断。 |
 | 角色识别 | 基于电荷/数量的建议并需确认 | 不把命名习惯误当化学事实。 |
 | 第一壳层 | 运行后诊断 | 不影响原始曲线和请求参数。 |
@@ -451,8 +450,8 @@ CLI、TUI 和 GUI 可以有适合媒介的交互，但不能拥有不同的分�
 | 并发 | 默认单分析工作线程 | GUI 响应且资源使用有界。 |
 | 绘图配色 | Residue name / Fixed color | 聚合序列有稳定、明确的颜色键。 |
 | 不确定度 | 当前未实现 | 不在无验证方法时提供伪精度。 |
-| GROMACS | 可选后端 | RDF/CN 显式使用 `gmx rdf`/`-cn`；Energy 显式选择或 `auto` 回退时使用 `gmx energy`，命令完整审计。 |
-| 缓存 | 仅缓存可重建性能数据 | XDR 帧偏移使用项目或轨迹旁的 `cache/`；不缓存分析结果。 |
+| GROMACS | 可选完整 Backend | RDF 使用 `gmx rdf -o`，cumulative RDF 添加 `-cn`，抽样范围可用 `gmx trjconv -fr`，Energy 使用 `gmx energy`，命令完整审计。 |
+| 缓存 | 仅缓存可重建工作数据 | 项目中的 XDR 帧偏移和 GROMACS 工作文件统一使用项目 `cache/`；不缓存规范分析结果。 |
 
 ## 20. 非目标与已知限制
 
@@ -516,6 +515,5 @@ CLI、TUI 和 GUI 可以有适合媒介的交互，但不能拥有不同的分�
 9. 新资源是否进入 wheel 和冻结包？
 10. 方法、验证、限制和用户文档是否与实现同步？
 
-只有代码、测试、契约和文档共同闭环，功能才算完成。MDHelper 的核心质量标准不是界面上
-出现了多少分析按钮，而是相同输入和显式决策能否稳定地产生可解释、可审计、可恢复的
-分析结果。
+只有代码、测试、契约和文档共同闭环，功能才算完成。MDHelper 的核心质量标准要求相同输入
+和显式决策稳定地产生可解释、可审计、可恢复的分析结果。

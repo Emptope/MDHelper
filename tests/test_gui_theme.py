@@ -11,7 +11,6 @@ pytest.importorskip("PySide6", reason="GUI dependencies are not installed")
 
 from PySide6.QtCore import QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QFont, QFontDatabase, QPalette, QWheelEvent
-from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -34,6 +33,7 @@ from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import InputError
 from mdhelper.core.plotting import PlotLimits
 from mdhelper.core.system import FrameRange
+from mdhelper.gui.analysis import AnalysisPanel
 from mdhelper.gui.choices import choice_enabled
 from mdhelper.gui.dialogs import IntegrationsDialog
 from mdhelper.gui.fonts import configure_ui_font
@@ -96,22 +96,39 @@ def _tone_pixels(widget: QWidget, light: bool) -> int:
     return sum(value > 200 if light else value < 80 for value in values)
 
 
+def test_analysis_progress_leaves_busy_state_when_a_task_stops() -> None:
+    panel = AnalysisPanel()
+
+    panel.set_running(True)
+    assert panel.progress.minimum() == 0
+    assert panel.progress.maximum() == 0
+
+    panel.set_running(False)
+
+    assert panel.progress.maximum() == 100
+    assert panel.progress.value() == 0
+    assert panel.run_button.isEnabled()
+    assert not panel.cancel_button.isEnabled()
+    panel.close()
+
+
 def test_input_and_rdf_labels_use_public_terminology() -> None:
     inputs = InputPanel()
     form = inputs.layout()
     assert isinstance(form, QFormLayout)
     assert form.labelForField(inputs.index_file).text() == "Index file"
-    assert [
-        inputs.backend.itemText(index) for index in range(inputs.backend.count())
-    ][:3] == ["Auto", "MDHelper GRO Reader", "MDAnalysis"]
-    inputs.set_backend("mdanalysis")
-    assert inputs.backend.currentText() == "MDAnalysis"
-    assert inputs.backend_value() == "mdanalysis"
+    assert not hasattr(inputs, "backend")
     assert all(
         button.text() != "Inspect loaded system" for button in inputs.findChildren(QPushButton)
     )
 
     parameters = ParameterPanel()
+    assert [
+        parameters.analysis_backend.itemText(index)
+        for index in range(parameters.analysis_backend.count())
+    ][:3] == ["Automatic", "Native", "MDAnalysis"]
+    parameters.set_analysis_backend("mdanalysis")
+    assert parameters.analysis_backend_value() == "mdanalysis"
     assert [
         parameters.analysis_choice.itemText(index)
         for index in range(parameters.analysis_choice.count())
@@ -149,6 +166,15 @@ def test_selection_hints_follow_expression_source_and_use_a_table() -> None:
     assert not parameters.rdf_inputs.hint_button.isHidden()
     assert not parameters.cn_inputs.hint_button.isHidden()
 
+    parameters.set_gromacs_configured(True)
+    parameters.set_gromacs_available(True)
+    parameters.set_analysis_backend("gromacs")
+    assert parameters.rdf_inputs.hint_button.isHidden()
+    assert parameters.cn_inputs.hint_button.isHidden()
+    parameters.set_analysis_backend("mdanalysis")
+    assert not parameters.rdf_inputs.hint_button.isHidden()
+    assert not parameters.cn_inputs.hint_button.isHidden()
+
     parameters.rdf_inputs.hint_button.click()
     dialog = parameters._hint_dialog
     assert dialog is not None
@@ -165,29 +191,54 @@ def test_selection_hints_follow_expression_source_and_use_a_table() -> None:
     dialog.close()
 
 
-def test_gromacs_backend_availability_does_not_hide_energy_analysis() -> None:
+def test_selection_source_language_follows_the_complete_backend() -> None:
     inputs = InputPanel()
+
+    inputs.set_analysis_backend("mdanalysis")
+    expression = inputs.selection_source.findData("expression")
+    assert inputs.selection_source.itemText(expression) == (
+        "MDAnalysis selection expressions"
+    )
+    assert choice_enabled(inputs.selection_source, "expression")
+
+    inputs.set_analysis_backend("gromacs")
+    assert inputs.selection_source.itemText(expression) == (
+        "GROMACS selection expressions"
+    )
+    assert choice_enabled(inputs.selection_source, "expression")
+
+    inputs.selection_source.setCurrentIndex(expression)
+    inputs.set_analysis_backend("native")
+    assert not choice_enabled(inputs.selection_source, "expression")
+    assert inputs.selection_source.currentData() == "index"
+    inputs.close()
+
+
+def test_gromacs_backend_availability_does_not_hide_energy_analysis() -> None:
     parameters = ParameterPanel()
 
-    inputs.set_gromacs_available(False)
+    assert parameters.analysis_backend.findData("gromacs") == -1
+    parameters.set_gromacs_configured(True)
+    parameters.set_gromacs_available(False)
 
-    assert not choice_enabled(inputs.backend, "gromacs")
+    assert not choice_enabled(parameters.analysis_backend, "gromacs")
     assert choice_enabled(parameters.analysis_choice, "energy")
-    assert "Unavailable" in inputs.backend.itemText(inputs.backend.findData("gromacs"))
+    assert "Unavailable" in parameters.analysis_backend.itemText(
+        parameters.analysis_backend.findData("gromacs")
+    )
     with pytest.raises(InputError, match="unavailable"):
-        inputs.set_backend("gromacs")
+        parameters.set_analysis_backend("gromacs")
 
-    inputs.set_gromacs_available(True)
-    inputs.set_backend("gromacs")
+    parameters.set_gromacs_available(True)
+    parameters.set_analysis_backend("gromacs")
     parameters._set_analysis("energy")
 
-    assert inputs.backend_value() == "gromacs"
+    assert parameters.analysis_backend_value() == "gromacs"
     assert parameters.analysis_choice.currentData() == "energy"
-    inputs.close()
     parameters.close()
 
 
-def test_main_window_maps_gromacs_capabilities_to_independent_choices(
+def test_main_window_hides_unconfigured_gromacs_backend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -199,13 +250,8 @@ def test_main_window_maps_gromacs_capabilities_to_independent_choices(
     )
 
     window = MainWindow()
-    for _attempt in range(100):
-        QApplication.processEvents()
-        if not choice_enabled(window.load.inputs.backend, "gromacs"):
-            break
-        QTest.qWait(1)
 
-    assert not choice_enabled(window.load.inputs.backend, "gromacs")
+    assert window.analysis.parameters.analysis_backend.findData("gromacs") == -1
     assert choice_enabled(window.analysis.parameters.analysis_choice, "energy")
     window.task_controller.shutdown()
     window.close()
@@ -653,7 +699,6 @@ def test_selection_series_builds_requests_with_independent_parameters() -> None:
         "trajectory": "trajectory",
         "index_file": None,
         "frames": FrameRange(),
-        "backend": "auto",
         "species_roles": {},
         "parameter_provenance": {"species_roles": {}},
     }
@@ -1099,7 +1144,6 @@ def test_energy_terms_are_selected_through_an_ordered_queue() -> None:
             "trajectory": "",
             "index_file": None,
             "frames": FrameRange(),
-            "backend": "auto",
             "species_roles": {},
             "parameter_provenance": {},
         }
@@ -1118,10 +1162,12 @@ def test_energy_file_selection_automatically_reloads_terms_without_button(
     second.write_bytes(b"second")
     window = MainWindow()
     panel = window.analysis.parameters
-    calls: list[tuple[str, str]] = []
+    calls: list[tuple[str, str, object]] = []
 
-    def terms(path: str, backend: str) -> tuple[str, ...]:
-        calls.append((path, backend))
+    def terms(
+        path: str, backend: str, *, cache_dir: object = None
+    ) -> tuple[str, ...]:
+        calls.append((path, backend, cache_dir))
         return ("Potential", "Temperature") if path == str(first) else ("Pressure",)
 
     monkeypatch.setattr(window.application.analyses, "energy_terms", terms)
@@ -1130,7 +1176,7 @@ def test_energy_file_selection_automatically_reloads_terms_without_button(
     panel.energy_file.edit.setText(str(first))
     panel.energy_file.path_selected.emit(str(first))
 
-    assert calls == [(str(first), "auto")]
+    assert calls == [(str(first), "auto", None)]
     assert panel.energy_queue.available.count() == 2
     panel.energy_queue.add_all()
     assert panel.energy_queue.items() == ("Potential", "Temperature")
@@ -1140,10 +1186,10 @@ def test_energy_file_selection_automatically_reloads_terms_without_button(
     assert panel.energy_queue.available.count() == 0
     assert panel.energy_queue.items() == ()
     panel.energy_file.path_selected.emit(str(second))
-    assert calls == [(str(first), "auto"), (str(second), "auto")]
+    assert calls == [(str(first), "auto", None), (str(second), "auto", None)]
     assert panel.energy_queue.available.item(0).text() == "Pressure"
-    window.load.inputs.set_backend("mdanalysis")
-    assert calls[-1] == (str(second), "mdanalysis")
+    panel.set_analysis_backend("mdanalysis")
+    assert calls[-1] == (str(second), "mdanalysis", None)
     assert all(
         button.text() != "Load Energy Terms"
         for button in panel.findChildren(QPushButton)

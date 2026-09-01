@@ -13,9 +13,9 @@ energy 数据提取。
 
 - TUI、CLI 和 GUI 共用同一套分析实现；
 - 以流式方式分析大型轨迹，并限制成对距离计算的内存占用；
-- MDHelper GRO Reader 支持单帧和多帧 GRO，可通过 MDAnalysis 读取 TPR/GRO 与 XTC/TRR，也可选用
-  GROMACS 原生 trajectory、RDF/CN 和 Energy 后端；
-- 支持精确的 GROMACS NDX 组或显式的静态 MDAnalysis 选择表达式；
+- 提供互不混用的 Native、MDAnalysis 和可选 GROMACS 三条完整分析流水线；
+- Native 使用 MDHelper GRO Reader 和精确 NDX 组，MDAnalysis 支持更多轨迹格式与静态表达式，
+  GROMACS 使用自身完成输入处理和分析；
 - 支持正交和三斜周期性边界条件；
 - 提供可移动、可校验输入指纹的项目，集中保存结果数据、分析历史和绘图状态；
 - 导出完整 JSON 元数据、CSV 数据与 PNG/SVG/PDF 图像；
@@ -86,7 +86,7 @@ uv run mdhelper analyze rdf \
   --index index.ndx \
   --reference "Cations" \
   --selection "Solvent oxygen" \
-  --backend gromacs \
+  --analysis-backend gromacs \
   --r-max 1.0 \
   --bin-width 0.002 \
   --output results/rdf
@@ -100,6 +100,7 @@ uv run mdhelper analyze cumulative-rdf \
   --trajectory md.xtc \
   --reference "resname LI" \
   --selection "resname SOL and name O" \
+  --analysis-backend mdanalysis \
   --r-max 1.0 \
   --bin-width 0.002 \
   --output results/cn
@@ -119,7 +120,8 @@ term 菜单。`auto` 优先使用 MDAnalysis；只有 MDAnalysis 无法读取且
 capability 时才回退到 GROMACS。用户从可选列表将 term 加入有序分析队列，无需手工输入
 逗号分隔的名称。
 
-所有径向分析命令还支持 `--start`、`--stop`、`--stride`、`--backend` 和 `--figures false`。
+所有径向分析命令还支持 `--start`、`--stop`、`--stride`、`--analysis-backend` 和
+`--figures false`。
 
 ## 分析类型
 
@@ -134,13 +136,20 @@ capability 时才回退到 GROMACS。用户从可选列表将 term 加入有序�
 
 ## 输入与选择
 
-MDHelper GRO Reader 支持单帧或多帧 `.gro` 文件。MDAnalysis 支持以 `.tpr` 或 `.gro` 为拓扑、
-以 `.xtc` 或 `.trr` 为轨迹。可选的 `gromacs` 轨迹后端通过 Integrations 运行
-`gmx trjconv`，转换为标准多帧 GRO 后复用原生读取器。格式兼容性可能取决于安装的
-MDAnalysis 或 GROMACS 版本；例如较新的 TPR 可能需要兼容的 GRO 拓扑快照。
-显式 GROMACS RDF/CN 不经过这个转换 adapter：`gmx rdf` 直接读取原 topology 和 trajectory；
-stride 帧范围通过 `gmx trjconv -fr` 把精确的零基帧索引物化为临时 XTC，同时 `gmx rdf`
-继续使用原 topology。
+Backend 表示包含文件 reader 在内的完整分析流水线：
+
+| Backend | 完整流水线 |
+| --- | --- |
+| Native | MDHelper GRO Reader、精确 NDX 组、Native 帧迭代和径向距离计算 |
+| MDAnalysis | MDAnalysis reader、NDX 组或静态 MDAnalysis 表达式、MDAnalysis 帧处理和径向距离计算，以及用于 Energy 的 `EDRReader` |
+| GROMACS | NDX 组或 GROMACS selection expression、直接用于 RDF/CN 的 `gmx rdf`、抽样帧子集所需的可选 `gmx trjconv -fr`，以及用于 Energy 的 `gmx energy` |
+| Auto | 为请求选择第一个可用的完整流水线，绝不组合不同 Backend 的组件 |
+
+Native 支持单帧或多帧 GRO topology/trajectory 组合，并要求 NDX 文件。MDAnalysis 支持以
+`.tpr` 或 `.gro` 为 topology、以 `.xtc` 或 `.trr` 为 trajectory。格式兼容性由所选流水线
+的软件版本决定。默认全帧范围下，GROMACS 流水线把原 topology 和 trajectory 直接传给
+`gmx rdf`。显式有限抽样帧范围只运行一次 `gmx trjconv -fr`，生成精确零基帧索引的临时
+XTC，`gmx rdf` 保留原 topology。
 
 GROMACS 按原子索引将 structure/topology 与 XTC 轨迹对应。XTC 提供按顺序排列的
 坐标、原子数、step、time 和 box；原子与残基元数据来自 structure/topology。GROMACS
@@ -152,9 +161,9 @@ topology.tpr` 还可通过键长异常发现部分顺序问题。详见 GROMACS 
 格式](https://manual.gromacs.org/current/reference-manual/file-formats.html#xtc) 与 [`gmx
 check`](https://manual.gromacs.org/current/onlinehelp/gmx-check.html)。
 
-推荐使用 GROMACS `.ndx` 组。提供 `--index` 后，每个选择参数都是区分大小写的精确组名；
-没有 index 文件时，显式 GROMACS RDF/CN 使用 GROMACS selection expression，内置轨迹分析
-使用静态 MDAnalysis atom-selection expression。
+提供 `--index` 后，每个选择参数都是区分大小写的精确组名；Native 要求使用该模式。
+没有 index 文件时，MDAnalysis 使用静态 MDAnalysis atom-selection expression，GROMACS
+RDF/CN 使用 GROMACS selection expression。
 
 开始流式读取轨迹之前，所有选择都会解析为固定的原子身份。因此程序会拒绝 `around`、
 `sphzone`、`prop` 等依赖坐标的表达式。支持的语法与校验规则见
@@ -190,7 +199,8 @@ uv run mdhelper project show --path analysis-project
 项目路径必须不存在或为空。向 `inspect` 或 `analyze` 子命令传入
 `--project analysis-project`，即可在适用时复用经过校验的输入，并在成功后提交结果。
 Energy 提交会把 EDR 文件作为带指纹的 `energy` 输入加入项目。项目可以移动；只有输入
-文件的 SHA-256 指纹仍然匹配时，MDHelper 才会重新连接这些文件。
+文件的 SHA-256 指纹仍然匹配时，MDHelper 才会重新连接这些文件。项目运行的全部 GROMACS
+命令工作目录和生成的源输出统一保留在当前项目的 `cache/` 目录下。
 
 Windows GUI 的 **File > New Project** 会发现所选目录直属的 `.tpr`/`.gro` topology、
 `.xtc`/`.trr`/`.gro` trajectory 和可选 `.ndx` 文件。仅有一个索引候选时会自动
@@ -201,8 +211,10 @@ Windows GUI 的 **File > New Project** 会发现所选目录直属的 `.tpr`/`.g
 **File > Open Project** 会显式打开 `mdhelper-project.json`，校验输入后恢复角色、结果与绘图状态。
 
 直接分析导出包含完整的 `result.json`、对应分析的 CSV 文件，以及默认生成的 PNG、SVG、
-PDF 图像。PNG 使用 300 DPI，SVG 和 PDF 保持矢量格式。JSON 与 CSV 数值采用稳定的
-15 位有效数字格式。
+PDF 图像。GROMACS 结果还会导出 `gmx rdf` 或 `gmx energy` 生成的未经修改的 XVG 文件。
+每次 integration 运行的完整执行命令都会写入 `result.json` 和诊断日志；运行时进度只把
+最新一行原生输出包装为 `GROMACS: ...`，不显示完整命令。JSON 与 CSV 数值采用稳定的
+15 位有效数字格式；PNG 使用 300 DPI，SVG 和 PDF 保持矢量格式。
 
 GUI 可以比较多个兼容结果，将 RDF 和 CN 组合在共享距离轴及独立 Y 轴上，编辑图例与
 颜色，设置显式坐标范围，保存绘图组合，并恢复项目中已保存的结果。每个选中的 GROMACS
@@ -240,17 +252,20 @@ uv run mdhelper integrations detect gromacs
 uv run mdhelper templates list
 ```
 
-统一 Backend 选择器仅在检测到兼容可执行文件时提供 GROMACS。显式 GROMACS RDF/CN 需要
-`rdf` capability，通用 GROMACS trajectory adapter 需要 `trjconv`，显式 GROMACS Energy
-需要 `energy` capability。没有
-GROMACS 时，Energy 仍可通过 `auto` 或 MDAnalysis 使用。缺少 capability 不会触发体系
-检查。
+仅当用户在当前会话的 Integrations 中显式执行过 GROMACS 检测，或已保存 configured
+executable 路径时，Analysis Settings 的 Backend 选择器才显示 GROMACS；该可执行文件通过
+capability 检测后选项才可用。GROMACS RDF/CN 需要 `rdf` capability，抽样帧子集额外需要
+`trjconv`；GROMACS Energy 需要 `energy`。
+没有 GROMACS 时，Energy 仍可通过 Auto 或 MDAnalysis 使用。Load 和体系检查不显示该
+选择器，也不会因分析 Backend 改变而重新加载。
 
 检测使用稳定优先级：单次运行的 `--path`、`[integrations.<name>].path`、配置的
 `search_paths`、adapter 环境路径、`PATH`、平台候选路径。GROMACS 的环境来源包括
 `MDHELPER_GROMACS` 和 `GMXBIN`。状态会记录可用性、所选路径、版本、capabilities、来源和
-全部检测尝试。`auto` 对双 GRO 选择 native，对其他受支持轨迹和 EDR 选择 MDAnalysis；
-仅当 MDAnalysis EDR 支持不可用且 `gmx energy` 可用时，Energy 才回退到 GROMACS。Windows GUI 在
+全部检测尝试。径向请求的 Auto 仅在 GRO/GRO 加 NDX 时先尝试 Native，随后是 MDAnalysis，
+最后是可用的 GROMACS 流水线；Energy 先尝试 MDAnalysis，再尝试可用的 GROMACS 流水线。
+source 加载失败时才进入下一条完整流水线，同一次尝试内绝不混用组件。结果同时记录请求的
+Backend 和实际解析出的 Backend。Windows GUI 在
 **Tools > Integrations** 仅负责软件配置与检测。检测成功后会回填可执行文件字段，
 并以可读字段显示版本、来源和 capabilities。命令执行属于分析工作流或显式 CLI
 命令，不放在该配置对话框中。**Tools > Templates** 继续提供内置文本资源。

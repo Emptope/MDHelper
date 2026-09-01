@@ -10,7 +10,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from mdhelper.core.analysis import RadialRequest
-from mdhelper.core.errors import InputError
+from mdhelper.core.errors import BackendError, InputError
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.services.selection import resolve_selections
 
@@ -292,6 +292,89 @@ def radial_profile(
     cumulative_number = (
         np.cumsum(cumulative_histogram) / total_reference_observations
     )
+    return RadialProfile(
+        grid.radius_nm,
+        rdf,
+        grid.cumulative_radius_nm,
+        cumulative_number,
+        tuple(reference),
+        tuple(selection),
+        possible_pairs,
+        normalization_pairs,
+        audit,
+        request.bin_width_nm,
+    )
+
+
+def mdanalysis_radial_profile(
+    source: TrajectorySource,
+    request: RadialRequest,
+    progress_name: str,
+    progress: ProgressCallback | None = None,
+    cancel_event: Event | None = None,
+    _max_pairs_per_chunk: int = 500_000,
+) -> RadialProfile:
+    if source.backend_name != "mdanalysis":
+        raise BackendError("The MDAnalysis analysis backend requires MDAnalysis input.")
+    try:
+        from MDAnalysis.lib.distances import capped_distance
+        from MDAnalysis.lib.mdamath import triclinic_box
+    except ImportError as exc:
+        raise BackendError("MDAnalysis is required for the MDAnalysis RDF backend.") from exc
+
+    reference, selection = resolve_selections(
+        source.atoms,
+        (request.reference, request.selection or ""),
+        index_file=request.index_file,
+    )
+    grid = radial_grid(request)
+    histogram = np.zeros(grid.fine_bins, dtype=np.float64)
+    density_sum = 0.0
+    total_reference_observations = 0
+    reference_array = np.asarray(reference, dtype=np.int64)
+    selection_array = np.asarray(selection, dtype=np.int64)
+    overlap = len(set(reference).intersection(selection))
+    possible_pairs = len(reference) * len(selection) - overlap
+    normalization_pairs = len(reference) * len(selection)
+    if possible_pairs <= 0:
+        raise InputError("The selections contain no non-self atom pairs.")
+
+    audit = FrameAudit()
+    total = selected_frame_count(source.n_frames, request.frames)
+    for frame in source.iter_frames(request.frames):
+        check_cancel(cancel_event)
+        validate_radius(request.r_max_nm, frame.box, "r_max_nm")
+        vectors = np.asarray(frame.box.vectors_nm, dtype=np.float64)
+        dimensions = triclinic_box(vectors[0], vectors[1], vectors[2])
+        pairs, distances = capped_distance(
+            frame.positions_nm[reference_array],
+            frame.positions_nm[selection_array],
+            request.r_max_nm,
+            box=dimensions,
+            return_distances=True,
+        )
+        if len(pairs):
+            keep = reference_array[pairs[:, 0]] != selection_array[pairs[:, 1]]
+            histogram += _fine_histogram(
+                np.asarray(distances[keep], dtype=np.float64), grid
+            )
+        density_sum += len(selection) / frame.box.volume_nm3
+        total_reference_observations += len(reference)
+        audit.observe(frame)
+        report_progress(progress, audit.count, total, f"{progress_name} frame {frame.index}")
+
+    rdf_histogram = _rdf_histogram(histogram, len(grid.radius_nm))
+    normalization = len(reference) * grid.shell_volumes_nm3 * density_sum
+    rdf = np.divide(
+        rdf_histogram,
+        normalization,
+        out=np.zeros_like(rdf_histogram),
+        where=normalization > 0,
+    )
+    cumulative_histogram = _cumulative_histogram(
+        histogram, len(grid.cumulative_radius_nm)
+    )
+    cumulative_number = np.cumsum(cumulative_histogram) / total_reference_observations
     return RadialProfile(
         grid.radius_nm,
         rdf,

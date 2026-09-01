@@ -12,11 +12,26 @@ from mdhelper.app import ApplicationService
 from mdhelper.app.reports import result_summary
 from mdhelper.core.system import FrameRange
 from mdhelper.gui.main import tui_command
+from mdhelper.integrations.models import IntegrationStatus
 from mdhelper.services.config import UserConfig
 from mdhelper.tui.controller import Tui
+from mdhelper.tui.formatting import draft_issues
 from mdhelper.tui.main import main
 from mdhelper.tui.model import AnalysisDraft, Workspace
 from mdhelper.tui.terminal import Terminal
+
+
+def test_native_backend_requires_an_index_in_tui_setup() -> None:
+    workspace = Workspace(topology="topology.gro", trajectory="trajectory.gro")
+    draft = AnalysisDraft("rdf", analysis_backend="native")
+    draft.reference = "reference"
+    draft.selection = "selection"
+    draft.output = "results"
+
+    assert "select an index file for the Native backend" in draft_issues(
+        draft,
+        workspace,
+    )
 
 
 def test_tui_unloaded_home_shows_only_load_actions_and_developer() -> None:
@@ -508,7 +523,39 @@ def test_tui_keeps_energy_available_through_auto_backend(monkeypatch) -> None:
     assert "RDF + CN Combined Plot" in text
 
 
-def test_tui_hides_gromacs_backend_when_integration_is_unavailable(
+def test_tui_hides_gromacs_backend_until_explicit_detection(monkeypatch) -> None:
+    application = ApplicationService(UserConfig())
+    tui = Tui(application, Terminal(StringIO(), StringIO()))
+    choices: list[tuple[tuple[str, str], ...]] = []
+
+    def choose(
+        _title: str,
+        options: tuple[tuple[str, str], ...],
+        _default: str | None = None,
+    ) -> str:
+        choices.append(options)
+        return "auto"
+
+    monkeypatch.setattr(tui.terminal, "choose", choose)
+    monkeypatch.setattr(tui.application.integrations, "supports", lambda *_args: True)
+    monkeypatch.setattr(
+        tui.application.context.integrations,
+        "detect",
+        lambda name, _override=None, _config=None: IntegrationStatus(name, True),
+    )
+    draft = AnalysisDraft("rdf")
+    try:
+        tui._edit_backend(draft)
+        tui.application.integrations.detect("gromacs")
+        tui._edit_backend(draft)
+    finally:
+        tui.tasks.shutdown()
+
+    assert all(value != "gromacs" for _label, value in choices[0])
+    assert any(value == "gromacs" for _label, value in choices[1])
+
+
+def test_tui_load_does_not_mix_analysis_backend_with_input_inspection(
     monkeypatch,
 ) -> None:
     output = StringIO()
@@ -525,9 +572,8 @@ def test_tui_hides_gromacs_backend_when_integration_is_unavailable(
     finally:
         tui.tasks.shutdown()
 
-    assert tui.workspace.backend == "auto"
     assert inspections == [None]
-    assert "GROMACS (local gmx)" not in output.getvalue()
+    assert "Backend" not in output.getvalue()
 
 
 def test_tui_discovers_and_selects_energy_terms_in_user_order(monkeypatch) -> None:
@@ -538,9 +584,12 @@ def test_tui_discovers_and_selects_energy_terms_in_user_order(monkeypatch) -> No
     )
     calls: list[str] = []
 
-    def terms(path: str, backend: str) -> tuple[str, ...]:
+    def terms(
+        path: str, backend: str, *, cache_dir: object = None
+    ) -> tuple[str, ...]:
         calls.append(path)
         assert backend == "auto"
+        assert cache_dir is None
         return ("Potential", "Temperature", "Pressure")
 
     monkeypatch.setattr(tui.application.integrations, "supports", lambda *_args: True)
@@ -573,7 +622,7 @@ def test_tui_energy_rediscovery_preserves_valid_terms_and_removes_stale_terms(
     monkeypatch.setattr(
         tui.application.analyses,
         "energy_terms",
-        lambda _path, _backend: ("Potential", "Temperature", "Pressure"),
+        lambda _path, _backend, **_kwargs: ("Potential", "Temperature", "Pressure"),
     )
     draft = AnalysisDraft(
         "energy",
@@ -601,7 +650,6 @@ def test_tui_runs_rdf_cn_and_exports_one_combined_figure(tmp_path: Path) -> None
     )
     tui.workspace.topology = str(synthetic_path)
     tui.workspace.trajectory = str(synthetic_path)
-    tui.workspace.backend = "native"
     tui.workspace.summary = summary
     tui.workspace.roles = dict.fromkeys(summary.species, "other")
     tui.workspace.role_decisions = {
@@ -665,7 +713,6 @@ def test_tui_setup_runs_shared_analysis(tmp_path: Path) -> None:
     )
     tui.workspace.topology = str(synthetic_path)
     tui.workspace.trajectory = str(synthetic_path)
-    tui.workspace.backend = "native"
     tui.workspace.summary = summary
     tui.workspace.roles = dict.fromkeys(summary.species, "other")
     tui.workspace.role_decisions = {

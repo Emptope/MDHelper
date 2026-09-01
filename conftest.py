@@ -20,7 +20,7 @@ def energy_result() -> AnalysisResult:
         analysis_type="energy",
         energy_file="energy.edr",
         energy_terms=("Potential", "Temperature", "Pressure"),
-        backend="gromacs",
+        analysis_backend="gromacs",
     )
     return AnalysisResult(
         analysis_type="energy",

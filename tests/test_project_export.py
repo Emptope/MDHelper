@@ -40,7 +40,7 @@ def test_external_request_schema_uses_analysis_specific_fields() -> None:
         analysis_type="energy",
         energy_file="energy.edr",
         energy_terms=("Potential",),
-        backend="mdanalysis",
+        analysis_backend="mdanalysis",
     )
 
     _validate_schema(energy.to_dict(), "analysis-request-v1.schema.json")

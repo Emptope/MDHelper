@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import re
-import tempfile
 from pathlib import Path
 from threading import Event
 from typing import TYPE_CHECKING
 
-from mdhelper.analysis.common import check_cancel
+from mdhelper.analysis.common import analysis_directory, check_cancel
 from mdhelper.core.analysis import AnalysisResult, EnergyRequest
 from mdhelper.core.errors import BackendError, FormatError, InputFileError
+from mdhelper.integrations.gromacs import output_message
 from mdhelper.integrations.manager import IntegrationManager
 from mdhelper.plugins.analysis import AnalysisInput
 
@@ -47,6 +47,7 @@ def gmx_terms(
     integrations: IntegrationManager,
     energy_file: str | Path,
     cancel_event: Event | None = None,
+    cache_dir: Path | None = None,
 ) -> tuple[str, ...]:
     """Ask GROMACS for every term stored in one energy file."""
 
@@ -56,8 +57,7 @@ def gmx_terms(
             f"GROMACS energy file does not exist: {source}",
             "Select an existing EDR file.",
         )
-    with tempfile.TemporaryDirectory(prefix="mdhelper-energy-terms-") as directory:
-        root = Path(directory)
+    with analysis_directory(cache_dir, "gromacs-energy-terms") as root:
         output = root / "unused.xvg"
         record = integrations.run(
             "gromacs",
@@ -184,18 +184,15 @@ def _parse_xvg(
     return time_ps, series, y_label
 
 
-class GmxEnergy:
-    name = "gromacs"
-    display_name = "GROMACS"
-    needs_trajectory = False
-
+class _GromacsEnergy:
     def terms(
         self,
         integrations: IntegrationManager,
         energy_file: str | Path,
         cancel_event: Event | None = None,
+        cache_dir: Path | None = None,
     ) -> tuple[str, ...]:
-        return gmx_terms(integrations, energy_file, cancel_event)
+        return gmx_terms(integrations, energy_file, cancel_event, cache_dir)
 
     def run(self, inputs: AnalysisInput) -> AnalysisResult:
         request = inputs.request
@@ -203,16 +200,23 @@ class GmxEnergy:
             raise BackendError("The GROMACS energy backend requires an energy request.")
         request.validate()
         source = Path(request.energy_file).expanduser().resolve()
-        with tempfile.TemporaryDirectory(prefix="mdhelper-energy-") as directory:
-            root = Path(directory)
+        with analysis_directory(inputs.cache_dir, "gromacs-energy") as root:
             output = root / "energy.xvg"
+            arguments = ["energy", "-f", str(source), "-o", str(output)]
+
+            def process_progress(_elapsed: float, stdout: str, stderr: str) -> None:
+                message = output_message(stdout, stderr)
+                if inputs.progress is not None and message is not None:
+                    inputs.progress(0, None, message)
+
             record = inputs.integrations.run(
                 "gromacs",
-                ["energy", "-f", str(source), "-o", str(output)],
+                arguments,
                 root,
                 cancel_event=inputs.cancel_event,
                 output_files=[output],
                 input_text="\n".join(request.energy_terms) + "\n\n",
+                process_progress=process_progress,
                 required_capabilities=("energy",),
             )
             if record.status != "completed":
@@ -221,6 +225,8 @@ class GmxEnergy:
                     details={"integration_run": record.to_dict()},
                 )
             time_ps, series, y_label = _parse_xvg(output, request.energy_terms)
+            with output.open("r", encoding="utf-8", errors="replace", newline="") as handle:
+                raw_output = handle.read()
         provenance = dict(inputs.provenance)
         provenance["integration_runs"] = [record.to_dict()]
         return AnalysisResult(
@@ -231,21 +237,20 @@ class GmxEnergy:
             units={"time_ps": "ps", "series": y_label},
             diagnostics={"n_samples": len(time_ps)},
             provenance=provenance,
+            artifacts={"gromacs-energy.xvg": raw_output},
             request=request.to_dict(),
         )
 
 
-class MdaEnergy:
-    name = "mdanalysis"
-    display_name = "MDAnalysis"
-    needs_trajectory = False
-
+class _MDAnalysisEnergy:
     def terms(
         self,
         _integrations: IntegrationManager,
         energy_file: str | Path,
         cancel_event: Event | None = None,
+        cache_dir: Path | None = None,
     ) -> tuple[str, ...]:
+        del cache_dir
         return mda_terms(energy_file, cancel_event)
 
     def run(self, inputs: AnalysisInput) -> AnalysisResult:

@@ -20,7 +20,7 @@ _ANALYSIS_FIELDS = {
     "analysis_id", "analysis_type", "result_sha256", "committed_at",
 }
 _RUN_FIELDS = {
-    "name", "display_name", "path", "version", "arguments", "working_directory",
+    "name", "display_name", "path", "version", "command", "arguments", "working_directory",
     "environment_summary", "exit_code", "stdout", "stderr", "started_at",
     "output_fingerprints", "elapsed_seconds", "status",
 }
@@ -136,7 +136,9 @@ def _integration_preferences(value: object) -> None:
 def _integration_run(value: object, field: str) -> None:
     record = _object(value, field)
     _fields(record, _RUN_FIELDS, _RUN_FIELDS, field)
-    for name in ("name", "display_name", "path", "version", "working_directory"):
+    for name in (
+        "name", "display_name", "path", "version", "command", "working_directory"
+    ):
         _string(record[name], f"{field}.{name}")
     for name in ("stdout", "stderr"):
         if not isinstance(record[name], str):

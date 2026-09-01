@@ -25,8 +25,8 @@ slab、非周期、取向、质心、site-exclusion 或仅分子间 RDF。
 
 ## 选择、帧、单位和 PBC
 
-进程内选择按共享静态契约解析一次。有 `.ndx` 时 request 值是精确组名，否则是显式
-MDAnalysis expression。GROMACS RDF 使用同样的精确 NDX 名；没有 NDX 时使用显式
+Native 要求提供 `.ndx`，request 值是精确组名。MDAnalysis 有 NDX 时使用相同的精确组名，
+否则接受静态 MDAnalysis expression。GROMACS RDF 使用精确 NDX 名；没有 NDX 时使用显式
 GROMACS selection expression。帧采样始终遵循 Python slicing：`start` 是包含的零基索引，
 `stop` 是不包含的结束位置，`stride` 相对 `start` 应用。
 
@@ -37,7 +37,7 @@ GROMACS selection expression。帧采样始终遵循 Python slicing：`start` �
 backend 转成 nm 后直接消费坐标，不 unwrap、center、fit 或 align。结果记录实际首末帧索引、
 时间和预处理记录。
 
-request 与 `gmx rdf` 一致记录 `bin_width_nm` 而不是 bin count。进程内算法先建立
+request 与 `gmx rdf` 一致记录 `bin_width_nm`，不使用 bin count。进程内算法先建立
 `round(2*r_max_nm/bin_width_nm)` 个半请求宽度的细 bin，再执行与 GROMACS 相同的两种重
 采样。RDF radius 为 `0,d,2d,...`；细 bin 数为 `Q` 时 RDF sample 数为
 `floor((Q+1)/2)`。请求宽度保持不变，不为了让末壳层落在 `r_max_nm` 而调整。RDF 重采样未
@@ -45,18 +45,19 @@ request 与 `gmx rdf` 一致记录 `bin_width_nm` 而不是 bin count。进程�
 
 ## GROMACS 后端
 
-`backend = gromacs` 时，存储的 `g(r)` sample 直接来自 `gmx rdf`。MDHelper 传入 `-bin`、
-`-rmax`、`-ref`、`-sel` 和可选 `-n`，同时请求 RDF 与 CN，再把 RDF XVG 标准化为
+`analysis_backend = gromacs` 时，存储的 `g(r)` sample 直接来自 `gmx rdf`。MDHelper 传入 `-bin`、
+`-rmax`、`-ref`、`-sel`、`-o` 和可选 `-n`，不请求 `-cn`，再把 RDF XVG 标准化为
 `radius_nm,g_r`。进程内 grid、shell 重采样和 normalization 遵循相同的 GROMACS 默认定义；
-外部分支的 PBC 与浮点实现仍由 GROMACS 决定。程序保持零基帧切片；stride 范围使用精确
-转换子集，不用 `gmx rdf -dt`。provenance 记录命令参数、可执行文件、版本、输出和帧审计；
+外部分支的 PBC 与浮点实现仍由 GROMACS 决定。程序保持零基帧切片；默认全帧范围直接读取
+原输入，有限抽样范围只使用一次精确转换子集，不用 `gmx rdf -dt`。provenance 记录命令
+参数、可执行文件、版本、输出和帧审计；
 MDHelper 不重算 GROMACS 曲线。由于不同 GROMACS 版本以有限精度写 XVG，Native float64
 值与序列化值仍可能在实用容差内略有差异。
 
 ## 参数与第一壳层诊断
 
-request 必须记录 `r_max_nm`、`bin_width_nm`、帧范围、reader 和完整选择来源。CLI/GUI 默认
-`1.0 nm`、`0.002 nm` 只是可见便利值，不是推断的物理事实。非法参数、超过一百万 bin、空
+request 必须记录 `r_max_nm`、`bin_width_nm`、帧范围、`analysis_backend` 和完整选择来源。CLI/GUI 默认
+`1.0 nm`、`0.002 nm` 只用于界面初始值，不能视为推断的物理事实。非法参数、超过一百万 bin、空
 选择或只有 self pair 都失败。MDHelper 不推荐 `r_max`，也不静默调整请求。进程内后端逐帧
 检查可靠最小镜像半径；GROMACS 后端把半径有效性交给 `gmx rdf`。
 

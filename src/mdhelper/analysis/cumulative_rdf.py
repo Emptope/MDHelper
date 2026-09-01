@@ -1,37 +1,25 @@
 from __future__ import annotations
 
-from threading import Event
-
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
-from mdhelper.core.errors import InputError
+from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.services.selection import selection_resolution_record
 
-from .common import ProgressCallback, preprocessing_record
-from .radial import first_shell, first_shell_warnings, radial_profile
+from .common import preprocessing_record
+from .radial import (
+    RadialProfile,
+    first_shell,
+    first_shell_warnings,
+)
 
 METHOD_VERSION = "1.0.0"
 
 
-def run_cumulative_rdf(
+def cumulative_result(
     source: TrajectorySource,
-    request: AnalysisRequest,
+    request: RadialRequest,
     provenance: dict[str, object],
-    progress: ProgressCallback | None = None,
-    cancel_event: Event | None = None,
-    max_pairs_per_chunk: int = 500_000,
+    profile: RadialProfile,
 ) -> AnalysisResult:
-    if not isinstance(request, RadialRequest):
-        raise InputError("Cumulative RDF analysis requires a radial request.")
-    request.validate()
-    profile = radial_profile(
-        source,
-        request,
-        "Cumulative RDF",
-        progress,
-        cancel_event,
-        max_pairs_per_chunk,
-    )
     shell = first_shell(profile.radius_nm, profile.rdf)
     minimum_index = shell.get("first_minimum_index")
     if type(minimum_index) is int:

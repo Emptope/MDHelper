@@ -14,10 +14,10 @@ GUI.
 
 - One analysis implementation shared by the TUI, CLI, and GUI;
 - streaming analysis of large trajectories with bounded pair-distance memory;
-- MDHelper GRO Reader support for single- and multi-frame GRO, MDAnalysis-backed TPR/GRO and
-  XTC/TRR support,
-  and optional GROMACS-native trajectory, RDF/CN, and Energy backends;
-- exact GROMACS NDX groups or explicit static MDAnalysis selections;
+- three non-mixing analysis pipelines: Native, MDAnalysis, and optional GROMACS;
+- Native support for single- and multi-frame GRO with exact NDX groups, MDAnalysis support for
+  broader trajectory formats and static expressions, and GROMACS-native input processing and
+  analyses;
 - orthorhombic and triclinic periodic boundary conditions;
 - portable, fingerprint-verified projects with consolidated result data, analysis history, and
   plot state;
@@ -93,7 +93,7 @@ uv run mdhelper analyze rdf \
   --index index.ndx \
   --reference "Cations" \
   --selection "Solvent oxygen" \
-  --backend gromacs \
+  --analysis-backend gromacs \
   --r-max 1.0 \
   --bin-width 0.002 \
   --output results/rdf
@@ -107,6 +107,7 @@ uv run mdhelper analyze cumulative-rdf \
   --trajectory md.xtc \
   --reference "resname LI" \
   --selection "resname SOL and name O" \
+  --analysis-backend mdanalysis \
   --r-max 1.0 \
   --bin-width 0.002 \
   --output results/cn
@@ -127,8 +128,8 @@ detected `gmx energy` only when MDAnalysis cannot read the file and that capabil
 Add terms from the available list to the ordered analysis queue; no comma-separated term entry is
 required.
 
-All radial analysis commands also accept `--start`, `--stop`, `--stride`, `--backend`, and
-`--figures false`.
+All radial analysis commands also accept `--start`, `--stop`, `--stride`,
+`--analysis-backend`, and `--figures false`.
 
 ## Analyses
 
@@ -143,14 +144,21 @@ The versioned method definitions and their validation evidence are published und
 
 ## Inputs and selections
 
-The MDHelper GRO Reader accepts single- or multi-frame `.gro` files. MDAnalysis supports `.tpr` or
-`.gro` topology with `.xtc` or `.trr` trajectories. The optional `gromacs` trajectory
-backend runs `gmx trjconv` through Integrations, converts to a standard multi-frame GRO file, and
-then reuses the MDHelper GRO Reader. Format compatibility can depend on the installed MDAnalysis or
-GROMACS version; in particular, a newer TPR may require a compatible GRO topology snapshot.
-Explicit GROMACS RDF/CN bypasses that conversion adapter: `gmx rdf` reads the original topology
-and trajectory directly. For a strided frame range, `gmx trjconv -fr` materializes the exact
-zero-based frame indices as a temporary XTC while `gmx rdf` keeps the original topology.
+Backend is an analysis-pipeline choice, not a file-reader choice:
+
+| Backend | Complete pipeline |
+| --- | --- |
+| Native | MDHelper GRO Reader, exact NDX groups, native frame iteration, and native radial distances |
+| MDAnalysis | MDAnalysis reader, NDX groups or static MDAnalysis expressions, MDAnalysis frame handling and radial distances, and `EDRReader` for Energy |
+| GROMACS | NDX groups or GROMACS selection expressions, direct `gmx rdf` for RDF/CN, optional `gmx trjconv -fr` for sampled frame subsets, and `gmx energy` for Energy |
+| Auto | Chooses the first available complete pipeline for the request; it never combines components from different backends |
+
+Native accepts single- or multi-frame GRO topology/trajectory pairs and requires an NDX file.
+MDAnalysis supports `.tpr` or `.gro` topology with `.xtc` or `.trr` trajectories. Format
+compatibility depends on the selected pipeline's installed software. The GROMACS pipeline passes
+the original topology and trajectory directly to `gmx rdf` for the default full frame range. An
+explicit finite sampled frame range uses `gmx trjconv -fr` once to materialize the exact zero-based
+indices as a temporary XTC while `gmx rdf` keeps the original topology.
 
 GROMACS maps a structure/topology and an XTC trajectory by atom index. The XTC supplies the
 ordered coordinates, atom count, step, time, and box; atom and residue metadata come from the
@@ -164,10 +172,9 @@ semantics](https://manual.gromacs.org/current/onlinehelp/selections.html), the [
 format](https://manual.gromacs.org/current/reference-manual/file-formats.html#xtc), and [`gmx
 check`](https://manual.gromacs.org/current/onlinehelp/gmx-check.html).
 
-GROMACS `.ndx` groups are the preferred selection source. When `--index` is present, every
-selection argument is an exact, case-sensitive group name. Without an index file, explicit
-GROMACS RDF/CN uses GROMACS selection expressions; the built-in trajectory analyses use static
-MDAnalysis atom-selection expressions.
+When `--index` is present, every selection argument is an exact, case-sensitive group name. Native
+requires this mode. Without an index file, MDAnalysis uses static MDAnalysis atom-selection
+expressions and GROMACS RDF/CN uses GROMACS selection expressions.
 
 Selections are resolved once to fixed atom identities before frames are streamed. Coordinate-
 dependent expressions such as `around`, `sphzone`, and `prop` are therefore rejected. See
@@ -204,7 +211,9 @@ uv run mdhelper project show --path analysis-project
 The project path must be new or empty. Pass `--project analysis-project` to `inspect` or an
 `analyze` subcommand to reuse its verified inputs where applicable and commit the
 completed result. Energy commits add the fingerprinted EDR file as the `energy` input. Projects
-can be moved; MDHelper reconnects inputs only when their SHA-256 fingerprints still match.
+can be moved; MDHelper reconnects inputs only when their SHA-256 fingerprints still match. All
+GROMACS command work directories and generated source outputs for project runs are retained under
+the project's `cache/` directory.
 
 In the Windows GUI, **File > New Project** discovers direct `.tpr`/`.gro` topology,
 `.xtc`/`.trr`/`.gro` trajectory, and optional `.ndx` files in a selected directory. A sole
@@ -217,8 +226,11 @@ materializes an in-place project beside the trajectory. **File > Open Project** 
 `mdhelper-project.json` and verifies its inputs before restoring roles, results, and plot state.
 
 Direct analysis exports contain a complete `result.json`, analysis-specific CSV files, and, by
-default, PNG, SVG, and PDF figures. PNG files use 300 DPI; SVG and PDF remain vector output.
-Numeric JSON and CSV values use stable 15-significant-digit formatting.
+default, PNG, SVG, and PDF figures. GROMACS results also export the unmodified XVG files produced by
+`gmx rdf` or `gmx energy`. Each integration run stores the exact executed command in `result.json`
+and the diagnostic log. Runtime progress wraps the latest native output line as `GROMACS: ...`
+instead of displaying that command. Numeric JSON and CSV values use stable 15-significant-digit
+formatting; PNG files use 300 DPI, while SVG and PDF remain vector output.
 
 The GUI can compare multiple compatible results, combine RDF and CN on a shared distance axis
 with separate Y axes, edit legends and colors, set explicit axis limits, save plot compositions,
@@ -262,18 +274,22 @@ uv run mdhelper integrations detect gromacs
 uv run mdhelper templates list
 ```
 
-The shared Backend selector offers GROMACS only when a compatible executable is detected. Explicit
-GROMACS RDF/CN requires `rdf`; the general GROMACS trajectory adapter requires `trjconv`, and
-explicit GROMACS Energy requires `energy`. Energy
-remains available through `auto` or MDAnalysis without GROMACS. Missing capabilities do not trigger
-system inspection.
+The Analysis Settings Backend selector offers GROMACS only after the user explicitly runs GROMACS
+detection under Integrations in the current session or saves a configured executable path. The
+displayed choice is enabled only after that executable passes capability detection. GROMACS RDF/CN
+requires `rdf`; sampled frame subsets additionally require `trjconv`. GROMACS Energy requires
+`energy`.
+Energy remains available through Auto or MDAnalysis without GROMACS. Load and system inspection do
+not expose this selector and do not change when an analysis backend changes.
 
 Detection uses this stable precedence: a per-run `--path`, `[integrations.<name>].path`, configured
 `search_paths`, adapter environment paths, `PATH`, then platform candidate paths. For GROMACS the
 environment sources include `MDHELPER_GROMACS` and `GMXBIN`. Status records availability, selected
-path, version, capabilities, source, and all detection attempts. `auto` deterministically chooses
-native for GRO pairs, MDAnalysis for other supported trajectories and EDR files, and falls back to
-GROMACS Energy only when MDAnalysis EDR support is unavailable and `gmx energy` is available.
+path, version, capabilities, source, and all detection attempts. For radial requests, Auto tries
+Native first only for GRO/GRO plus NDX, then MDAnalysis, then an available GROMACS pipeline. For
+Energy it tries MDAnalysis before an available GROMACS pipeline. A source-loading failure advances
+to the next complete pipeline; components are never mixed within an attempt. Results record both
+the requested and resolved backend.
 The Windows GUI configures and detects software under **Tools > Integrations**. A successful
 detection fills the configured executable field and shows readable version, source, and capability
 fields. Command execution belongs to analysis workflows or the explicit CLI command, not this

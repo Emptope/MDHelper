@@ -10,9 +10,9 @@ or release MDHelper. Analysis behavior and deterministic engineering rules are c
 ## 1. System boundary
 
 MDHelper is a Python 3.12 molecular-dynamics analysis application. Version 0.1.0 provides RDF,
-GROMACS-style cumulative RDF and EDR energy extraction. A native
-reader supports GRO trajectories; MDAnalysis supports broader topology/trajectory combinations and
-EDR files. Atom identity comes from a GROMACS NDX group or a static MDAnalysis selection expression.
+GROMACS-style cumulative RDF and EDR energy extraction. Native, MDAnalysis, and GROMACS are
+complete analysis pipelines. Each pipeline owns its input reader, selection rules, frame handling,
+and numerical or external analysis implementation.
 
 The application has three presentation adapters:
 
@@ -20,8 +20,8 @@ The application has three presentation adapters:
 - CLI: non-interactive automation;
 - GUI: the preferred argument-free interface when Qt and a display are available.
 
-All three use the same application services and contracts. GROMACS is optional: an explicit
-`gromacs` request is a native RDF, cumulative RDF, trajectory, or Energy backend.
+All three interfaces use the same application services and contracts. GROMACS is optional; an
+explicit `gromacs` request uses GROMACS input processing and GROMACS analysis commands throughout.
 
 ## 2. Dependency direction
 
@@ -131,41 +131,50 @@ Presentation calls flow through this sequence:
 presentation
   -> ApplicationService
   -> AnalysisUseCases.run(request)
-  -> trajectory loader and selection service
+  -> complete backend selection
+  -> backend-owned trajectory loader and selection path
   -> provenance builder
-  -> AnalysisRegistry.get(analysis_type)
-  -> analysis runner
+  -> backend adapter
   -> result validation
   -> caller-requested export or project commit
   -> presentation
 ```
 
-The request exposes one Backend choice. The application records the resolved analysis backend and
-trajectory adapter separately in provenance,
-fingerprints inputs, records role decisions, and validates runner output. Every Integration command
-that contributes to a result is attached as a run record with software identity, version,
-executable, and arguments. Role warnings are diagnostic only. First-shell detection happens after
-radial computation and does not become an input parameter.
+The request exposes one `analysis_backend` choice. `AnalysisRegistry` stores each complete backend
+once; the backend declares all supported analysis types and its Auto priority. Auto considers
+Native for GRO/GRO plus NDX, then MDAnalysis, then GROMACS when the required capabilities are
+available. Source-loading failure may advance to the next complete candidate, but one attempt never
+mixes backend components. Provenance records requested and resolved backend identities rather than
+a separate reader backend. In-process backends fingerprint inputs; direct external backends start
+their native command without a pre-run hash pass. The application records role decisions and
+validates adapter output. Every Integration command that contributes to a result is attached as a
+run record with software identity, version, executable, exact formatted command, and arguments. The
+execution layer writes the same command to the diagnostic log. GROMACS progress is derived from its
+captured native output and never substitutes the command for an output line. Role warnings are
+diagnostic only. First-shell detection happens after radial computation and does not become an
+input parameter.
 
 ## 7. Analysis implementations
 
-`analysis/__init__.py` registers the built-in runners. `analysis/radial.py` performs one
+`analysis/__init__.py` registers exactly one adapter for each built-in complete pipeline:
+`NativeBackend`, `MDAnalysisBackend`, and `GromacsBackend`. The registry is keyed by backend name,
+not by the Cartesian product of backend and analysis type. `analysis/radial.py` performs one
 shared half-width ordered-pair histogram accumulation, using periodic cell pruning for large local
 pair searches, then resamples it onto the centered RDF grid and edge-aligned cumulative grid.
 `rdf.py` publishes `g_r`; `cumulative_rdf.py` publishes `cumulative_number`. `common.py` owns frame
 auditing, triclinic minimum image, reliable-radius checks, bounded pair chunks, progress, and
 cancellation checks.
 
-`gmx_rdf.py` is the explicit GROMACS RDF/CN runner. It preserves zero-based Python frame slicing,
-invokes `gmx rdf` with `-cn` through Integrations, parses both XVG curves into the common result
-contract, and retains the trajectory-conversion and RDF run records. Full and contiguous frame
-ranges can read the original trajectory; strided ranges use the exact converted subset.
+`gromacs.py` is the complete GROMACS adapter. Its radial path preserves zero-based Python frame
+slicing and invokes `gmx rdf` through Integrations. RDF requests use only `-o`; cumulative RDF adds
+`-cn` and parses both XVG curves. Both retain the trajectory-conversion and RDF run records. The default full range reads
+the original trajectory directly; finite sampled ranges use one exact converted subset.
 
-`energy.py` provides GROMACS and MDAnalysis EDR backends behind one result contract. The GROMACS
-backend discovers the numbered menu and extracts the ordered queue through `gmx energy`, retaining
-the Integration run in result provenance. The MDAnalysis backend reads ordered terms, time, values,
-and units directly through `EDRReader`. Presentation code calls the shared application discovery
-use case and never parses an EDR menu itself.
+`mdanalysis.py` owns MDAnalysis radial and Energy dispatch, while `native.py` owns Native radial
+dispatch. `energy.py` contains private Energy implementations shared by the complete adapters.
+GROMACS discovers and extracts terms through `gmx energy`; MDAnalysis reads terms, time, values,
+and units through `EDRReader`. Presentation code calls the application discovery use case and never
+parses an EDR menu itself.
 
 The implementation invariants and formulas are specified in [ALGORITHM.md](ALGORITHM.md). Released
 method meaning and validation tolerance belong in the method and validation documents, not in
@@ -173,29 +182,29 @@ presentation code.
 
 ## 8. Services and backends
 
-The system service summarizes atoms and proposes explainable species roles. For in-process
-analyses, the selection service chooses NDX or a static expression engine and returns fixed ordered
-indices plus a resolution record. GROMACS RDF/CN either quotes exact NDX group names or passes
-GROMACS selection expressions to `gmx rdf`. Integrations own external-software configuration,
+The system service summarizes atoms and proposes explainable species roles. Native requires NDX
+groups. MDAnalysis uses NDX groups when supplied and otherwise uses static MDAnalysis expressions.
+GROMACS RDF/CN quotes exact NDX group names or passes GROMACS selection expressions to `gmx rdf`.
+Integrations own external-software configuration,
 detection, status, and execution;
 configuration, template discovery, and provenance remain separate services so the analysis layer
 stays free of machine-specific executable handling.
 
-`backends/trajectory.py` deterministically selects the MDHelper GRO Reader, MDAnalysis, or an
-explicitly requested GROMACS conversion adapter. The MDHelper reader validates fixed atom identity
-and streams frames. The
+For analysis, `backends/trajectory.py` receives the already resolved backend name; it does not make
+a second policy choice. The MDHelper reader validates fixed atom identity and streams frames. The
 MDAnalysis adapter converts third-party objects into core atoms, frames, boxes, and zero-based
 indices; third-party objects do not cross the backend boundary. The GROMACS adapter invokes
-`gmx trjconv` only through Integrations and then exposes the converted GRO through the same core port.
-Explicit GROMACS RDF/CN does not use that conversion port for curve data: it passes the original
-input paths to `gmx rdf`; a built-in reader supplies metadata and frame bounds only.
+`gmx trjconv` only through Integrations when an open-ended non-default range requires trajectory
+metadata. Default full-range RDF/CN bypasses the trajectory port and passes the original inputs
+directly to `gmx rdf`; finite sampled ranges use one GROMACS-generated exact subset.
 
 ## 9. I/O and projects
 
 NDX parsing lives under `io`, independently of CLI and GUI. Export accepts a validated
-`AnalysisResult` and writes JSON/CSV data and PNG/SVG/PDF plots through atomic same-directory
-replacement.
-RDF exports `radius_nm,g_r`; cumulative RDF exports `radius_nm,cumulative_number`.
+`AnalysisResult` and writes JSON/CSV data, text artifacts, and PNG/SVG/PDF plots through atomic
+same-directory replacement. RDF exports `radius_nm,g_r`; cumulative RDF exports
+`radius_nm,cumulative_number`. GROMACS results retain the source XVG text as result artifacts so
+direct Export can write the files after the integration temporary directory is removed.
 
 A project is rooted by `mdhelper-project.json` and owns `results/data`, `figures`, and
 `cache`. Its manifest records schema/application version, content-addressed inputs, confirmed roles,
@@ -206,13 +215,14 @@ Opening rejects old or incomplete schema-1 data; it never rewrites an incompatib
 the current contract. Each input record stores one relative path when portable, or one absolute
 path when a relative path cannot be represented, plus its hash.
 
-`cache` contains rebuildable performance data, currently MDAnalysis XDR frame-offset indexes rather
-than analysis results. Offset files use a trajectory-path key, validate source size, nanosecond
-modification time, and atom count, and are protected by a file lock and atomic replacement. Project
-work uses the project cache; unbound inputs use a `cache` directory beside the trajectory. Removing
-these files only forces an offset rescan and does not change analysis semantics.
+`cache` contains rebuildable working data rather than canonical analysis results. This includes
+MDAnalysis XDR frame-offset indexes and retained GROMACS command work directories with native
+outputs and exact frame subsets. Project work uses the project cache; unbound GROMACS analysis uses
+a process-lifetime system directory. Removing cache files only forces regeneration and does not
+change analysis semantics.
 
-Result commit validates request equality and provenance fingerprints, writes the result atomically,
+Result commit validates request equality, input paths, and any recorded provenance fingerprints,
+writes the result atomically,
 hashes it, and then commits the compact manifest index. The derived path is checked for containment,
 and fingerprints are rechecked on load.
 Relocation changes a path only when content identity is unchanged.
@@ -221,12 +231,15 @@ Relocation changes a path only when content identity is unchanged.
 
 `workflow` owns pending/running/completed/failed/cancelled state and progress messages. GUI polls
 task state on the Qt thread; TUI and CLI can use the same use case synchronously. Cancellation is
-cooperative at frame, hash-chunk, and process-poll points.
+cooperative at frame, hash-chunk, and process-poll points. External-process polling streams output
+to the active stage progress callback and terminates the complete process group on cancellation.
 
 External tool adapters define executable candidates, identity checks, and capability detection.
 Runtime code invokes an argument vector with `shell=False`, a restricted environment, timeout and
 cancellation handling, and captured output. Every completed, failed, timed-out, or cancelled run is
 auditable. Discovery only determines availability; request resolution chooses the analysis backend.
+Interactive backend selectors expose GROMACS only after an explicit Integrations detection action
+in the current session or a saved executable path; internal Auto discovery does not expose it.
 
 ## 11. Presentation adapters
 
@@ -247,10 +260,11 @@ multi-select. It does not call CLI parsing or GUI widgets.
 
 GUI separates widgets, application calls, and result formatting. `window.py` coordinates use cases;
 `parameters.py` builds requests; `results.py` renders result text and core plot models; `species.py`
-handles role confirmation. Both interactive frontends use one Backend selector. Energy remains
-available through MDAnalysis; explicit GROMACS RDF/CN requires `rdf`, the general GROMACS
-trajectory adapter requires `trjconv`, and GROMACS Energy requires `energy`. Backend selection is
-independent from system inspection. New Project non-recursively discovers `.tpr`/`.gro` topology,
+handles role confirmation. Both interactive frontends expose Backend under Analysis Settings, not
+Load. Energy remains available through MDAnalysis; GROMACS RDF/CN requires `rdf`, sampled frame
+subsets additionally require `trjconv`, and GROMACS Energy requires `energy`. Backend selection is
+independent from system inspection. New
+Project non-recursively discovers `.tpr`/`.gro` topology,
 `.xtc`/`.trr`/`.gro` trajectory, and optional `.ndx` candidates. Background workers never mutate Qt
 widgets.
 
@@ -270,10 +284,12 @@ Tests are layered:
 - architecture tests validate dependency direction and package layout;
 - Linux and Windows runs exercise platform-specific dependency sets.
 
-To add an analysis, define its request/result contract and method first, implement and register a
-runner, expose it through app and each required presentation adapter, then add reference, schema,
-export, persistence, and architecture tests. A new reader implements the core trajectory protocol
-and is registered in the backend factory. A new frontend depends on `app` and `core` only.
+To add an analysis, define its request/result contract and method first, implement it in each
+supporting complete backend adapter, expose it through app and each required presentation adapter,
+then add reference, schema, export, persistence, and architecture tests. Adding an analysis does
+not create new registry entries. A new backend implements one complete adapter, declares all
+supported analyses and Auto policy, and is registered once. A new frontend depends on `app` and
+`core` only.
 
 Before committing a change, check strict schemas, layer direction, method invariants, resource
 bounds, failure atomicity, all frontends, bilingual documentation, Linux tests, Windows tests, and
