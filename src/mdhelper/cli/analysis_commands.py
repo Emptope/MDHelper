@@ -2,45 +2,52 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import signal
 import sys
 from dataclasses import replace
 from pathlib import Path
 from threading import Event
-from typing import Any
+from typing import Any, Literal
+
+from jsonargparse import Namespace
 
 from mdhelper.app import ApplicationService
 from mdhelper.cli.output import write_json
 from mdhelper.core.analysis import AnalysisRequest, EnergyRequest, RadialRequest
 from mdhelper.core.errors import ConfigurationError, InputError
+from mdhelper.core.species import validate_species_roles
 from mdhelper.core.system import FrameRange
 from mdhelper.project import Project
 from mdhelper.workflow.tasks import TaskService
 
 
-def _frame_range(args: argparse.Namespace) -> FrameRange:
+def _frame_range(args: Namespace) -> FrameRange:
     return FrameRange(args.start, args.stop, args.stride)
 
 
 def _resolve_inputs(
-    args: argparse.Namespace, app: ApplicationService
+    args: Namespace, app: ApplicationService
 ) -> tuple[str, str, str | None, Project | None]:
     project: Project | None = None
-    topology = getattr(args, "topology", None)
-    trajectory = getattr(args, "trajectory", None)
-    index_file = getattr(args, "index", None)
-    if getattr(args, "project", None):
+    topology = args.topology
+    trajectory = args.trajectory
+    index_file = args.index
+    if args.project:
         project = app.projects.open(args.project)
         inputs = project.resolve_inputs()
-        topology = str(inputs["topology"])
-        trajectory = str(inputs["trajectory"])
+        topology = inputs["topology"]
+        trajectory = inputs["trajectory"]
         if index_file is None and "index" in inputs:
-            index_file = str(inputs["index"])
+            index_file = inputs["index"]
     if not topology or not trajectory:
         raise InputError("Provide --topology and --trajectory, or provide --project.")
-    return topology, trajectory, index_file, project
+    return (
+        str(topology),
+        str(trajectory),
+        None if index_file is None else str(index_file),
+        project,
+    )
 
 
 def _progress(json_progress: bool):
@@ -57,17 +64,18 @@ def _progress(json_progress: bool):
 
 
 def _request(
-    args: argparse.Namespace,
+    analysis: str,
+    args: Namespace,
     topology: str,
     trajectory: str,
     index_file: str | None,
     species_roles: dict[str, str],
 ) -> AnalysisRequest:
-    if args.command == "energy":
+    if analysis == "energy":
         return EnergyRequest(
             analysis_type="energy",
-            energy_file=args.energy_file,
-            energy_terms=tuple(args.term),
+            energy_file=str(args.energy_file),
+            energy_terms=tuple(args.terms),
             backend=args.backend,
         )
     common: dict[str, Any] = {
@@ -78,31 +86,27 @@ def _request(
         "backend": args.backend,
         "species_roles": species_roles,
     }
-    if args.command == "rdf":
-        return RadialRequest(
-            analysis_type="rdf",
-            reference=args.reference,
-            selection=args.selection,
-            r_max_nm=args.r_max,
-            bin_width_nm=args.bin_width,
-            **common,
-        )
-    if args.command == "cn":
-        return RadialRequest(
-            analysis_type="cumulative_rdf",
-            reference=args.reference,
-            selection=args.selection,
-            r_max_nm=args.r_max,
-            bin_width_nm=args.bin_width,
-            **common,
-        )
-    raise InputError(f"Cannot build request for {args.command!r}.")
+    analysis_type: Literal["rdf", "cumulative_rdf"]
+    if analysis == "rdf":
+        analysis_type = "rdf"
+    elif analysis == "cumulative-rdf":
+        analysis_type = "cumulative_rdf"
+    else:
+        raise InputError(f"Cannot build request for {analysis!r}.")
+    return RadialRequest(
+        analysis_type=analysis_type,
+        reference=args.reference,
+        selection=args.selection,
+        r_max_nm=args.r_max,
+        bin_width_nm=args.bin_width,
+        **common,
+    )
 
 
 def _run(
     app: ApplicationService,
     request: AnalysisRequest,
-    output: str,
+    output: Path,
     include_figures: bool,
     json_progress: bool,
     project: Project | None,
@@ -145,9 +149,9 @@ def _run(
     return 0
 
 
-def _load_request(path: str) -> AnalysisRequest:
+def _load_request(path: Path) -> AnalysisRequest:
     try:
-        value = json.loads(Path(path).read_text(encoding="utf-8"))
+        value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ConfigurationError(
             f"Could not load analysis request: {path}",
@@ -158,47 +162,63 @@ def _load_request(path: str) -> AnalysisRequest:
     return AnalysisRequest.from_dict(value)
 
 
-def handle(args: argparse.Namespace, app: ApplicationService) -> int:
-    if args.command == "inspect":
-        topology, trajectory, index_file, project = _resolve_inputs(args, app)
-        write_json(
-            app.checks.inspect_system(
-                topology,
-                trajectory,
-                index_file,
-                None if project is None else project.cache_dir,
-            ).to_dict()
-        )
-        return 0
-    if args.command in {"rdf", "cn"}:
-        topology, trajectory, index_file, project = _resolve_inputs(args, app)
+def inspect(args: Namespace, app: ApplicationService) -> int:
+    topology, trajectory, index_file, project = _resolve_inputs(args, app)
+    write_json(
+        app.checks.inspect_system(
+            topology,
+            trajectory,
+            index_file,
+            None if project is None else project.cache_dir,
+        ).to_dict()
+    )
+    return 0
+
+
+def handle(args: Namespace, app: ApplicationService) -> int:
+    analysis = args.analysis
+    options = args[analysis]
+    if analysis in {"rdf", "cumulative-rdf"}:
+        topology, trajectory, index_file, project = _resolve_inputs(options, app)
         species_roles = dict(project.manifest.get("species_roles", {})) if project else {}
-        species_roles.update(args.role)
-        request = _request(args, topology, trajectory, index_file, species_roles)
-        return _run(
-            app, request, args.output, not args.no_figures, args.json_progress, project
+        validate_species_roles(options.roles)
+        species_roles.update(options.roles)
+        request = _request(
+            analysis,
+            options,
+            topology,
+            trajectory,
+            index_file,
+            species_roles,
         )
-    if args.command == "energy":
+        return _run(
+            app,
+            request,
+            options.output,
+            options.figures,
+            options.json_progress,
+            project,
+        )
+    if analysis == "energy":
         project = (
-            app.projects.open(args.project, verify_inputs=False) if args.project else None
+            app.projects.open(options.project, verify_inputs=False)
+            if options.project
+            else None
         )
-        topology = ""
-        trajectory = ""
-        energy_roles: dict[str, str] = {}
-        if project is not None:
-            inputs = project.resolve_inputs()
-            topology = str(inputs["topology"])
-            trajectory = str(inputs["trajectory"])
-            energy_roles = dict(project.manifest.get("species_roles", {}))
-        request = _request(args, topology, trajectory, None, energy_roles)
+        request = _request(analysis, options, "", "", None, {})
         return _run(
-            app, request, args.output, not args.no_figures, args.json_progress, project
+            app,
+            request,
+            options.output,
+            options.figures,
+            options.json_progress,
+            project,
         )
-    if args.command == "run":
-        request = _load_request(args.request)
+    if analysis == "request":
+        request = _load_request(options.request)
         project = None
-        if args.project:
-            project = app.projects.open(args.project)
+        if options.project:
+            project = app.projects.open(options.project)
             inputs = project.resolve_inputs()
             replacement: dict[str, Any] = {}
             if isinstance(request, EnergyRequest):
@@ -220,6 +240,11 @@ def handle(args: argparse.Namespace, app: ApplicationService) -> int:
                 raise ConfigurationError("Unknown analysis request type.")
             request = replace(request, **replacement)
         return _run(
-            app, request, args.output, not args.no_figures, args.json_progress, project
+            app,
+            request,
+            options.output,
+            options.figures,
+            options.json_progress,
+            project,
         )
-    raise ConfigurationError(f"Unknown command: {args.command}")
+    raise AssertionError(f"Unhandled analysis: {analysis}")

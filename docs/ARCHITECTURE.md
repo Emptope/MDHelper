@@ -230,9 +230,12 @@ auditable. Discovery only determines availability; request resolution chooses th
 
 ## 11. Presentation adapters
 
-CLI parsing is isolated from command execution. `rdf` and `cn` use `--reference` and `--selection`;
-`cn` constructs a `cumulative_rdf` request. Output remains script-oriented and errors map to stable
-exit categories.
+CLI grammar is composed from command-specific modules and parsed into native `jsonargparse`
+namespaces. Execution receives only the selected namespace. `analyze rdf` and
+`analyze cumulative-rdf` use `--reference` and `--selection`; the latter constructs a
+`cumulative_rdf` request. Structured roles, terms, and capability lists accept JSON or YAML values,
+and `--args-file` loads a complete invocation. Output remains script-oriented and errors map to
+stable exit categories.
 
 TUI stores an `AnalysisDraft`, reviews explicit choices, converts it to `AnalysisRequest`, and then
 calls the facade. Its RDF + CN workflow creates two requests from one shared radial setup, exports

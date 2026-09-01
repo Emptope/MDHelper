@@ -80,7 +80,7 @@ uv run mdhelper inspect \
 使用精确的 NDX 组名计算 RDF：
 
 ```bash
-uv run mdhelper rdf \
+uv run mdhelper analyze rdf \
   --topology topol.tpr \
   --trajectory md.xtc \
   --index index.ndx \
@@ -95,7 +95,7 @@ uv run mdhelper rdf \
 使用 MDAnalysis 表达式计算累积 RDF 曲线：
 
 ```bash
-uv run mdhelper cn \
+uv run mdhelper analyze cumulative-rdf \
   --topology topol.tpr \
   --trajectory md.xtc \
   --reference "resname LI" \
@@ -108,10 +108,9 @@ uv run mdhelper cn \
 从 GROMACS energy 文件提取指定序列并绘制标准化结果：
 
 ```bash
-uv run mdhelper energy \
+uv run mdhelper analyze energy \
   --energy-file ener.edr \
-  --term Potential \
-  --term Temperature \
+  --terms '[Potential, Temperature]' \
   --output results/energy
 ```
 
@@ -120,7 +119,7 @@ term 菜单。`auto` 优先使用 MDAnalysis；只有 MDAnalysis 无法读取且
 capability 时才回退到 GROMACS。用户从可选列表将 term 加入有序分析队列，无需手工输入
 逗号分隔的名称。
 
-所有轨迹分析命令还支持 `--start`、`--stop`、`--stride`、`--backend` 和 `--no-figures`。
+所有径向分析命令还支持 `--start`、`--stop`、`--stride`、`--backend` 和 `--figures false`。
 
 ## 分析类型
 
@@ -188,7 +187,7 @@ uv run mdhelper project create \
 uv run mdhelper project show --path analysis-project
 ```
 
-项目路径必须不存在或为空。向 `inspect`、`rdf`、`cn` 或 `energy` 传入
+项目路径必须不存在或为空。向 `inspect` 或 `analyze` 子命令传入
 `--project analysis-project`，即可在适用时复用经过校验的输入，并在成功后提交结果。
 Energy 提交会把 EDR 文件作为带指纹的 `energy` 输入加入项目。项目可以移动；只有输入
 文件的 SHA-256 指纹仍然匹配时，MDHelper 才会重新连接这些文件。
@@ -238,7 +237,7 @@ TUI 分析菜单也提供 **RDF + CN Combined Plot**。它让两项分析复用�
 uv run mdhelper config init
 uv run mdhelper integrations list
 uv run mdhelper integrations detect gromacs
-uv run mdhelper integrations templates
+uv run mdhelper templates list
 ```
 
 统一 Backend 选择器仅在检测到兼容可执行文件时提供 GROMACS。显式 GROMACS RDF/CN 需要

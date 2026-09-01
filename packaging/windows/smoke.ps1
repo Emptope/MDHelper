@@ -48,7 +48,7 @@ try {
     }
     & $application cli config check | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Packaged CLI config validation failed." }
-    & $application cli integrations templates | Out-Null
+    & $application cli templates list | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Packaged template catalog validation failed." }
 
     $env:QT_QPA_PLATFORM = "offscreen"
@@ -59,7 +59,7 @@ try {
     if ($Request) {
         $requestPath = (Resolve-Path $Request).Path
         $analysisOutput = Join-Path $smokeRoot "analysis"
-        & $application cli run --request $requestPath --output $analysisOutput | Out-Host
+        & $application cli analyze request --request $requestPath --output $analysisOutput | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "Packaged analysis request failed." }
         foreach ($name in @("result.json", "rdf.csv", "rdf.png", "rdf.svg", "rdf.pdf")) {
             $path = Join-Path $analysisOutput $name

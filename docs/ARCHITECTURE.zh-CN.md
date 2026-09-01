@@ -386,18 +386,21 @@ handle 保存待运行、运行中、成功、失败或取消状态，以及进�
 
 | 文件 | 职责 |
 | --- | --- |
-| `parser.py` | 声明命令、参数、类型和帮助文本，不执行业务。 |
-| `main.py` | 建立配置和 `ApplicationService`，分派命令并转换领域错误。 |
-| `commands.py` | 通用命令处理和共享分派。 |
-| `analysis_commands.py` | 将 RDF、CN、energy 参数转换为 `AnalysisRequest`。 |
+| `grammar/` | 按领域声明 jsonargparse 命令、结构类型和帮助文本，不执行业务。 |
+| `parser.py` | 组合根命令，支持 JSON/YAML 参数文件并返回原生嵌套 namespace。 |
+| `main.py` | 分派命令并把领域错误转换为稳定退出类别。 |
+| `commands.py` | 选择命令 namespace，按需建立 `ApplicationService`。 |
+| `analysis_commands.py` | 将 RDF、cumulative RDF、energy 参数转换为 `AnalysisRequest`。 |
 | `config_commands.py` | 配置查看和修改。 |
 | `project_commands.py` | 项目创建、打开和结果操作。 |
 | `integration_commands.py` | 外部软件列出、检测和执行。 |
+| `template_commands.py` | 模板列出、查看和保存。 |
 | `output.py` | 保证 stdout 只含最终机器可读 JSON，进度和诊断写 stderr。 |
 | `__main__.py` | 支持 `python -m mdhelper.cli`。 |
 
-CLI 适合脚本和 CI。SIGINT 转换为取消请求。配置命令在完整应用构造前处理，避免损坏配置
-阻止用户执行修复命令。
+CLI 适合脚本和 CI。`analyze` 统一分析入口，roles、terms 和 capability 列表使用 JSON 或
+YAML 结构值，`--args-file` 可载入完整调用。SIGINT 转换为取消请求。配置命令在完整应用
+构造前处理，避免损坏配置阻止用户执行修复命令。
 
 ### 13.2 TUI
 

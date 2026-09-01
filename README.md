@@ -87,7 +87,7 @@ uv run mdhelper inspect \
 Compute an RDF with exact NDX group names:
 
 ```bash
-uv run mdhelper rdf \
+uv run mdhelper analyze rdf \
   --topology topol.tpr \
   --trajectory md.xtc \
   --index index.ndx \
@@ -102,7 +102,7 @@ uv run mdhelper rdf \
 Compute a cumulative RDF curve with MDAnalysis expressions:
 
 ```bash
-uv run mdhelper cn \
+uv run mdhelper analyze cumulative-rdf \
   --topology topol.tpr \
   --trajectory md.xtc \
   --reference "resname LI" \
@@ -115,10 +115,9 @@ uv run mdhelper cn \
 Extract selected series from a GROMACS energy file and plot the standardized result:
 
 ```bash
-uv run mdhelper energy \
+uv run mdhelper analyze energy \
   --energy-file ener.edr \
-  --term Potential \
-  --term Temperature \
+  --terms '[Potential, Temperature]' \
   --output results/energy
 ```
 
@@ -128,8 +127,8 @@ detected `gmx energy` only when MDAnalysis cannot read the file and that capabil
 Add terms from the available list to the ordered analysis queue; no comma-separated term entry is
 required.
 
-All trajectory analysis commands also accept `--start`, `--stop`, `--stride`, `--backend`, and
-`--no-figures`.
+All radial analysis commands also accept `--start`, `--stop`, `--stride`, `--backend`, and
+`--figures false`.
 
 ## Analyses
 
@@ -202,8 +201,8 @@ uv run mdhelper project create \
 uv run mdhelper project show --path analysis-project
 ```
 
-The project path must be new or empty. Pass `--project analysis-project` to `inspect`, `rdf`,
-`cn`, or `energy` to reuse its verified inputs where applicable and commit the
+The project path must be new or empty. Pass `--project analysis-project` to `inspect` or an
+`analyze` subcommand to reuse its verified inputs where applicable and commit the
 completed result. Energy commits add the fingerprinted EDR file as the `energy` input. Projects
 can be moved; MDHelper reconnects inputs only when their SHA-256 fingerprints still match.
 
@@ -260,7 +259,7 @@ files directly without a GROMACS executable:
 uv run mdhelper config init
 uv run mdhelper integrations list
 uv run mdhelper integrations detect gromacs
-uv run mdhelper integrations templates
+uv run mdhelper templates list
 ```
 
 The shared Backend selector offers GROMACS only when a compatible executable is detected. Explicit

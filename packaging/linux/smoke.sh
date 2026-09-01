@@ -31,4 +31,4 @@ if [[ "$reported" != "$config" ]]; then
     exit 1
 fi
 env -u MDHELPER_CONFIG "$application" cli config check >/dev/null
-"$application" cli integrations templates >/dev/null
+"$application" cli templates list >/dev/null

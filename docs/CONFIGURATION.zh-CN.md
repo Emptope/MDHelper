@@ -16,7 +16,7 @@ MDHelper 使用带 schema、可编辑的 TOML 用户配置。支持的外部软�
 配置，不能写入可移植项目 manifest。
 
 每个平台归档都在唯一可执行程序旁提供 `config.toml`。所有冻结程序都自动使用该文件，因此可以
-直接编辑配置并整个移动目录。CLI `--config` 和用户已设置的 `MDHELPER_CONFIG` 优先于默认位置。
+直接编辑配置并整个移动目录。CLI `--settings` 和用户已设置的 `MDHELPER_CONFIG` 优先于默认位置。
 
 诊断日志位于平台用户日志目录；`MDHELPER_LOG` 可显式选择文件。日志写入是本地、尽力而为
 的辅助能力，失败时不能覆盖原始用户错误。
@@ -103,5 +103,5 @@ mdhelper config show
 mdhelper integrations list
 mdhelper integrations detect gromacs
 mdhelper integrations run gromacs -- --version
-mdhelper integrations templates
+mdhelper templates list
 ```

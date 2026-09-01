@@ -362,15 +362,12 @@ def test_cli_completes_all_analyses_and_project_round_trip(
         str(project),
         "--backend",
         "native",
-        "--role",
-        "REF=other",
-        "--role",
-        "LIGA=other",
-        "--role",
-        "LIGB=other",
+        "--roles",
+        '{"REF":"other","LIGA":"other","LIGB":"other"}',
         "--stop",
         "2",
-        "--no-figures",
+        "--figures",
+        "false",
     ]
     assert main(
         [
@@ -382,18 +379,15 @@ def test_cli_completes_all_analyses_and_project_round_trip(
             str(synthetic_path),
             "--trajectory",
             str(synthetic_path),
-            "--role",
-            "REF=other",
-            "--role",
-            "LIGA=other",
-            "--role",
-            "LIGB=other",
+            "--roles",
+            '{"REF":"other","LIGA":"other","LIGB":"other"}',
         ]
     ) == 0
     capsys.readouterr()
 
     commands = (
         [
+            "analyze",
             "rdf",
             *common,
             "--reference",
@@ -408,7 +402,8 @@ def test_cli_completes_all_analyses_and_project_round_trip(
             str(tmp_path / "rdf"),
         ],
         [
-            "cn",
+            "analyze",
+            "cumulative-rdf",
             *common,
             "--reference",
             "resname REF",

@@ -11,8 +11,7 @@
 
 ## 已完成
 
-- [x] [BugFix] 目前 Load 页中的 Backend 选项的 Native 和 MDAnalysis 有什么区别？如果没有区别的话使用 MDAnalysis 的话，合并为 MDAnalysis。
-- [x] [Feature] 目前的 schemas 太过冗余，精简设计。
+- [x] [Refactor] 用 [jsonargparse](https://github.com/mauvilsa/jsonargparse) 重构 CLI 模块。
 
 ## 完成标准（每轮改动后需重新确认）
 

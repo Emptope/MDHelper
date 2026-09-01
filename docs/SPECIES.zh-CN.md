@@ -12,8 +12,9 @@ MDHelper 0.1.0 按 topology residue identity 识别 species，并统计不同的
 中性数量并列时返回 unavailable、候选角色和理由，不猜测。
 
 每条建议包含 method、evidence、confidence、candidate roles、reason 和
-`requires_user_confirmation = true`。CLI 用重复的 `--role SPECIES=ROLE` 显式确认；GUI 显示
-同一建议，要求确认并允许编辑。接受或覆盖的决定进入 request parameter provenance；所有
+`requires_user_confirmation = true`。CLI 用结构化的
+`--roles '{LI: cation, SOL: solvent}'` 显式确认；GUI 显示同一建议，要求确认并允许编辑。
+接受或覆盖的决定进入 request parameter provenance；所有
 前端在 result provenance 中得到规范化 decision record。已确认角色存入 project manifest，
 `mdhelper project set-roles` 可替换该映射，不改变机器配置。
 

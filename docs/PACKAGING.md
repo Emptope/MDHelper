@@ -70,7 +70,7 @@ Use `mdhelper.exe gui`, `mdhelper.exe tui`, or `mdhelper.exe cli` to select a mo
 not keep a console window: the console launcher starts the GUI as an independent detached process
 and exits. Explicit terminal modes remain connected to their launching shell or create a console
 when needed. Every frozen application selects its colocated configuration automatically. An
-explicit `--config` CLI argument or `MDHELPER_CONFIG` environment variable still takes precedence.
+explicit `--settings` CLI argument or `MDHELPER_CONFIG` environment variable still takes precedence.
 
 ## Linux validation
 

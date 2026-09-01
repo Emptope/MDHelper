@@ -1,20 +1,23 @@
-"""External software integration CLI commands."""
+"""External integration CLI commands."""
 
 from __future__ import annotations
 
-import argparse
 import signal
 import sys
 from threading import Event
 from typing import Any
 
+from jsonargparse import Namespace
+
 from mdhelper.app import ApplicationService
 from mdhelper.cli.output import write_json
-from mdhelper.core.errors import BackendError, InputError
+from mdhelper.core.errors import BackendError
 
 
-def handle(args: argparse.Namespace, app: ApplicationService) -> int:
-    if args.integration_command == "list":
+def handle(args: Namespace, app: ApplicationService) -> int:
+    action = args.action
+    options = args[action]
+    if action == "list":
         write_json(
             {
                 "supported": list(app.integrations.names()),
@@ -25,22 +28,12 @@ def handle(args: argparse.Namespace, app: ApplicationService) -> int:
             }
         )
         return 0
-    if args.integration_command == "templates":
-        if args.key:
-            write_json(app.templates.get(args.key).to_dict(include_content=True))
-        else:
-            write_json({"templates": [item.to_dict() for item in app.templates.list()]})
-        return 0
-    config = app.config.integration(args.integration)
-    if args.integration_command == "detect":
-        status = app.integrations.detect(args.integration, getattr(args, "path", None))
+    if action == "detect":
+        status = app.integrations.detect(options.integration, options.path)
         write_json(status.to_dict())
         return 0 if status.available else 6
-    arguments = list(args.arguments)
-    if arguments and arguments[0] == "--":
-        arguments.pop(0)
-    if not arguments:
-        raise InputError("Integration execution requires arguments after '--'.")
+
+    config = app.config.integration(options.integration)
     cancel_event = Event()
     previous_handler = signal.getsignal(signal.SIGINT)
 
@@ -51,17 +44,21 @@ def handle(args: argparse.Namespace, app: ApplicationService) -> int:
 
     signal.signal(signal.SIGINT, request_cancel)
     try:
-        project = app.projects.open(args.project, verify_inputs=False) if args.project else None
+        project = (
+            app.projects.open(options.project, verify_inputs=False)
+            if options.project
+            else None
+        )
         record = app.integrations.run(
-            args.integration,
-            arguments,
-            args.cwd,
-            override=getattr(args, "path", None),
+            options.integration,
+            list(options.arguments),
+            options.cwd,
+            override=options.path,
             timeout_seconds=(
-                config.run_timeout_seconds if args.timeout is None else args.timeout
+                config.run_timeout_seconds if options.timeout is None else options.timeout
             ),
             cancel_event=cancel_event,
-            output_files=args.output_file,
+            output_files=options.output_files,
             project=project,
         )
     finally:
@@ -69,7 +66,7 @@ def handle(args: argparse.Namespace, app: ApplicationService) -> int:
     write_json(record.to_dict())
     if record.exit_code != 0:
         raise BackendError(
-            f"{args.integration} exited with code {record.exit_code}.",
+            f"{options.integration} exited with code {record.exit_code}.",
             details={"stderr": record.stderr[-4000:]},
         )
     return 0

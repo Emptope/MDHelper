@@ -17,7 +17,7 @@ By default, `config.toml` is stored next to the current executable or Python run
 
 Every platform archive contains `config.toml` next to its single executable. Every frozen
 executable uses that colocated file automatically, so users can edit it directly and move the
-whole directory together. A CLI `--config` argument or an existing `MDHELPER_CONFIG` value
+whole directory together. A CLI `--settings` argument or an existing `MDHELPER_CONFIG` value
 overrides the default location.
 
 Diagnostic logs use the platform user-log directory. `MDHELPER_LOG` can select an explicit
@@ -120,5 +120,5 @@ mdhelper config show
 mdhelper integrations list
 mdhelper integrations detect gromacs
 mdhelper integrations run gromacs -- --version
-mdhelper integrations templates
+mdhelper templates list
 ```

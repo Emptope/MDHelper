@@ -16,8 +16,9 @@ Missing charges, mixed molecular charge signs, and tied neutral populations prod
 suggestion with candidate roles and a reason instead of a guessed value.
 
 Every suggestion has a method, evidence, confidence, candidate roles, a reason, and
-`requires_user_confirmation = true`. The CLI user confirms roles explicitly with repeated
-`--role SPECIES=ROLE` options. The GUI shows the same suggestions, requires confirmation, and keeps
+`requires_user_confirmation = true`. The CLI user confirms roles with a structured
+`--roles '{LI: cation, SOL: solvent}'` mapping. The GUI shows the same suggestions, requires
+confirmation, and keeps
 every role editable. Interactive accepted and overridden decisions enter request parameter
 provenance, and every frontend receives a normalized decision record in result provenance.
 Confirmed roles are stored in the project manifest; `mdhelper project set-roles` can replace that

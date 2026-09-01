@@ -283,7 +283,7 @@ def test_windows_smoke_rejects_additional_executables() -> None:
 def test_archive_smoke_uses_current_template_command() -> None:
     for path in (WINDOWS / "smoke.ps1", LINUX / "smoke.sh"):
         source = path.read_text(encoding="utf-8")
-        assert "cli integrations templates" in source
+        assert "cli templates list" in source
     linux_source = (LINUX / "smoke.sh").read_text(encoding="utf-8")
     assert "Current workspace: not loaded" in linux_source
     assert "PYTHONWARNINGS=error" in linux_source

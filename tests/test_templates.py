@@ -60,11 +60,21 @@ def test_bundled_templates_are_available_and_can_be_saved(tmp_path: Path) -> Non
 
 
 def test_cli_lists_and_prints_templates(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["integrations", "templates"]) == 0
+    assert main(["templates", "list"]) == 0
     catalog = json.loads(capsys.readouterr().out)
     key = catalog["templates"][0]["key"]
 
-    assert main(["integrations", "templates", key]) == 0
+    assert main(["templates", "show", key]) == 0
     selected = json.loads(capsys.readouterr().out)
     assert selected["key"] == key
     assert selected["content"].isascii()
+
+
+def test_cli_saves_template(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    output = tmp_path / "commands.txt"
+
+    assert main(["templates", "save", "gromacs/commands", "--output", str(output)]) == 0
+
+    result = json.loads(capsys.readouterr().out)
+    assert result == {"key": "gromacs/commands", "output": str(output)}
+    assert output.read_text(encoding="ascii").isascii()

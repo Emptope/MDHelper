@@ -21,7 +21,7 @@ GROMACS RDF/CN 则把 request expression 作为 GROMACS selection syntax 传给 
 ```
 
 ```bash
-mdhelper rdf \
+mdhelper analyze rdf \
   --topology topol.tpr --trajectory md.xtc --index index.ndx \
   --reference "Cations" --selection "Solvent oxygen" \
   --r-max 1.0 --bin-width 0.002 --output results/rdf
