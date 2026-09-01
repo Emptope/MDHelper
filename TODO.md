@@ -11,7 +11,9 @@
 
 ## 已完成
 
-- [x] [BugFix] 去除结果 provenance 中重复的参数决策和 integration run 记录。
+- [x] [Maintenance] 清理冗余的 tests。
+
+- [x] [Maintenance] 清理 tests 文件夹，并且分析耗时最长的几项 tests，从工程角度优化代码，不改动代码逻辑。
 
 ## 完成标准（每轮改动后需重新确认）
 

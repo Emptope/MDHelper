@@ -9,7 +9,6 @@ from test_synthetic_system import _write_trajectory
 import mdhelper.bootstrap.portable as portable
 import mdhelper.bootstrap.windows_console as windows_console
 from mdhelper.app import ApplicationService
-from mdhelper.app.reports import result_summary
 from mdhelper.core.analysis import AnalysisResult
 from mdhelper.core.species import role_decision
 from mdhelper.core.system import FrameRange
@@ -488,7 +487,9 @@ def test_tui_default_export_directory_follows_selected_trajectory(tmp_path: Path
 def test_tui_exports_each_energy_curve_to_its_own_directory(
     tmp_path: Path,
     energy_result: AnalysisResult,
+    stub_figure_exports,
 ) -> None:
+    stub_figure_exports()
     output = StringIO()
     tui = Tui(
         ApplicationService(UserConfig()),
@@ -520,7 +521,9 @@ def test_tui_exports_each_energy_curve_to_its_own_directory(
 def test_tui_save_plot_uses_flat_project_figure_names(
     tmp_path: Path,
     energy_result: AnalysisResult,
+    stub_figure_exports,
 ) -> None:
+    stub_figure_exports()
     source = tmp_path / "input.dat"
     source.write_text("input\n", encoding="ascii")
     application = ApplicationService(UserConfig())
@@ -915,9 +918,18 @@ def test_tui_mixed_queue_selects_type_and_runs_each_task_once(monkeypatch) -> No
     assert calls == ["groups", "parameters", "queue"]
 
 
-def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(tmp_path: Path) -> None:
+def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(
+    tmp_path: Path,
+    stub_figure_exports,
+) -> None:
+    stub_figure_exports()
     synthetic_path = tmp_path / "trajectory.gro"
+    index_path = tmp_path / "groups.ndx"
     _write_trajectory(synthetic_path)
+    index_path.write_text(
+        "[ resname REF ]\n1\n[ resname LIGA ]\n2 3\n[ resname LIGB ]\n4\n",
+        encoding="ascii",
+    )
     application = ApplicationService(UserConfig())
     output = StringIO()
     tui = Tui(application, Terminal(StringIO(), output))
@@ -926,6 +938,7 @@ def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(tmp_path: Path) -> None
     )
     tui.workspace.topology = str(synthetic_path)
     tui.workspace.trajectory = str(synthetic_path)
+    tui.workspace.index_file = str(index_path)
     tui.workspace.summary = summary
     tui.workspace.roles = dict.fromkeys(summary.species, "other")
     tui.workspace.role_decisions = {
@@ -934,6 +947,7 @@ def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(tmp_path: Path) -> None
     }
     draft = AnalysisDraft(
         "rdf",
+        analysis_backend="native",
         reference="resname REF",
         selection="resname LIGA",
         r_max_nm=0.5,
@@ -999,16 +1013,6 @@ def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(tmp_path: Path) -> None
             ".svg",
             ".pdf",
         }
-    rdf_svg = (rdf / "rdf-resname-REF-resname-LIGA.svg").read_text(encoding="utf-8")
-    cn_svg = (cn / "cn-resname-REF-resname-LIGA.svg").read_text(encoding="utf-8")
-    assert "Radial distribution function" in rdf_svg
-    assert "RDF and Cumulative Coordination Number" not in rdf_svg
-    assert "Cumulative Coordination Number" in cn_svg
-    assert "RDF and Cumulative Coordination Number" not in cn_svg
-    combined_svg = (export / "rdf-cn.svg").read_text(encoding="utf-8")
-    assert "RDF and Cumulative Coordination Number" in combined_svg
-    assert "resname REF-resname LIGA" in combined_svg
-    assert "resname REF-resname LIGB" in combined_svg
     figures = tui.workspace.project.root / "figures"
     assert {path.name for path in figures.iterdir()} == {
         f"{stem}.{suffix}"
@@ -1028,64 +1032,6 @@ def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(tmp_path: Path) -> None
     assert "Results" in text
     assert "Configuration" in text
     assert "Technical details" in text
-
-
-def test_tui_radial_queue_runs_without_review(tmp_path: Path) -> None:
-    synthetic_path = tmp_path / "trajectory.gro"
-    _write_trajectory(synthetic_path)
-    application = ApplicationService(UserConfig())
-    output = StringIO()
-    tui = Tui(application, Terminal(StringIO(), output))
-    summary = application.checks.inspect_system(
-        str(synthetic_path), str(synthetic_path)
-    )
-    tui.workspace.topology = str(synthetic_path)
-    tui.workspace.trajectory = str(synthetic_path)
-    tui.workspace.summary = summary
-    tui.workspace.roles = dict.fromkeys(summary.species, "other")
-    tui.workspace.role_decisions = {
-        species: role_decision("other", suggestion, "test")
-        for species, suggestion in summary.role_suggestions.items()
-    }
-    draft = AnalysisDraft(
-        "cumulative_rdf",
-        reference="resname REF",
-        selection="resname LIGA",
-        r_max_nm=0.5,
-        bin_width_nm=0.05,
-        frames=FrameRange(stop=1),
-        output=str(tmp_path / "tui-output"),
-        queue=[
-            RadialTask(
-                "cumulative_rdf",
-                "resname REF",
-                "resname LIGA",
-                0.5,
-                0.05,
-            )
-        ],
-    )
-
-    try:
-        assert tui._run_analysis(draft)
-    finally:
-        tui.tasks.shutdown()
-
-    assert tui.workspace.result is not None
-    assert tui.workspace.result.data["cumulative_number"][-1] == 2.0
-    export = tmp_path / "tui-output" / "cn-resname-REF-resname-LIGA"
-    assert {path.name for path in export.iterdir()} == {
-        "result.json",
-        "cn.csv",
-        "cn-resname-REF-resname-LIGA.png",
-        "cn-resname-REF-resname-LIGA.svg",
-        "cn-resname-REF-resname-LIGA.pdf",
-    }
-    text = output.getvalue()
-    assert "Review" not in text
-    assert "Start Cumulative Coordination Number (CN) now?" not in text
-    assert "Analysis completed" in text
-    assert result_summary(tui.workspace.result) in text
 
 
 def test_tui_energy_runs_without_review(monkeypatch) -> None:

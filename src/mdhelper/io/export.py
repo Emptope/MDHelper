@@ -7,6 +7,7 @@ import json
 import math
 import os
 from collections.abc import Sequence
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -160,21 +161,34 @@ def _safe_stem(value: str) -> str:
     return stem.strip("._") or "analysis"
 
 
-def _load_pyplot() -> Any:
+@cache
+def _load_matplotlib() -> tuple[Any, Any, Any]:
     try:
         import matplotlib
-
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        from matplotlib.figure import Figure
     except ImportError as exc:
         raise BackendError("Matplotlib is required for figure export.") from exc
-    return plt
+    return matplotlib, Figure, FigureCanvasAgg
+
+
+def _figure(size: PlotSize, panels: int = 1) -> Any:
+    _matplotlib, figure_type, canvas_type = _load_matplotlib()
+    figure = figure_type(
+        figsize=(size.width, size.height * panels),
+        constrained_layout=True,
+    )
+    canvas_type(figure)
+    figure.set_facecolor("white")
+    return figure
 
 
 def _save_figure(figure: Any, output: Path, filename: str) -> list[Path]:
     paths: list[Path] = []
     temporary: Path | None = None
     try:
+        figure.draw_without_rendering()
+        figure.set_layout_engine("none")
         for suffix in ("png", "svg", "pdf"):
             path = output / f"{filename}.{suffix}"
             temporary = path.with_name(f".{path.name}.tmp")
@@ -208,9 +222,9 @@ def _write_figures(
     limits: PlotLimits | None = None,
     size: PlotSize | None = None,
 ) -> list[Path]:
-    plt = _load_pyplot()
+    matplotlib, _figure_type, _canvas_type = _load_matplotlib()
     filename = _safe_stem(results[0].analysis_type if stem is None else stem)
-    with plt.rc_context(_FIGURE_STYLE):
+    with matplotlib.rc_context(_FIGURE_STYLE):
         models = results_plots(
             results,
             labels,
@@ -221,11 +235,7 @@ def _write_figures(
         )
         panel_size = DEFAULT_PLOT_SIZE if size is None else size
         panel_size.validate()
-        figure = plt.figure(
-            figsize=(panel_size.width, panel_size.height * len(models)),
-            constrained_layout=True,
-        )
-        figure.set_facecolor("white")
+        figure = _figure(panel_size, len(models))
         for index, model in enumerate(models, start=1):
             axis = figure.add_subplot(len(models), 1, index)
             axis.set_facecolor("white")
@@ -233,7 +243,7 @@ def _write_figures(
         try:
             return _save_figure(figure, output, filename)
         finally:
-            plt.close(figure)
+            figure.clear()
 
 
 def _output_directory(path: str | Path) -> Path:
@@ -311,23 +321,19 @@ def export_plot_model(
 ) -> list[Path]:
     """Export one prepared plot model without changing its grouping or labels."""
 
-    plt = _load_pyplot()
+    matplotlib, _figure_type, _canvas_type = _load_matplotlib()
     output = _output_directory(output_directory)
     panel_size = DEFAULT_PLOT_SIZE if size is None else size
     panel_size.validate()
-    with plt.rc_context(_FIGURE_STYLE):
-        figure = plt.figure(
-            figsize=(panel_size.width, panel_size.height),
-            constrained_layout=True,
-        )
-        figure.set_facecolor("white")
+    with matplotlib.rc_context(_FIGURE_STYLE):
+        figure = _figure(panel_size)
         axis = figure.add_subplot(1, 1, 1)
         axis.set_facecolor("white")
         draw_plot(axis, model, scheme, limits)
         try:
             return _save_figure(figure, output, _safe_stem(stem))
         finally:
-            plt.close(figure)
+            figure.clear()
 
 
 def export_result(

@@ -305,7 +305,10 @@ def run_integration(
                 raise
             last_progress = current_output
             next_progress = now + 0.25
-        time.sleep(min(0.05, remaining))
+        try:
+            process.wait(timeout=min(0.05, remaining))
+        except subprocess.TimeoutExpired:
+            pass
     _finish_readers(readers)
     stdout = "".join(stdout_chunks)
     stderr = "".join(stderr_chunks)

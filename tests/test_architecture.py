@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import ast
 import re
-from collections.abc import Iterator
+from functools import cache
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
@@ -22,14 +22,16 @@ def _module(path: Path) -> str:
     return ".".join(parts)
 
 
-def _imports(path: Path) -> Iterator[str]:
+@cache
+def _imports(path: Path) -> tuple[str, ...]:
     package = _module(path)
     if path.name != "__init__.py":
         package = package.rpartition(".")[0]
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    imports: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            yield from (alias.name for alias in node.names)
+            imports.extend(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
             module = node.module or ""
             if node.level:
@@ -37,11 +39,13 @@ def _imports(path: Path) -> Iterator[str]:
                 parent = parts[: len(parts) - node.level + 1]
                 module = ".".join([*parent, *module.split(".")]).rstrip(".")
             if module:
-                yield module
+                imports.append(module)
+    return tuple(imports)
 
 
-def _files(package: str) -> Iterator[Path]:
-    yield from (SOURCE_ROOT / package).rglob("*.py")
+@cache
+def _files(package: str) -> tuple[Path, ...]:
+    return tuple((SOURCE_ROOT / package).rglob("*.py"))
 
 
 def test_core_has_no_reverse_internal_dependencies() -> None:

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+import mdhelper.io.export as export_module
 from mdhelper.core.analysis import AnalysisResult, EnergyRequest
 
 
@@ -39,3 +42,19 @@ def energy_result() -> AnalysisResult:
         request=request.to_dict(),
         analysis_id="energy-id",
     )
+
+
+@pytest.fixture
+def stub_figure_exports(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Callable[[], None]:
+    def save(_figure: Any, output: Path, filename: str) -> list[Path]:
+        paths = [output / f"{filename}.{suffix}" for suffix in ("png", "svg", "pdf")]
+        for path in paths:
+            path.touch()
+        return paths
+
+    def activate() -> None:
+        monkeypatch.setattr(export_module, "_save_figure", save)
+
+    return activate

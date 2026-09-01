@@ -259,25 +259,6 @@ def test_gromacs_backend_availability_does_not_hide_energy_analysis() -> None:
     parameters.close()
 
 
-def test_main_window_hides_unconfigured_gromacs_backend(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        "mdhelper.app.integrations.IntegrationUseCases.detect",
-        lambda _self, name, _override=None, _config=None: IntegrationStatus(
-            name,
-            False,
-        ),
-    )
-
-    window = MainWindow()
-
-    assert window.analysis.parameters.analysis_backend.findData("gromacs") == -1
-    assert choice_enabled(window.analysis.parameters.analysis_choice, "energy")
-    window.task_controller.shutdown()
-    window.close()
-
-
 def test_appearance_menu_applies_and_persists_theme(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

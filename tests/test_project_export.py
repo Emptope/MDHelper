@@ -319,8 +319,13 @@ def test_figure_export_preserves_requested_plot_size(tmp_path: Path) -> None:
 
     paths = export_figures(result, tmp_path, size=PlotSize(4.0, 3.0))
 
+    assert {path.suffix for path in paths} == {".png", ".svg", ".pdf"}
     image = mpimg.imread(next(path for path in paths if path.suffix == ".png"))
     assert image.shape[:2] == (900, 1200)
+    svg = next(path for path in paths if path.suffix == ".svg")
+    assert "Radial distribution function" in svg.read_text(encoding="utf-8")
+    pdf = next(path for path in paths if path.suffix == ".pdf")
+    assert pdf.read_bytes().startswith(b"%PDF")
 
 
 def test_project_use_cases_ensure_in_place_without_weakening_create(
