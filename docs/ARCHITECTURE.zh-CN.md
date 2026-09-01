@@ -156,8 +156,13 @@ TUI/CLI 运行期间保持等待并连接标准流。GUI 启动会创建独立�
 绘图状态逐行保存 result ID、result series、panel group、可见性、legend、颜色和自定义
 标题，因此同一 energy result 的多个 term 可以独立恢复、组合和导出。GUI 编辑当前可见
 序列所属绘图的标题，并同步到该绘图的其他分组序列；项目恢复和图片导出使用同一状态。
-GUI 保存项目图片时，每个绘图模型按可读分析名称直接在 `figures` 下生成一组 PNG/SVG/PDF，
-不建立图片子目录。GUI 结果导出把各图片写入对应分析目录，不在导出根目录生成合并图片。
+交互式界面保存项目图片时，每个绘图模型按可读分析名称直接在 `figures` 下生成一组
+PNG/SVG/PDF，不建立图片子目录；命名会同时避开本批次及磁盘已有图片组。RDF/CN 组合模型
+统一使用 `rdf-cn`，单项径向模型保留包含 Pair 的可读名称。GUI 与 TUI 结果导出都会在对应
+分析目录内为每个结果重建单项图，不在导出根目录生成或向多个目录复制合并图。Energy
+组合名称只保留一个 `energy` 前缀，并按显示顺序连接 source terms。绘图对话框根据 Figure
+canvas 与 layout margins 计算初始 client size，因此首次打开不会改变 Save Plot 或 Export
+随后使用的内容比例。
 
 当前绘图配色不支持 `Atom name`。原子名可以用于选择表达式和选择诊断，但一条聚合分析
 序列往往包含多个原子名，不能形成无歧义的一对一颜色键。
@@ -172,6 +177,7 @@ GUI 保存项目图片时，每个绘图模型按可读分析名称直接在 `fi
 | `context.py` | 保存配置文件、已校验配置、轨迹加载器、分析注册表和 Integration 管理器，依赖均可替换。 |
 | `facade.py` | 构造 `ApplicationService`，聚合 analyses、checks、projects、integrations、templates 等用例，形成前端唯一业务入口。 |
 | `analyses.py` | 校验请求，解析可用后端，按后端能力决定是否加载轨迹和生成输入指纹，调用分析注册表并校验结果。具体分析函数通过选择服务或所选外部后端处理选择；导出由同一用例对象的独立方法完成。 |
+| `exports.py` | 为 GUI 与 TUI 统一规划可读结果目录、Energy 分曲线导出、图片目标和项目 `figures` 平铺命名。 |
 | `checks.py` | 读取系统摘要、选择组大小和角色建议，供前端在真正运行前检查输入。 |
 | `projects.py` | 包装项目输入发现、创建、打开、结果查询和提交，不向表现层泄露仓库细节。New Project 非递归发现所选目录直属的 `.tpr`/`.gro` topology、`.xtc`/`.trr`/`.gro` trajectory 和可选 `.ndx`，进行大小写不敏感匹配并稳定排序。 |
 | `integrations.py` | 检测、查询和运行外部软件，并返回结构化状态与运行记录。 |
@@ -227,7 +233,7 @@ Integrations 调用 `gmx rdf`。RDF request 只使用 `-o`；cumulative RDF 添�
 XVG 曲线。两者都记录
 metadata inspection、trajectory conversion 与 RDF 完整命令。运行时进度来自 GROMACS
 原生输出，不显示该命令；命令由 execution 层写入诊断日志。默认全帧范围直接读取原轨迹；
-非默认范围只使用一次精确转换子集，开放结束位置的范围先用 `gmx check` 获取帧数。
+非默认范围先用 `gmx check` 获取帧数，再使用一次精确转换子集。
 
 PBC、分块、网格、归一化、累计公式、端点和第一壳层峰谷规则集中记录在
 `docs/ALGORITHM.md`；发布定义和验证容差分别见
@@ -303,12 +309,12 @@ Native 只接受 `io/ndx.py` 的命名组。MDAnalysis 在请求给出 index fil
 | --- | --- |
 | `native` | 强制使用 MDHelper GRO Reader（`GroTrajectorySource`）；输入不受支持或解析失败就报错。 |
 | `mdanalysis` | 强制使用 `MDAnalysisTrajectorySource`。 |
-| `gromacs` | 仅在开放结束位置的非默认范围需要 metadata 时，通过 Integrations 调用本机 `gmx trjconv`，再读取标准化的多帧 GRO；默认全帧分析不进入该轨迹端口。 |
+| `gromacs` | 非默认范围通过 Integrations 获取 metadata 并调用本机 `gmx trjconv`；默认全帧分析不进入该轨迹端口。 |
 | `auto` | 只供独立体系检查使用；双 GRO 选择 Native，否则选择 MDAnalysis。 |
 
 分析请求中的 Auto 由完整 Backend 注册表处理：GRO/GRO 加 NDX 时依次考虑 Native、
 MDAnalysis 和具备 `rdf` 能力的 GROMACS；其他径向输入从 MDAnalysis 开始；抽样帧子集额外
-需要 `trjconv`；
+需要 `trjconv` 和 `check`；
 Energy 依次考虑 MDAnalysis 和具备 `energy` 能力的 GROMACS。source 加载失败可以进入下一
 条完整候选流水线，但同一次尝试不会混合 reader、selection 或 computation。
 
@@ -327,8 +333,8 @@ XTC/TRR reader 通过通用 XDR reader 子类把 MDAnalysis 的 `*_offsets.npz` 
 因为那会导致下一次加载重新扫描并再次污染输入目录。
 
 GROMACS 分析 adapter 绕过标准轨迹端口：默认全帧 RDF/CN 把原输入路径直接传给
-`gmx rdf`，非默认范围使用一次 GROMACS 生成的精确子集；开放结束位置的非默认范围先通过
-`gmx check` 只获取帧数，避免完整展开坐标。可执行文件检测、能力校验与所有命令执行均由
+`gmx rdf`，非默认范围先通过 `gmx check` 获取帧数并校验显式 stop，再使用一次 GROMACS
+生成的精确子集，避免完整展开坐标。可执行文件检测、能力校验与所有命令执行均由
 Integrations 完成，上层分析不接触可执行程序路径。
 
 `backends/mdanalysis_selection.py` 从 core 原子元数据构造轻量 Universe 解析静态表达式，
@@ -435,7 +441,9 @@ YAML 结构值，`--args-file` 可载入完整调用。SIGINT 转换为取消请
 Workspace 保存当前输入和检测结果；各分析草稿相互独立，避免参数串扰。运行前审核面板
 集中展示输入、选择、帧范围和分析参数。检测到的物种角色须经用户确认才参与已配置运行，
 但确认不会改变分析选择。RDF + CN 工作流从同一套径向配置构造两个 request，分别导出原始
-结果，并把共享距离轴和双 Y 轴的合并图委托给公共绘图用例。workspace 未加载时状态机显示
+结果及其单项图到可读分析目录；Save Plot 则把共享距离轴和双 Y 轴模型以 `rdf-cn` 保存。
+TUI Export 与 Save Plot 复用 GUI 的 App 导出规划，项目图片同样平铺保存到 `figures`。
+workspace 未加载时状态机显示
 明确的 project/workspace 状态和 Load 菜单，成功加载输入或项目后才显示精简主菜单；Tools
 中的 Integrations 与 Templates 保持为独立状态。选定 EDR 后通过 App 用例按所选 Backend
 发现 terms；`auto` 先使用 MDAnalysis，无法读取时才按已检测 capability 回退到
@@ -482,7 +490,7 @@ GUI 的 New Project 先选择目录，由 App 层非递归发现受支持的拓�
 
 GUI 与 TUI 在 Analysis Settings 使用同一个 Backend 选择器；Load 不显示 Backend。
 Energy 始终可通过 MDAnalysis 使用；GROMACS RDF/CN 需要 `rdf` capability，帧子集额外需要
-`trjconv`，开放结束位置的子集还需要 `check`，GROMACS Energy 需要 `energy`。Backend 选择不参与体系检查；切换 Backend
+`trjconv` 和 `check`，GROMACS Energy 需要 `energy`。Backend 选择不参与体系检查；切换 Backend
 不触发 Species 或 Index groups 刷新。仅在当前会话显式执行过 Integrations 检测，或保存的
 配置包含 GROMACS 可执行文件路径后，交互式 Backend 选择器才显示 GROMACS；Auto 内部探测
 不会显示该选项。

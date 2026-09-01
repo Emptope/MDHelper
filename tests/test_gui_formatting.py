@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from mdhelper.app.exports import result_exports
 from mdhelper.app.reports import (
     CoordinationReport,
     EnergyReport,
@@ -8,7 +9,6 @@ from mdhelper.app.reports import (
     report_for,
 )
 from mdhelper.core.analysis import AnalysisResult, EnergyRequest, RadialRequest
-from mdhelper.gui.export import result_exports
 from mdhelper.gui.formatting import result_label, result_summary, result_summary_html
 
 

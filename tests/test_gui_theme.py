@@ -29,7 +29,9 @@ from PySide6.QtWidgets import (
 )
 
 import mdhelper.gui.window as window_module
+import mdhelper.io.export as export_module
 from mdhelper.app import ApplicationService
+from mdhelper.app.exports import export_directories, result_exports
 from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import InputError
 from mdhelper.core.plotting import PlotLimits
@@ -1061,6 +1063,51 @@ def test_gui_export_includes_every_visible_result_and_current_plot(
     window.close()
 
 
+def test_export_preserves_open_plot_content_aspect_ratio(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    window = MainWindow()
+    rdf = _rdf_result("LI", "O_FSI")
+    cn = _cumulative_rdf_result("LI", "O_FSI")
+    window.results.show_result(rdf)
+    window.results.show_result(cn)
+    window.results.canvas.draw()
+
+    def content_ratio(figure) -> float:
+        width, height = figure.get_size_inches()
+        bounds = figure.axes[0].get_position()
+        return float(bounds.width * width / (bounds.height * height))
+
+    planned_size = window.results.plot_size()
+    planned = content_ratio(window.results.figure)
+    window.results.open_plot_window()
+    _QT_APPLICATION.processEvents()
+    window.results.canvas.draw()
+    displayed = content_ratio(window.results.figure)
+    exported: list[float] = []
+
+    def capture(figure, _output: Path, _filename: str) -> list[Path]:
+        figure.canvas.draw()
+        exported.append(content_ratio(figure))
+        return []
+
+    monkeypatch.setattr(export_module, "_save_figure", capture)
+    window.application.analyses.export_plot_model(
+        window.results.plot_models()[0],
+        tmp_path,
+        "rdf-LI-O_FSI",
+        window.results.plot_scheme(),
+        window.results.plot_limits(),
+        planned_size,
+    )
+
+    assert window.results.plot_size() == planned_size
+    assert displayed == pytest.approx(planned, abs=0.001)
+    assert exported == pytest.approx([displayed], abs=0.001)
+    window.close()
+
+
 def test_gui_save_plot_exports_each_plot_window_to_separate_files(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1085,13 +1132,70 @@ def test_gui_save_plot_exports_each_plot_window_to_separate_files(
     window.close()
 
 
+def test_gui_save_plot_uses_one_energy_prefix_for_combined_terms(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    energy_result: AnalysisResult,
+) -> None:
+    window = MainWindow()
+    window.results.show_result(energy_result)
+    window.results.plot_series.clearSelection()
+    window.results.plot_series.setRangeSelected(
+        QTableWidgetSelectionRange(0, 0, 1, 5),
+        True,
+    )
+    window.results.combine_series_button.click()
+    window.session.project = SimpleNamespace(root=tmp_path)  # type: ignore[assignment]
+    window.session.result = energy_result
+    monkeypatch.setattr(QMessageBox, "information", lambda *_args, **_kwargs: None)
+
+    window._save_project_figures()
+
+    output = tmp_path / "figures"
+    assert {path.name for path in output.iterdir()} == {
+        f"{stem}.{suffix}"
+        for stem in ("energy-Potential-Temperature", "energy-Pressure")
+        for suffix in ("png", "svg", "pdf")
+    }
+    window.close()
+
+
+def test_gui_save_plot_increments_combined_rdf_cn_names(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    window = MainWindow()
+    rdf = _rdf_result("LI", "O_FSI")
+    cn = _cumulative_rdf_result("LI", "O_FSI")
+    window.results.show_result(rdf)
+    window.results.show_result(cn)
+    window.session.project = SimpleNamespace(root=tmp_path)  # type: ignore[assignment]
+    window.session.result = cn
+    monkeypatch.setattr(QMessageBox, "information", lambda *_args, **_kwargs: None)
+
+    window._save_project_figures()
+    window._save_project_figures()
+
+    output = tmp_path / "figures"
+    assert {path.name for path in output.iterdir()} == {
+        f"{stem}.{suffix}"
+        for stem in ("rdf-cn", "rdf-cn-2")
+        for suffix in ("png", "svg", "pdf")
+    }
+    for stem in ("rdf-cn", "rdf-cn-2"):
+        assert "RDF and Cumulative Coordination Number" in (
+            output / f"{stem}.svg"
+        ).read_text(encoding="utf-8")
+    window.close()
+
+
 def test_gui_export_directories_add_readable_numeric_suffixes(tmp_path: Path) -> None:
     first = _rdf_result("A", "B")
     second = _rdf_result("A", "B")
     (tmp_path / "rdf-A-B").mkdir()
 
-    items = (*window_module.result_exports(first), *window_module.result_exports(second))
-    directories = window_module.export_directories(tmp_path, items)
+    items = (*result_exports(first), *result_exports(second))
+    directories = export_directories(tmp_path, items)
 
     assert tuple(path.name for path in directories) == ("rdf-A-B-2", "rdf-A-B-3")
 

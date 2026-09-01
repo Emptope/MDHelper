@@ -58,8 +58,8 @@ the RDF XVG as `radius_nm,g_r`. The in-process grid, shell resampling, and
 normalization follow the same default GROMACS definitions; GROMACS still owns its PBC and floating
 point implementation on the external branch. MDHelper preserves zero-based frame slicing:
 the default full range reads the original inputs directly, while non-default ranges use one exact
-converted subset rather than `gmx rdf -dt`. Open-ended non-default ranges first obtain the frame
-count with `gmx check`. Integration arguments,
+converted subset rather than `gmx rdf -dt`. Every non-default range first obtains the frame count
+with `gmx check`. Integration arguments,
 executable identity, version, outputs, and frame audit are retained in provenance. MDHelper does
 not recompute the GROMACS curve. Native float64 values can still differ below practical tolerance
 from serialized XVG values because GROMACS versions use finite output precision.

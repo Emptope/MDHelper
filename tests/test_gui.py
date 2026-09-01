@@ -27,6 +27,7 @@ import mdhelper.gui.window as window_module
 from mdhelper.app import InputCandidates
 from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError
+from mdhelper.gui.choices import choice_enabled
 from mdhelper.gui.projects import NewProjectDialog
 from mdhelper.gui.window import MainWindow
 from mdhelper.integrations.models import IntegrationConfig, IntegrationStatus
@@ -112,6 +113,35 @@ def test_gui_does_not_detect_unconfigured_gromacs(
     window.close()
 
 
+def test_gui_requires_check_for_sampled_gromacs_rdf(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    QApplication.instance() or QApplication([])
+    monkeypatch.setattr(
+        "mdhelper.app.integrations.IntegrationUseCases.is_configured",
+        lambda _self, _name: True,
+    )
+    window = MainWindow()
+    try:
+        QTest.qWait(20)
+        window._integration_detected(
+            "gromacs",
+            IntegrationStatus(
+                "gromacs",
+                True,
+                path="gmx",
+                capabilities=("rdf", "trjconv"),
+            ),
+        )
+        parameters = window.analysis.parameters
+
+        assert choice_enabled(parameters.analysis_backend, "gromacs")
+        parameters.stride.setValue(2)
+        assert not choice_enabled(parameters.analysis_backend, "gromacs")
+    finally:
+        window.close()
+
+
 def test_gui_startup_reports_configuration_errors_without_traceback(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -173,7 +203,7 @@ def test_gui_completes_coordination_on_generic_system(tmp_path: Path) -> None:
         role = window.load.species.table.cellWidget(row, 2)
         assert isinstance(role, QComboBox)
         role.setCurrentText("other")
-    window.analysis.parameters.stop.setText("2")
+    window.analysis.parameters.stop.setText("1")
 
     window.analysis.parameters.analysis_choice.setCurrentText("Cumulative Coordination Number (CN)")
     window.analysis.parameters.cn_reference.setText("resname REF")

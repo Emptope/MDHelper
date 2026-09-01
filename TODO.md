@@ -11,10 +11,13 @@
 
 ## 已完成
 
-- [x] [BugFix] GUI 打开新项目目录时立即创建 figures 和 results，并在结果完成后启用 Save Plot。
-- [x] [Feature] GUI Save Plot 使用分析目录命名规则平铺保存图片；Export 将独立图片保存到对应分析目录。
-- [x] [BugFix] 解决多个窗口 Plot 时选择 Save Plot 保存到同一张图片的问题，需要保存到不同图片中。
-- [x] [BugFix] 解决 GROMACS 后端当 stride > 1 时合成帧结束后卡死的问题。
+- [x] [BugFix] 非默认 GROMACS RDF/CN 帧范围在 App、GUI、TUI 前置校验 `rdf`、`trjconv`、`check` capabilities。
+- [x] [Feature] Energy 组合图使用 `energy-<term1>-<term2>-...` 命名。
+- [x] [BugFix] Open Plot Window 与 Save Plot、Export 保持绘图内容比例一致。
+- [x] [Feature] 统一 GUI/TUI 的 RDF/CN 图片导出：结果导出保存单项图，组合 Save Plot 使用 `rdf-cn` 递增命名。
+- [x] [BugFix] Stop frame 越界提示显示实际 `Total frame count`。
+- [x] [Feature] 修改 TUI 导出分析绘图和分析结果行为，使其与 GUI 行为一致。
+- [x] [BugFix] 修复 Stop frame 设置大于总帧数时没有报错的问题。
 
 ## 完成标准（每轮改动后需重新确认）
 

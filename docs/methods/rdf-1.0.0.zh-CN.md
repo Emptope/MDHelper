@@ -49,8 +49,8 @@ request 与 `gmx rdf` 一致记录 `bin_width_nm`，不使用 bin count。进程
 `-rmax`、`-ref`、`-sel`、`-o` 和可选 `-n`，不请求 `-cn`，再把 RDF XVG 标准化为
 `radius_nm,g_r`。进程内 grid、shell 重采样和 normalization 遵循相同的 GROMACS 默认定义；
 外部分支的 PBC 与浮点实现仍由 GROMACS 决定。程序保持零基帧切片；默认全帧范围直接读取
-原输入，非默认范围只使用一次精确转换子集，不用 `gmx rdf -dt`；开放结束位置的非默认范围
-先用 `gmx check` 获取帧数。provenance 记录命令
+原输入，非默认范围先用 `gmx check` 获取帧数，再使用一次精确转换子集，不用
+`gmx rdf -dt`。provenance 记录命令
 参数、可执行文件、版本、输出和帧审计；
 MDHelper 不重算 GROMACS 曲线。由于不同 GROMACS 版本以有限精度写 XVG，Native float64
 值与序列化值仍可能在实用容差内略有差异。

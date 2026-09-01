@@ -15,7 +15,6 @@ class PlotWindow(QDialog):
     def __init__(self) -> None:
         super().__init__(None)
         self.setWindowTitle("MDHelper Plot")
-        self.resize(980, 720)
         self.setMinimumSize(720, 520)
         self.figure = Figure(
             figsize=(DEFAULT_PLOT_SIZE.width, DEFAULT_PLOT_SIZE.height),
@@ -26,3 +25,9 @@ class PlotWindow(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.addWidget(self.canvas, 1)
+        width, height = self.canvas.get_width_height()
+        margins = layout.contentsMargins()
+        self.resize(
+            width + margins.left() + margins.right(),
+            height + margins.top() + margins.bottom(),
+        )

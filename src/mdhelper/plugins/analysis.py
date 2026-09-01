@@ -10,6 +10,7 @@ from typing import Protocol
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.progress import ProgressCallback
+from mdhelper.core.system import FrameRange
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.integrations.manager import IntegrationManager
 
@@ -20,6 +21,7 @@ class BackendQuery:
     topology: str | None = None
     trajectory: str | None = None
     index_file: str | None = None
+    frames: FrameRange | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,8 @@ class BackendAdapter(Protocol):
         query: BackendQuery,
         integrations: IntegrationManager,
     ) -> int | None: ...
+
+    def required_capabilities(self, query: BackendQuery) -> tuple[str, ...]: ...
 
     def validate_request(self, request: AnalysisRequest) -> None: ...
 

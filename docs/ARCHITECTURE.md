@@ -89,7 +89,8 @@ which lets tests exercise the application boundary without a real GUI or externa
 `app/reports/` defines the shared readable result-report hierarchy consumed by both GUI and TUI.
 `Report` owns common sections and technical metadata; RDF, CN, and energy subclasses own
 their distinct result and configuration rows. Adapters only render a Report as HTML or terminal
-text.
+text. `app/exports.py` plans readable result directories and plot destinations for both interactive
+frontends; `AnalysisUseCases` executes those plans through the I/O boundary.
 
 ## 5. Core contracts
 
@@ -122,9 +123,14 @@ selected result series, panel group, visibility,
 legend, color, custom title, and strict primary/secondary limit fields. The GUI edits the title of
 the plot containing the current visible series and synchronizes that title across its grouped
 series; project restore and figure export consume the same state.
-GUI project figure saving writes one PNG/SVG/PDF set per plot model directly under `figures`, using
-the readable analysis naming rule. GUI result export writes each plot into its corresponding
-analysis directory and does not create a combined figure at the export root.
+Interactive project figure saving writes one PNG/SVG/PDF set per plot model directly under
+`figures`, using canonical names allocated against both the current batch and existing image sets.
+Mixed RDF/CN models use `rdf-cn`; standalone radial models retain their readable Pair name. GUI and
+TUI result export rebuild one standalone model per result item inside its analysis directory and do
+not create or duplicate a combined figure at the export root. Combined Energy names contain one
+`energy` prefix followed by the source terms in display order. The plot dialog derives its initial
+client size from the Figure canvas and layout margins, so opening it does not change the aspect ratio
+later consumed by Save Plot or Export.
 
 ## 6. Application layer
 
@@ -172,7 +178,7 @@ cancellation checks.
 slicing and invokes `gmx rdf` through Integrations. RDF requests use only `-o`; cumulative RDF adds
 `-cn` and parses both XVG curves. Both retain every metadata-inspection, trajectory-conversion, and
 RDF run record. The default full range reads the original trajectory directly; non-default ranges
-use one exact converted subset, and open-ended ranges obtain the frame count with `gmx check`.
+obtain the frame count with `gmx check` and use one exact converted subset.
 
 `mdanalysis.py` owns MDAnalysis radial and Energy dispatch, while `native.py` owns Native radial
 dispatch. `energy.py` contains private Energy implementations shared by the complete adapters.
@@ -199,9 +205,9 @@ a second policy choice. The MDHelper reader validates fixed atom identity and st
 MDAnalysis adapter converts third-party objects into core atoms, frames, boxes, and zero-based
 indices; third-party objects do not cross the backend boundary. The GROMACS analysis adapter
 bypasses the trajectory port: default full-range RDF/CN passes the original inputs directly to
-`gmx rdf`, while a non-default range uses one GROMACS-generated exact subset. An open-ended
-non-default range obtains only its frame count through `gmx check` before conversion, avoiding a
-full coordinate expansion. Every external command is invoked through Integrations.
+`gmx rdf`, while a non-default range obtains its frame count through `gmx check` and uses one
+GROMACS-generated exact subset. The metadata check validates an explicit stop without a full
+coordinate expansion. Every external command is invoked through Integrations.
 
 ## 9. I/O and projects
 
@@ -259,8 +265,10 @@ stable exit categories.
 
 TUI stores an `AnalysisDraft`, reviews explicit choices, converts it to `AnalysisRequest`, and then
 calls the facade. Its RDF + CN workflow creates two requests from one shared radial setup, exports
-the raw results separately, and delegates the combined dual-axis figure to the shared plotting use
-case. An unloaded workspace shows explicit project/workspace status and a Load-only menu; the
+the results and their standalone plots to separate readable directories. TUI Save Plot preserves
+the shared dual-axis model as `rdf-cn` in the flat project-figure layout. TUI Export and Save Plot
+use the same application plans as GUI.
+An unloaded workspace shows explicit project/workspace status and a Load-only menu; the
 reduced main menu is rendered only after input or project loading. Integrations and Templates remain
 separate Tools states. EDR selection invokes shared term discovery and presents an ordered marked
 multi-select. It does not call CLI parsing or GUI widgets.
@@ -269,7 +277,7 @@ GUI separates widgets, application calls, and result formatting. `window.py` coo
 `parameters.py` builds requests; `results.py` renders result text and core plot models; `species.py`
 handles role confirmation. Both interactive frontends expose Backend under Analysis Settings, not
 Load. Energy remains available through MDAnalysis; GROMACS RDF/CN requires `rdf`, frame subsets
-additionally require `trjconv`, open-ended subsets require `check`, and GROMACS Energy requires
+additionally require `trjconv` and `check`, and GROMACS Energy requires
 `energy`. Backend selection is
 independent from system inspection. New
 Project non-recursively discovers `.tpr`/`.gro` topology,

@@ -40,8 +40,8 @@ nested menus and shows one review before an analysis begins. Before a workspace 
 the current project/workspace status and only the Load menu. Once loaded, its main menu contains
 Analysis, Results, Workspace, and Tools; Tools keeps Integrations, Templates, and Configuration as
 separate entries. Without an open project, the default export folder is
-`results/<analysis-type>` beside the selected trajectory; project workspaces use
-`<project>/exports/<analysis-type>`.
+`results` beside the selected trajectory; project workspaces use `<project>/exports`. Each export
+creates readable analysis directories under that root.
 
 ## Requirements and setup
 
@@ -159,8 +159,8 @@ MDAnalysis supports `.tpr` or `.gro` topology with `.xtc` or `.trr` trajectories
 compatibility depends on the selected pipeline's installed software. The GROMACS pipeline passes
 the original topology and trajectory directly to `gmx rdf` for the default full frame range. A
 non-default frame range uses `gmx trjconv -fr` once to materialize the exact zero-based indices as
-a temporary XTC while `gmx rdf` keeps the original topology. An open-ended non-default range first
-uses `gmx check` to read the frame count without expanding the trajectory.
+a temporary XTC while `gmx rdf` keeps the original topology. Every non-default range first uses
+`gmx check` to read the frame count and validate an explicit stop without expanding the trajectory.
 
 GROMACS maps a structure/topology and an XTC trajectory by atom index. The XTC supplies the
 ordered coordinates, atom count, step, time, and box; atom and residue metadata come from the
@@ -250,17 +250,23 @@ and restore saved project results. Each selected GROMACS energy term uses a sepa
 default, with one plot per window. Select energy rows in **Plot series** and use **Combine** to draw
 them on shared axes in one window; **Separate** restores individual plot windows. These groups are
 marked as `Combined` in the Plot column and preserved in project plot state and figure exports.
-**Save Plot** writes every open plot directly under the project's `figures` directory. File stems
-use the same readable naming rules as Export directories, such as `rdf-A-B` and
-`energy-Potential`; no plot subdirectories are created.
+**Save Plot** writes every current plot directly under the project's `figures` directory. File stems
+use readable names such as `rdf-A-B`, `cn-A-B`, and `energy-Potential`. A plot containing both RDF
+and CN uses `rdf-cn`; occupied names advance to `rdf-cn-2`, `rdf-cn-3`, and so on without
+overwriting an existing image set. Combined Energy terms use one ordered prefix, such as
+`energy-Total-Energy-Temperature`. No plot subdirectories are created. The initial Open Plot Window
+canvas and file exports use the same content aspect ratio; resizing the plot window updates the
+subsequent export size.
 
-GUI exports use readable directories such as `rdf-A-B` and `cn-A-B`. Energy exports create one
+GUI and TUI exports use readable directories such as `rdf-A-B` and `cn-A-B`. Energy exports create one
 directory per curve, such as `energy-Potential`; each directory contains its result data and its
 separate PNG/SVG/PDF plot rather than a combined plot at the export root. Unsafe characters are
 replaced, names are capped at 120 characters, and numeric suffixes prevent collisions.
 
 The TUI analysis menu also provides **RDF + CN Combined Plot**. It reuses one radial setup for both
-analyses, keeps their raw exports separate, and writes one combined PNG/SVG/PDF figure set.
+analyses and exports each result with its standalone plot in a separate readable directory. TUI
+**Save Plot** preserves the current combined dual-axis plot under the same `rdf-cn` naming and
+collision rules as the GUI.
 
 ## Method and reproducibility conventions
 
@@ -296,8 +302,8 @@ uv run mdhelper templates list
 The Analysis Settings Backend selector offers GROMACS only after the user explicitly runs GROMACS
 detection under Integrations in the current session or saves a configured executable path. The
 displayed choice is enabled only after that executable passes capability detection. GROMACS RDF/CN
-requires `rdf`; frame subsets additionally require `trjconv`, and open-ended subsets require
-`check`. GROMACS Energy requires `energy`.
+requires `rdf`; frame subsets additionally require `trjconv` and `check`. GROMACS Energy requires
+`energy`.
 Energy remains available through Auto or MDAnalysis without GROMACS. Load and system inspection do
 not expose this selector and do not change when an analysis backend changes.
 

@@ -281,11 +281,18 @@ class GromacsBackend:
     ) -> int | None:
         if query.analysis_type != "energy" and query.index_file is None:
             return None
-        capabilities = ("energy",) if query.analysis_type == "energy" else ("rdf",)
+        capabilities = self.required_capabilities(query)
         status = integrations.status("gromacs")
         if not status.available or not set(capabilities).issubset(status.capabilities):
             return None
         return 30
+
+    def required_capabilities(self, query: BackendQuery) -> tuple[str, ...]:
+        if query.analysis_type == "energy":
+            return ("energy",)
+        if query.frames is not None and query.frames != FrameRange():
+            return ("rdf", "trjconv", "check")
+        return ("rdf",)
 
     def validate_request(self, request: AnalysisRequest) -> None:
         request.validate()
@@ -332,13 +339,11 @@ class GromacsBackend:
                     str(topology_path),
                 ]
             else:
-                n_frames = None
-                if request.frames.stop is None:
-                    n_frames, metadata_record = _trajectory_frame_count(
-                        inputs,
-                        trajectory_path,
-                        root,
-                    )
+                n_frames, metadata_record = _trajectory_frame_count(
+                    inputs,
+                    trajectory_path,
+                    root,
+                )
                 validate_frame_selection(n_frames, request.frames)
                 indices = _requested_indices(request.frames, n_frames)
                 audit = FrameAudit(

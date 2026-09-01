@@ -17,13 +17,13 @@ from PySide6.QtWidgets import (
 )
 
 from mdhelper.app import ApplicationService
+from mdhelper.app.exports import PlotExport, plot_exports, result_exports
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.plotting import PlotSize
 from mdhelper.core.species import SpeciesRoleSuggestion, role_decision
 from mdhelper.gui.analysis import AnalysisPanel
 from mdhelper.gui.dialogs import IntegrationsDialog
-from mdhelper.gui.export import PlotExport, export_directories, plot_exports, result_exports
 from mdhelper.gui.fonts import configure_ui_font
 from mdhelper.gui.formatting import (
     error_text,
@@ -69,6 +69,8 @@ class MainWindow(QMainWindow):
         self._batch_total = 0
         self._pending_roles: dict[str, str] = {}
         self._suspend_auto_inspect = False
+        self._gromacs_detected = False
+        self._gromacs_capabilities: frozenset[str] = frozenset()
         self._inspection_timer = QTimer(self)
         self._inspection_timer.setSingleShot(True)
         self._inspection_timer.setInterval(250)
@@ -130,6 +132,9 @@ class MainWindow(QMainWindow):
         self.analysis.cancel_requested.connect(self._cancel)
         self.analysis.parameters.energy_terms_requested.connect(self._load_energy_terms)
         self.analysis.parameters.analysis_backend_changed.connect(self._backend_changed)
+        self.analysis.parameters.backend_requirements_changed.connect(
+            self._sync_gromacs_availability
+        )
         self.load.species.role_edited.connect(self._role_edited)
         self.results.load_requested.connect(self._load_project_result)
         self.results.save_project_requested.connect(self._save_project_figures)
@@ -176,6 +181,8 @@ class MainWindow(QMainWindow):
         configured = self.application.integrations.is_configured("gromacs")
         self.analysis.parameters.set_gromacs_configured(configured)
         if not configured:
+            self._gromacs_detected = False
+            self._gromacs_capabilities = frozenset()
             self.analysis.parameters.set_gromacs_available(False)
             return
         self.analysis.parameters.set_gromacs_pending()
@@ -183,13 +190,36 @@ class MainWindow(QMainWindow):
 
     def _integration_detected(self, name: str, status: object) -> None:
         if name == "gromacs":
-            self.analysis.parameters.set_gromacs_available(
-                bool(getattr(status, "available", False))
+            capabilities = getattr(status, "capabilities", ())
+            self._gromacs_detected = bool(getattr(status, "available", False))
+            self._gromacs_capabilities = frozenset(
+                str(capability) for capability in capabilities
             )
+            self._sync_gromacs_availability()
 
     def _integration_detection_failed(self, name: str, _error: object) -> None:
         if name == "gromacs":
-            self.analysis.parameters.set_gromacs_available(False)
+            self._gromacs_detected = False
+            self._gromacs_capabilities = frozenset()
+            self._sync_gromacs_availability()
+
+    def _sync_gromacs_availability(self) -> None:
+        parameters = self.analysis.parameters
+        analysis_type = parameters.analysis_type_value()
+        try:
+            frames = None if analysis_type == "energy" else parameters.frame_range()
+        except ValueError:
+            parameters.set_gromacs_available(False)
+            return
+        required = self.application.analyses.backend_capabilities(
+            "gromacs",
+            analysis_type,
+            frames,
+        )
+        parameters.set_gromacs_available(
+            self._gromacs_detected
+            and set(required).issubset(self._gromacs_capabilities)
+        )
 
     def _system_input_changed(self) -> None:
         if self._suspend_auto_inspect:
@@ -550,49 +580,13 @@ class MainWindow(QMainWindow):
         plots = self._plot_exports()
         sizes = self._plot_export_sizes(len(plots))
         try:
-            paths = []
-            items = tuple(
-                item
-                for plot in plots
-                for item in plot.items
+            paths = self.application.analyses.export_bundle(
+                plots,
+                directory,
+                self.results.plot_scheme(),
+                self.results.plot_limits(),
+                sizes,
             )
-            unique_items = tuple(
-                {
-                    (item.result.analysis_id, item.name): item
-                    for item in items
-                }.values()
-            )
-            outputs = export_directories(Path(directory), unique_items)
-            output_by_item = {
-                (item.result.analysis_id, item.name): output
-                for item, output in zip(unique_items, outputs, strict=True)
-            }
-            for item, output in zip(unique_items, outputs, strict=True):
-                paths.extend(
-                    self.application.analyses.export(
-                        item.result,
-                        output,
-                        include_figures=False,
-                    )
-                )
-            for plot, size in zip(plots, sizes, strict=True):
-                destinations = tuple(
-                    dict.fromkeys(
-                        output_by_item[(item.result.analysis_id, item.name)]
-                        for item in plot.items
-                    )
-                )
-                for output in destinations:
-                    paths.extend(
-                        self.application.analyses.export_plot_model(
-                            plot.model,
-                            output,
-                            output.name,
-                            self.results.plot_scheme(),
-                            self.results.plot_limits(),
-                            size,
-                        )
-                    )
         except Exception as exc:
             self._show_error(exc)
             return
@@ -608,18 +602,13 @@ class MainWindow(QMainWindow):
         sizes = self._plot_export_sizes(len(plots))
         directory = self.session.project.root / "figures"
         try:
-            paths = []
-            for plot, size in zip(plots, sizes, strict=True):
-                paths.extend(
-                    self.application.analyses.export_plot_model(
-                        plot.model,
-                        directory,
-                        plot.name,
-                        self.results.plot_scheme(),
-                        self.results.plot_limits(),
-                        size,
-                    )
-                )
+            paths = self.application.analyses.save_plots(
+                plots,
+                directory,
+                self.results.plot_scheme(),
+                self.results.plot_limits(),
+                sizes,
+            )
         except Exception as exc:
             self._show_error(exc)
             return
@@ -635,8 +624,11 @@ class MainWindow(QMainWindow):
         if visible:
             return plot_exports(
                 visible,
-                self.results.plot_series_keys(),
-                self.results.plot_models(),
+                series_keys=self.results.plot_series_keys(),
+                labels=self.results.plot_labels(),
+                color_ids=self.results.plot_color_ids(),
+                group_ids=self.results.plot_group_ids(),
+                titles=self.results.plot_titles(),
             )
         assert self.session.result is not None
         items = result_exports(self.session.result)

@@ -86,6 +86,20 @@ def validate_frame_selection(
     n_frames: int | None,
     frame_range: FrameRange,
 ) -> int | None:
+    if (
+        n_frames is not None
+        and frame_range.stop is not None
+        and frame_range.stop > n_frames
+    ):
+        raise InputError(
+            "The frame stop exceeds the trajectory frame count.\n"
+            f"Total frame count: {n_frames}",
+            "Use a stop no greater than the reported total frame count.",
+            {
+                "stop_frame": frame_range.stop,
+                "total_frames": n_frames,
+            },
+        )
     count = selected_frame_count(n_frames, frame_range)
     if count is None:
         return None

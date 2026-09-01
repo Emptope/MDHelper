@@ -19,6 +19,7 @@ from mdhelper.integrations.models import (
     IntegrationConfig,
     IntegrationRegistry,
 )
+from mdhelper.plugins.analysis import BackendQuery
 from mdhelper.services.config import UserConfig
 
 
@@ -26,8 +27,13 @@ class _GromacsAdapter(IntegrationAdapter):
     name = "gromacs"
     display_name = "GROMACS"
 
-    def __init__(self, program: Path):
+    def __init__(
+        self,
+        program: Path,
+        capabilities: tuple[str, ...] = ("energy", "trjconv", "rdf", "check"),
+    ):
         self.program = str(program)
+        self.capabilities = capabilities
 
     def candidate_names(self) -> tuple[str, ...]:
         return ()
@@ -42,7 +48,7 @@ class _GromacsAdapter(IntegrationAdapter):
         return ("capabilities",)
 
     def parse_capabilities(self, stdout: str, stderr: str, exit_code: int) -> tuple[str, ...]:
-        return ("energy", "trjconv", "rdf", "check") if exit_code == 0 else ()
+        return self.capabilities if exit_code == 0 else ()
 
 
 def _program(path: Path) -> Path:
@@ -105,9 +111,10 @@ def _program(path: Path) -> Path:
 def _application(
     tmp_path: Path,
     trajectory_loader: TrajectoryLoader | None = None,
+    capabilities: tuple[str, ...] = ("energy", "trjconv", "rdf", "check"),
 ) -> ApplicationService:
     registry = IntegrationRegistry()
-    registry.register(_GromacsAdapter(_program(tmp_path / "gmx.py")))
+    registry.register(_GromacsAdapter(_program(tmp_path / "gmx.py"), capabilities))
     return ApplicationService(
         UserConfig(
             integrations={
@@ -372,9 +379,9 @@ def test_gromacs_rdf_uses_native_commands_and_frame_range(
         "display_name": "GROMACS",
     }
     runs = result.provenance["integration_runs"]
-    assert [run["arguments"][0] for run in runs] == ["trjconv", "rdf"]
+    assert [run["arguments"][0] for run in runs] == ["check", "trjconv", "rdf"]
     assert all(run["status"] == "completed" for run in runs)
-    conversion_run, rdf_run = runs
+    _metadata_run, conversion_run, rdf_run = runs
     assert all(
         Path(run["working_directory"]).parent == project.cache_dir for run in runs
     )
@@ -414,6 +421,8 @@ def test_gromacs_rdf_uses_native_commands_and_frame_range(
         "run.err",
         "run-2.out",
         "run-2.err",
+        "run-3.out",
+        "run-3.err",
     }
     stored = json.loads((output / "result.json").read_text(encoding="utf-8"))
     assert all(
@@ -512,6 +521,79 @@ def test_gromacs_open_sampled_range_uses_metadata_without_loading_trajectory(
     assert [run["arguments"][0] for run in runs] == ["check", "trjconv", "rdf"]
     assert result.diagnostics["n_frames"] == 3
     assert runs[1]["stdout"].endswith("[ frames ]\n1 3 5\n")
+
+
+def test_gromacs_rejects_frame_stop_beyond_trajectory(
+    tmp_path: Path,
+) -> None:
+    trajectory = tmp_path / "trajectory"
+    trajectory.write_bytes(b"trajectory")
+    request = RadialRequest(
+        analysis_type="rdf",
+        topology=str(trajectory),
+        trajectory=str(trajectory),
+        reference="A",
+        selection="B",
+        frames=FrameRange(stop=7),
+        analysis_backend="gromacs",
+    )
+
+    with pytest.raises(InputError, match="exceeds the trajectory frame count") as stopped:
+        _application(tmp_path).analyses.run(request)
+
+    assert stopped.value.details == {"stop_frame": 7, "total_frames": 6}
+
+
+def test_gromacs_rejects_missing_check_before_starting_sampled_rdf(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trajectory = tmp_path / "trajectory"
+    trajectory.write_bytes(b"trajectory")
+    application = _application(tmp_path, capabilities=("rdf", "trjconv"))
+    backend = application.context.analysis_registry.get("gromacs", "rdf")
+
+    def reject_run(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("An incomplete backend must not start an analysis run")
+
+    monkeypatch.setattr(backend, "run", reject_run)
+    request = RadialRequest(
+        analysis_type="rdf",
+        topology=str(trajectory),
+        trajectory=str(trajectory),
+        reference="A",
+        selection="B",
+        frames=FrameRange(stride=2),
+        analysis_backend="gromacs",
+    )
+
+    with pytest.raises(BackendError, match="lacks required capabilities") as missing:
+        application.analyses.run(request)
+
+    assert missing.value.details is not None
+    assert missing.value.details["missing_capabilities"] == ["check"]
+
+
+def test_gromacs_auto_requires_check_only_for_sampled_rdf(tmp_path: Path) -> None:
+    application = _application(tmp_path, capabilities=("rdf", "trjconv"))
+    backend = application.context.analysis_registry.get("gromacs", "rdf")
+    integrations = application.context.integrations
+
+    assert backend.auto_priority(
+        BackendQuery("rdf", index_file="groups.ndx", frames=FrameRange()),
+        integrations,
+    ) == 30
+    assert (
+        backend.auto_priority(
+            BackendQuery(
+                "rdf",
+                index_file="groups.ndx",
+                frames=FrameRange(stride=2),
+            ),
+            integrations,
+        )
+        is None
+    )
 
 
 def test_gromacs_rejects_stride_that_reduces_a_multi_frame_range_to_one(

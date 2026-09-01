@@ -59,8 +59,8 @@
 start, start + stride, start + 2 * stride, ... < stop
 ```
 
-`stop = null` 表示轨迹末尾。后端将超出轨迹长度的 `stop` 截到实际末尾；若没有任何
-帧满足范围则失败。`FrameAudit` 记录实际帧数、首末索引和首末时间，包含请求值之外的运行事实。
+`stop = null` 表示轨迹末尾。显式 `stop` 不得超过已知的轨迹总帧数；若没有任何帧满足范围
+则失败。`FrameAudit` 记录实际帧数、首末索引和首末时间，包含请求值之外的运行事实。
 
 ### 2.4 坐标预处理
 
@@ -85,7 +85,7 @@ gromacs    -> GROMACS input processing + GROMACS selection + RDF/CN or Energy
 
 Auto 按优先级排列可用完整策略。径向请求只有在 GRO/GRO 加 NDX 时才先考虑 Native，随后
 是 MDAnalysis，再随后是具备 `rdf` capability 的 GROMACS；GROMACS 帧子集额外需要
-`trjconv`，开放结束位置的子集还需要 `check`。Energy 先考虑
+`trjconv` 和 `check`。Energy 先考虑
 MDAnalysis，再考虑具备 `energy` capability 的 GROMACS。source 加载错误可以进入下一条
 完整策略；显式请求不 fallback；同一次尝试不会组合不同 Backend 的组件。独立体系检查仍
 使用 reader-only Auto：GRO/GRO 选择 Native，其他输入选择 MDAnalysis。provenance 记录解析
@@ -354,9 +354,9 @@ N_k = (sum_(j=0..k) H_j) / N_ref_obs
 和 trajectory 直接传给一次 `gmx rdf`。RDF request 只使用 `-o`；cumulative RDF request
 额外使用 `-cn`，并保留 RDF 输出供共同的第一壳层诊断使用。非默认范围把零基帧索引
 转换为一次 `gmx trjconv -fr` 接受的一基 NDX 条目，生成精确 XTC
-子集，`gmx rdf -s` 仍使用原 topology。开放结束位置的非默认范围先用 `gmx check` 获取
-帧数，不把完整轨迹展开为另一种坐标格式。`-dt` 按绝对时间网格取样，Python stride
-按相对 `start` 的索引取样，因此两者不能互换。
+子集，`gmx rdf -s` 仍使用原 topology。每个非默认范围先用 `gmx check` 获取帧数并校验
+显式 stop，不把完整轨迹展开为另一种坐标格式。`-dt` 按绝对时间网格取样，Python
+stride 按相对 `start` 的索引取样，因此两者不能互换。
 
 request 的 `bin_width_nm`、`r_max_nm` 分别传给 `-bin`、`-rmax`。该分支的 pair selection、
 PBC、grid endpoint、RDF normalization 和 cumulative integration 均由 GROMACS 决定。

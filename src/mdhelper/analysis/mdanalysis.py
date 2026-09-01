@@ -31,6 +31,10 @@ class MDAnalysisBackend:
     ) -> int:
         return 20
 
+    def required_capabilities(self, query: BackendQuery) -> tuple[str, ...]:
+        del query
+        return ()
+
     def validate_request(self, request: AnalysisRequest) -> None:
         request.validate()
 

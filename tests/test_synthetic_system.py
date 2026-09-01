@@ -88,7 +88,7 @@ def _common(path: Path) -> _Common:
         "topology": str(path),
         "trajectory": str(path),
         "reference": "resname REF",
-        "frames": FrameRange(stop=2),
+        "frames": FrameRange(stop=1),
         "analysis_backend": "mdanalysis",
         "species_roles": {"REF": "other", "LIGA": "other", "LIGB": "other"},
     }
@@ -155,7 +155,7 @@ def test_rdf_normalization_matches_gromacs_for_overlapping_selections(
             trajectory=str(synthetic_path),
             r_max_nm=0.5,
             bin_width_nm=0.1,
-            frames=FrameRange(stop=2),
+            frames=FrameRange(stop=1),
             analysis_backend="mdanalysis",
         )
     )
@@ -307,6 +307,10 @@ def test_analysis_algorithm_is_replaceable_behind_application_contract(
         ) -> int:
             return 10
 
+        def required_capabilities(self, query: BackendQuery) -> tuple[str, ...]:
+            del query
+            return ()
+
         def validate_request(self, request: AnalysisRequest) -> None:
             request.validate()
 
@@ -435,7 +439,7 @@ def test_project_commit_binds_result_to_fingerprinted_inputs(
         selection="resname LIGA",
         r_max_nm=0.5,
         bin_width_nm=0.05,
-        frames=FrameRange(stop=2),
+        frames=FrameRange(stop=1),
         analysis_backend="mdanalysis",
     )
     result = application.analyses.run(request)
@@ -493,7 +497,7 @@ def test_cli_completes_all_analyses_and_project_round_trip(
         "--roles",
         '{"REF":"other","LIGA":"other","LIGB":"other"}',
         "--stop",
-        "2",
+        "1",
         "--figures",
         "false",
     ]

@@ -32,7 +32,6 @@ class AnalysisDraft:
     energy_terms: list[str] = field(default_factory=list)
     frames: FrameRange = field(default_factory=FrameRange)
     output: str = ""
-    include_figures: bool = True
     parameter_provenance: dict[str, Any] = field(default_factory=dict)
 
     def request(self, workspace: Workspace) -> AnalysisRequest:
@@ -77,8 +76,8 @@ class Workspace:
     roles: dict[str, str] = field(default_factory=dict)
     role_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     drafts: dict[AnalysisType, AnalysisDraft] = field(default_factory=dict)
-    radial_output: str = ""
     result: AnalysisResult | None = None
+    plot_results: tuple[AnalysisResult, ...] = ()
 
     @property
     def loaded(self) -> bool:
@@ -101,29 +100,23 @@ class Workspace:
         self.roles.clear()
         self.role_decisions.clear()
         self.drafts.clear()
-        self.radial_output = ""
         self.result = None
+        self.plot_results = ()
 
-    def output_directory(self, name: str) -> str:
+    def output_directory(self) -> str:
         base = (
             self.project.root / "exports"
             if self.project is not None
             else Path(self.trajectory).expanduser().resolve().parent / "results"
         )
-        export_name = "cn" if name == "cumulative_rdf" else name
-        return str(base / export_name)
-
-    def radial_output_directory(self) -> str:
-        if not self.radial_output:
-            self.radial_output = self.output_directory("rdf-cn")
-        return self.radial_output
+        return str(base)
 
     def draft(self, analysis_type: AnalysisType) -> AnalysisDraft:
         draft = self.drafts.get(analysis_type)
         if draft is None:
             draft = AnalysisDraft(
                 analysis_type,
-                output=self.output_directory(analysis_type),
+                output=self.output_directory(),
             )
             self.drafts[analysis_type] = draft
         return draft

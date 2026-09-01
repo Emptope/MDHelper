@@ -30,6 +30,10 @@ def test_frame_range_uses_python_stop_semantics(tmp_path: Path) -> None:
     assert selected_frame_count(2, FrameRange(stop=1)) == 1
     assert selected_frame_count(2, FrameRange(stop=20, stride=2)) == 1
     assert validate_frame_selection(2, FrameRange(stop=1)) == 1
+    with pytest.raises(InputError, match="exceeds the trajectory frame count") as stopped:
+        validate_frame_selection(2, FrameRange(stop=20, stride=2))
+    assert "Total frame count: 2" in stopped.value.message
+    assert stopped.value.details == {"stop_frame": 20, "total_frames": 2}
     with pytest.raises(InputError, match="selects only one frame"):
         validate_frame_selection(101, FrameRange(stride=1_000_000_000))
     with pytest.raises(TrajectoryError, match="produced no frames"):

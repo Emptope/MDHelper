@@ -33,6 +33,10 @@ class NativeBackend:
             return None
         return 10
 
+    def required_capabilities(self, query: BackendQuery) -> tuple[str, ...]:
+        del query
+        return ()
+
     def validate_request(self, request: AnalysisRequest) -> None:
         if not isinstance(request, RadialRequest):
             raise BackendError("The Native backend requires a radial request.")

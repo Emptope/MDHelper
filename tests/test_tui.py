@@ -10,6 +10,7 @@ import mdhelper.bootstrap.portable as portable
 import mdhelper.bootstrap.windows_console as windows_console
 from mdhelper.app import ApplicationService
 from mdhelper.app.reports import result_summary
+from mdhelper.core.analysis import AnalysisResult
 from mdhelper.core.system import FrameRange
 from mdhelper.gui.main import tui_command
 from mdhelper.integrations.models import IntegrationStatus
@@ -456,12 +457,67 @@ def test_tui_default_export_directory_follows_selected_trajectory(tmp_path: Path
     trajectory = tmp_path / "simulation" / "trajectory.gro"
     workspace = Workspace(trajectory=str(trajectory))
 
-    assert workspace.draft("rdf").output == str(
-        trajectory.parent / "results" / "rdf"
+    assert workspace.draft("rdf").output == str(trajectory.parent / "results")
+    assert workspace.draft("cumulative_rdf").output == str(trajectory.parent / "results")
+
+
+def test_tui_exports_each_energy_curve_to_its_own_directory(
+    tmp_path: Path,
+    energy_result: AnalysisResult,
+) -> None:
+    output = StringIO()
+    tui = Tui(
+        ApplicationService(UserConfig()),
+        Terminal(StringIO(f"{tmp_path}\n{tmp_path}\n"), output),
     )
-    assert workspace.draft("cumulative_rdf").output == str(
-        trajectory.parent / "results" / "cn"
-    )
+    tui.workspace.result = energy_result
+    tui.workspace.plot_results = (energy_result,)
+
+    try:
+        tui._export_result()
+        tui._export_result()
+    finally:
+        tui.tasks.shutdown()
+
+    for term in ("Potential", "Temperature", "Pressure"):
+        for suffix in ("", "-2"):
+            name = f"energy-{term}{suffix}"
+            directory = tmp_path / name
+            assert {path.name for path in directory.iterdir()} == {
+                "result.json",
+                "energy.csv",
+                f"{name}.png",
+                f"{name}.svg",
+                f"{name}.pdf",
+            }
+    assert "Exported 15 file(s)" in output.getvalue()
+
+
+def test_tui_save_plot_uses_flat_project_figure_names(
+    tmp_path: Path,
+    energy_result: AnalysisResult,
+) -> None:
+    source = tmp_path / "input.dat"
+    source.write_text("input\n", encoding="ascii")
+    application = ApplicationService(UserConfig())
+    project = application.projects.create(tmp_path / "project", source, source)
+    output = StringIO()
+    tui = Tui(application, Terminal(StringIO(), output))
+    tui.workspace.project = project
+    tui.workspace.result = energy_result
+    tui.workspace.plot_results = (energy_result,)
+
+    try:
+        tui._save_project_figures()
+    finally:
+        tui.tasks.shutdown()
+
+    assert {path.name for path in (project.root / "figures").iterdir()} == {
+        f"energy-{term}.{suffix}"
+        for term in ("Potential", "Temperature", "Pressure")
+        for suffix in ("png", "svg", "pdf")
+    }
+    assert "Saved 9 figure file(s)" in output.getvalue()
 
 
 def test_tui_analysis_setup_opens_options_before_run_confirmation() -> None:
@@ -558,6 +614,41 @@ def test_tui_hides_gromacs_backend_until_explicit_detection(monkeypatch) -> None
     assert any(value == "gromacs" for _label, value in choices[1])
 
 
+def test_tui_requires_check_for_sampled_gromacs_rdf(monkeypatch) -> None:
+    application = ApplicationService(UserConfig())
+    tui = Tui(application, Terminal(StringIO(), StringIO()))
+    choices: list[tuple[tuple[str, str], ...]] = []
+    supported = {"rdf", "trjconv"}
+
+    def choose(
+        _title: str,
+        options: tuple[tuple[str, str], ...],
+        _default: str | None = None,
+    ) -> str:
+        choices.append(options)
+        return "auto"
+
+    monkeypatch.setattr(tui.terminal, "choose", choose)
+    monkeypatch.setattr(
+        tui.application.integrations,
+        "is_configured",
+        lambda _name: True,
+    )
+    monkeypatch.setattr(
+        tui.application.integrations,
+        "supports",
+        lambda _name, *required: set(required).issubset(supported),
+    )
+    try:
+        tui._edit_backend(AnalysisDraft("rdf"))
+        tui._edit_backend(AnalysisDraft("rdf", frames=FrameRange(stride=2)))
+    finally:
+        tui.tasks.shutdown()
+
+    assert any(value == "gromacs" for _label, value in choices[0])
+    assert all(value != "gromacs" for _label, value in choices[1])
+
+
 def test_tui_load_does_not_mix_analysis_backend_with_input_inspection(
     monkeypatch,
 ) -> None:
@@ -642,7 +733,7 @@ def test_tui_energy_rediscovery_preserves_valid_terms_and_removes_stale_terms(
     assert draft.energy_terms == ["Pressure", "Potential"]
 
 
-def test_tui_runs_rdf_cn_and_exports_one_combined_figure(tmp_path: Path) -> None:
+def test_tui_runs_rdf_cn_and_exports_standalone_figures(tmp_path: Path) -> None:
     synthetic_path = tmp_path / "trajectory.gro"
     _write_trajectory(synthetic_path)
     application = ApplicationService(UserConfig())
@@ -663,36 +754,60 @@ def test_tui_runs_rdf_cn_and_exports_one_combined_figure(tmp_path: Path) -> None
         }
         for species, suggestion in summary.role_suggestions.items()
     }
-    tui.workspace.radial_output = str(tmp_path / "rdf-cn-output")
     draft = AnalysisDraft(
         "rdf",
         reference="resname REF",
         selection="resname LIGA",
         r_max_nm=0.5,
         bin_width_nm=0.05,
-        frames=FrameRange(stop=summary.n_frames),
+        frames=FrameRange(stop=1),
+        output=str(tmp_path / "rdf-cn-output"),
     )
 
     try:
         assert tui._run_rdf_cn(draft)
+        tui.workspace.project = application.projects.create(
+            tmp_path / "project",
+            synthetic_path,
+            synthetic_path,
+        )
+        tui._save_project_figures()
+        tui._save_project_figures()
     finally:
         tui.tasks.shutdown()
 
     export = tmp_path / "rdf-cn-output"
     assert {path.name for path in export.iterdir()} == {
-        "rdf",
-        "cn",
-        "rdf-cn.png",
-        "rdf-cn.svg",
-        "rdf-cn.pdf",
+        "rdf-resname-REF-resname-LIGA",
+        "cn-resname-REF-resname-LIGA",
     }
-    assert {path.name for path in (export / "rdf").iterdir()} == {
+    rdf = export / "rdf-resname-REF-resname-LIGA"
+    cn = export / "cn-resname-REF-resname-LIGA"
+    assert {path.name for path in rdf.iterdir()} == {
         "result.json",
         "rdf.csv",
+        "rdf-resname-REF-resname-LIGA.png",
+        "rdf-resname-REF-resname-LIGA.svg",
+        "rdf-resname-REF-resname-LIGA.pdf",
     }
-    assert {path.name for path in (export / "cn").iterdir()} == {
+    assert {path.name for path in cn.iterdir()} == {
         "result.json",
         "cn.csv",
+        "cn-resname-REF-resname-LIGA.png",
+        "cn-resname-REF-resname-LIGA.svg",
+        "cn-resname-REF-resname-LIGA.pdf",
+    }
+    rdf_svg = (rdf / "rdf-resname-REF-resname-LIGA.svg").read_text(encoding="utf-8")
+    cn_svg = (cn / "cn-resname-REF-resname-LIGA.svg").read_text(encoding="utf-8")
+    assert "Radial distribution function" in rdf_svg
+    assert "RDF and Cumulative Coordination Number" not in rdf_svg
+    assert "Cumulative Coordination Number" in cn_svg
+    assert "RDF and Cumulative Coordination Number" not in cn_svg
+    figures = tui.workspace.project.root / "figures"
+    assert {path.name for path in figures.iterdir()} == {
+        f"{stem}.{suffix}"
+        for stem in ("rdf-cn", "rdf-cn-2")
+        for suffix in ("png", "svg", "pdf")
     }
     assert tui.workspace.result is not None
     assert tui.workspace.result.analysis_type == "cumulative_rdf"
@@ -732,9 +847,8 @@ def test_tui_setup_runs_shared_analysis(tmp_path: Path) -> None:
         selection="resname LIGA",
         r_max_nm=0.5,
         bin_width_nm=0.05,
-        frames=FrameRange(stop=summary.n_frames),
+        frames=FrameRange(stop=1),
         output=str(tmp_path / "tui-output"),
-        include_figures=False,
     )
 
     try:
@@ -744,7 +858,14 @@ def test_tui_setup_runs_shared_analysis(tmp_path: Path) -> None:
 
     assert tui.workspace.result is not None
     assert tui.workspace.result.data["cumulative_number"][-1] == 2.0
-    assert (tmp_path / "tui-output" / "result.json").is_file()
+    export = tmp_path / "tui-output" / "cn-resname-REF-resname-LIGA"
+    assert {path.name for path in export.iterdir()} == {
+        "result.json",
+        "cn.csv",
+        "cn-resname-REF-resname-LIGA.png",
+        "cn-resname-REF-resname-LIGA.svg",
+        "cn-resname-REF-resname-LIGA.pdf",
+    }
     text = output.getvalue()
     assert "Review Cumulative Coordination Number (CN) setup" in text
     assert "[Groups]" in text

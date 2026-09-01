@@ -155,7 +155,7 @@ def setup_panel(draft: AnalysisDraft, workspace: Workspace) -> str:
             "",
             "[Export]",
             f"  Folder:        {draft.output or 'not set'}",
-            f"  Figures:       {'PNG/SVG/PDF' if draft.include_figures else 'disabled'}",
+            "  Figures:       PNG/SVG/PDF",
         )
     )
     if issues:

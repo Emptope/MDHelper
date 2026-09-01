@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import cast
 
 from mdhelper.app import ApplicationService
+from mdhelper.app.exports import default_plot_exports
 from mdhelper.core.analysis import (
     AnalysisBackend,
     AnalysisRequest,
@@ -469,10 +470,8 @@ class Tui:
         draft = self.workspace.draft("rdf")
         self._prepare_setup(draft)
         while True:
-            output = self.workspace.radial_output_directory()
-            view = replace(draft, output=output, include_figures=True)
             self.terminal.rule("RDF + CN setup")
-            self.terminal.write(setup_panel(view, self.workspace))
+            self.terminal.write(setup_panel(draft, self.workspace))
             choice = self.terminal.menu(
                 "Options",
                 (
@@ -496,9 +495,7 @@ class Tui:
             elif choice == "4":
                 self._edit_parameters(draft)
             elif choice == "5":
-                self.workspace.radial_output = self.terminal.ask(
-                    "Export directory", output
-                )
+                draft.output = self.terminal.ask("Export directory", draft.output)
             elif choice == "6":
                 self._edit_backend(draft)
 
@@ -632,7 +629,10 @@ class Tui:
         if draft.analysis_type != "energy":
             if self.workspace.index_file:
                 choices.insert(1, ("Native", "native"))
-            gromacs = configured and self._gromacs_supports("rdf")
+            gromacs = configured and self._gromacs_supports(
+                draft.analysis_type,
+                draft.frames,
+            )
         else:
             gromacs = configured and self._gromacs_supports("energy")
         if gromacs:
@@ -644,17 +644,29 @@ class Tui:
         )
         draft.analysis_backend = cast(AnalysisBackend, selected)
 
-    def _gromacs_supports(self, capability: str | None = None) -> bool:
-        required = () if capability is None else (capability,)
+    def _gromacs_supports(
+        self,
+        analysis_type: str,
+        frames: FrameRange | None = None,
+    ) -> bool:
+        required = self.application.analyses.backend_capabilities(
+            "gromacs",
+            analysis_type,
+            frames,
+        )
         return self.application.integrations.supports("gromacs", *required)
 
-    def _require_gromacs(self, capability: str, feature: str) -> None:
-        if self._gromacs_supports(capability):
+    def _require_gromacs(self, analysis_type: str, feature: str) -> None:
+        if self._gromacs_supports(analysis_type):
             return
+        required = self.application.analyses.backend_capabilities(
+            "gromacs",
+            analysis_type,
+        )
         raise InputError(
             f"{feature} is unavailable because no compatible GROMACS executable was detected.",
             "Configure or detect GROMACS under Tools > Integrations.",
-            {"required_capability": capability},
+            {"required_capabilities": list(required)},
         )
 
     @staticmethod
@@ -668,9 +680,6 @@ class Tui:
 
     def _edit_output(self, draft: AnalysisDraft) -> None:
         draft.output = self.terminal.ask("Export directory", draft.output or None)
-        draft.include_figures = self.terminal.confirm(
-            "Export PNG, SVG, and PDF figures?", draft.include_figures
-        )
 
     def _run_analysis(self, draft: AnalysisDraft) -> bool:
         issues = draft_issues(draft, self.workspace)
@@ -694,8 +703,10 @@ class Tui:
         )
         self.terminal.finish_progress()
         self.workspace.result = result
-        paths = self.application.analyses.export(
-            result, draft.output, include_figures=draft.include_figures
+        self.workspace.plot_results = (result,)
+        paths = self.application.analyses.export_bundle(
+            default_plot_exports((result,)),
+            draft.output,
         )
         project_result = None
         if self.workspace.project is not None:
@@ -712,9 +723,7 @@ class Tui:
         return True
 
     def _run_rdf_cn(self, draft: AnalysisDraft) -> bool:
-        output = self.workspace.radial_output_directory()
-        view = replace(draft, output=output, include_figures=True)
-        issues = draft_issues(view, self.workspace)
+        issues = draft_issues(draft, self.workspace)
         if issues:
             raise InputError(
                 "Setup is incomplete.",
@@ -722,7 +731,7 @@ class Tui:
                 {"required_decisions": issues},
             )
         self.terminal.rule("Review RDF + CN setup")
-        self.terminal.write(setup_panel(view, self.workspace))
+        self.terminal.write(setup_panel(draft, self.workspace))
         if not self.terminal.confirm("Start RDF + CN now?"):
             self.terminal.write("You can change the setup below.")
             return False
@@ -741,23 +750,10 @@ class Tui:
             self.terminal.finish_progress()
             results.append(result)
         self.workspace.result = results[-1]
-        directory = Path(output)
-        paths = []
-        for result in results:
-            export_name = "cn" if result.analysis_type == "cumulative_rdf" else "rdf"
-            paths.extend(
-                self.application.analyses.export(
-                    result,
-                    directory / export_name,
-                    include_figures=False,
-                )
-            )
-        paths.extend(
-            self.application.analyses.export_comparison_figures(
-                results,
-                directory,
-                "rdf-cn",
-            )
+        self.workspace.plot_results = tuple(results)
+        paths = self.application.analyses.export_bundle(
+            default_plot_exports(results),
+            draft.output,
         )
         project = self.workspace.project
         if project is not None:
@@ -781,8 +777,9 @@ class Tui:
                 "Results and export",
                 (
                     ("Show the current in-memory result", "1"),
-                    ("Export the current result again", "2"),
-                    ("Load a completed result from the current project", "3"),
+                    ("Save the current plot to the project", "2"),
+                    ("Export the current analysis results", "3"),
+                    ("Load a completed result from the current project", "4"),
                 ),
             )
             if choice is None:
@@ -790,8 +787,10 @@ class Tui:
             if choice == "1":
                 self._show_result()
             elif choice == "2":
-                self._export_result()
+                self._save_project_figures()
             elif choice == "3":
+                self._export_result()
+            elif choice == "4":
                 self._load_result()
 
     def _require_result(self) -> AnalysisResult:
@@ -806,11 +805,30 @@ class Tui:
         self.terminal.rule("Current result")
         self.terminal.write(result_text(self._require_result()))
 
-    def _export_result(self) -> None:
+    def _current_plots(self) -> tuple[AnalysisResult, ...]:
         result = self._require_result()
+        return self.workspace.plot_results or (result,)
+
+    def _save_project_figures(self) -> None:
+        project = self.workspace.project
+        if project is None:
+            raise InputError(
+                "No project is open.",
+                "Open a project before saving plots to its figures directory.",
+            )
+        directory = project.root / "figures"
+        paths = self.application.analyses.save_plots(
+            default_plot_exports(self._current_plots()),
+            directory,
+        )
+        self.terminal.write(f"Saved {len(paths)} figure file(s) to {directory}.")
+
+    def _export_result(self) -> None:
         output = self.terminal.ask("Export directory")
-        figures = self.terminal.confirm("Export PNG, SVG, and PDF figures?", True)
-        paths = self.application.analyses.export(result, output, figures)
+        paths = self.application.analyses.export_bundle(
+            default_plot_exports(self._current_plots()),
+            output,
+        )
         self.terminal.write(f"Exported {len(paths)} file(s) to {output}.")
 
     def _load_result(self) -> None:
@@ -830,6 +848,7 @@ class Tui:
         options = tuple((self._result_label(entry), str(entry["analysis_id"])) for entry in entries)
         analysis_id = self.terminal.choose("Completed project results", options)
         self.workspace.result = self.application.projects.load_result(project, analysis_id)
+        self.workspace.plot_results = (self.workspace.result,)
         self._show_result()
 
     @staticmethod

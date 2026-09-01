@@ -52,7 +52,7 @@ Energy considers MDAnalysis before available GROMACS. Explicit selections never 
 GROMACS RDF passes the original inputs directly to `gmx rdf`; cumulative RDF adds `-cn` for the
 default full frame range. Energy uses `gmx energy`. A non-default frame range uses one
 `gmx trjconv -fr` command to create an exact temporary XTC subset and keeps the original topology
-for `gmx rdf`. An open-ended non-default range first obtains the frame count with `gmx check`.
+for `gmx rdf`. Every non-default range first obtains the frame count with `gmx check`.
 
 ## Strict initial-version contracts
 

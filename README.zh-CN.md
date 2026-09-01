@@ -34,8 +34,8 @@ energy 数据提取。
 并在分析开始前集中显示设置供用户确认。workspace 未加载时，首页显示当前 project/workspace
 状态且只提供 Load 菜单；加载后主菜单仅保留 Analysis、Results、Workspace 和 Tools。Tools
 中的 Integrations、Templates 和 Configuration 保持为独立入口。未打开项目时，默认导出
-目录是所选 trajectory 旁的 `results/<analysis-type>`；项目 workspace 使用
-`<project>/exports/<analysis-type>`。
+根目录是所选 trajectory 旁的 `results`；项目 workspace 使用 `<project>/exports`。每次
+导出会在该根目录下创建可读分析目录。
 
 ## 环境要求与安装
 
@@ -149,8 +149,8 @@ Native 支持单帧或多帧 GRO topology/trajectory 组合，并要求 NDX 文�
 `.tpr` 或 `.gro` 为 topology、以 `.xtc` 或 `.trr` 为 trajectory。格式兼容性由所选流水线
 的软件版本决定。默认全帧范围下，GROMACS 流水线把原 topology 和 trajectory 直接传给
 `gmx rdf`。非默认帧范围只运行一次 `gmx trjconv -fr`，生成精确零基帧索引的临时 XTC，
-`gmx rdf` 保留原 topology。开放结束位置的非默认范围先用 `gmx check` 读取帧数，不展开
-整条轨迹。
+`gmx rdf` 保留原 topology。每个非默认范围先用 `gmx check` 读取帧数并校验显式 stop，
+不展开整条轨迹。
 
 GROMACS 按原子索引将 structure/topology 与 XTC 轨迹对应。XTC 提供按顺序排列的
 坐标、原子数、step、time 和 box；原子与残基元数据来自 structure/topology。GROMACS
@@ -233,14 +233,18 @@ energy term 默认各自在独立窗口中绘图，一个窗口只显示一张�
 energy 行并使用 **Combine** 可将其绘制到同一窗口的共享坐标轴，**Separate** 可恢复独立
 绘图窗口。组合行会在 Plot 列显示 `Combined` 标记；组合关系会保存在项目绘图状态和图像
 导出中。**Save Plot** 会把每个绘图窗口直接保存到项目的 `figures` 目录，不创建图片子目录；
-文件名与 Export 的可读目录命名规则一致，例如 `rdf-A-B`、`energy-Potential`。
+单项图使用 `rdf-A-B`、`cn-A-B`、`energy-Potential` 等可读名称。包含 RDF 与 CN 的组合图
+统一使用 `rdf-cn`；名称已被占用时依次使用 `rdf-cn-2`、`rdf-cn-3`，不会覆盖已有图片组。
+Energy 组合图只保留一个有序前缀，例如 `energy-Total-Energy-Temperature`。Open Plot Window
+首次显示与文件导出保持相同的绘图内容比例；手动缩放绘图窗口后，后续导出使用调整后的尺寸。
 
-GUI 导出使用 `rdf-A-B`、`cn-A-B` 等可读目录。Energy 每条曲线单独建立目录，例如
+GUI 与 TUI 导出统一使用 `rdf-A-B`、`cn-A-B` 等可读目录。Energy 每条曲线单独建立目录，例如
 `energy-Potential`；每个目录包含结果数据及独立的 PNG/SVG/PDF 图片，导出根目录不再保存
 合并图片。非法字符会被替换，名称最长 120 个字符，冲突时追加数字后缀。
 
-TUI 分析菜单也提供 **RDF + CN Combined Plot**。它让两项分析复用同一套径向配置，分别保存
-原始结果，并输出一套合并的 PNG/SVG/PDF 图像。
+TUI 分析菜单也提供 **RDF + CN Combined Plot**。它让两项分析复用同一套径向配置，把结果
+及各自的单项图分别保存到可读分析目录。TUI 的 **Save Plot** 保留当前双纵轴组合图，并与
+GUI 使用相同的 `rdf-cn` 命名、递增和项目 `figures` 平铺规则。
 
 ## 方法与可复现性约定
 
@@ -271,7 +275,7 @@ uv run mdhelper templates list
 仅当用户在当前会话的 Integrations 中显式执行过 GROMACS 检测，或已保存 configured
 executable 路径时，Analysis Settings 的 Backend 选择器才显示 GROMACS；该可执行文件通过
 capability 检测后选项才可用。GROMACS RDF/CN 需要 `rdf` capability，帧子集额外需要
-`trjconv`，开放结束位置的子集还需要 `check`；GROMACS Energy 需要 `energy`。
+`trjconv` 和 `check`；GROMACS Energy 需要 `energy`。
 没有 GROMACS 时，Energy 仍可通过 Auto 或 MDAnalysis 使用。Load 和体系检查不显示该
 选择器，也不会因分析 Backend 改变而重新加载。
 

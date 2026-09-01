@@ -8,6 +8,11 @@ from threading import Event
 
 from mdhelper.analysis.common import check_cancel
 from mdhelper.app.context import ApplicationContext
+from mdhelper.app.exports import (
+    PlotExport,
+    export_bundle,
+    save_plots,
+)
 from mdhelper.core.analysis import (
     AnalysisRequest,
     AnalysisResult,
@@ -25,6 +30,7 @@ from mdhelper.core.errors import (
 from mdhelper.core.plotting import DEFAULT_PLOT_SCHEME, PlotLimits, PlotModel, PlotSize
 from mdhelper.core.progress import ProgressCallback
 from mdhelper.core.species import role_decision, role_policy
+from mdhelper.core.system import FrameRange
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.io.export import (
     export_comparison_figures,
@@ -102,6 +108,26 @@ class AnalysisUseCases:
     ) -> list[Path]:
         return export_plot_model(model, output_directory, stem, scheme, limits, size)
 
+    def export_bundle(
+        self,
+        plots: Sequence[PlotExport],
+        output_directory: str | Path,
+        scheme: str = DEFAULT_PLOT_SCHEME,
+        limits: PlotLimits | None = None,
+        sizes: Sequence[PlotSize | None] | None = None,
+    ) -> list[Path]:
+        return export_bundle(plots, output_directory, scheme, limits, sizes)
+
+    def save_plots(
+        self,
+        plots: Sequence[PlotExport],
+        output_directory: str | Path,
+        scheme: str = DEFAULT_PLOT_SCHEME,
+        limits: PlotLimits | None = None,
+        sizes: Sequence[PlotSize | None] | None = None,
+    ) -> list[Path]:
+        return save_plots(plots, output_directory, scheme, limits, sizes)
+
     def energy_terms(
         self,
         energy_file: str | Path,
@@ -140,12 +166,28 @@ class AnalysisUseCases:
         query: BackendQuery,
     ) -> tuple[BackendAdapter, ...]:
         if backend_name != "auto":
-            return (
-                self.context.analysis_registry.get(
-                    backend_name,
-                    query.analysis_type,
-                ),
+            backend = self.context.analysis_registry.get(
+                backend_name,
+                query.analysis_type,
             )
+            required = backend.required_capabilities(query)
+            if required:
+                status = self.context.integrations.status(backend.name)
+                missing = sorted(set(required) - set(status.capabilities))
+                if missing:
+                    raise BackendError(
+                        f"The selected {backend.name} integration lacks required capabilities.",
+                        "Configure a compatible executable or select another backend.",
+                        {
+                            "missing_capabilities": missing,
+                            "integration": status.to_dict(),
+                        },
+                    )
+                if not status.available:
+                    raise BackendError(
+                        f"No validated {backend.name} installation is available."
+                    )
+            return (backend,)
         backends = self.context.analysis_registry.auto(
             query,
             self.context.integrations,
@@ -155,6 +197,17 @@ class AnalysisUseCases:
         raise BackendError(
             f"No complete backend is available for {query.analysis_type!r}.",
             "Install or configure a backend that supports the selected inputs.",
+        )
+
+    def backend_capabilities(
+        self,
+        backend_name: str,
+        analysis_type: str,
+        frames: FrameRange | None = None,
+    ) -> tuple[str, ...]:
+        backend = self.context.analysis_registry.get(backend_name, analysis_type)
+        return backend.required_capabilities(
+            BackendQuery(analysis_type, frames=frames)
         )
 
     def _run_file_analysis(
@@ -358,6 +411,7 @@ class AnalysisUseCases:
             request.topology,
             request.trajectory,
             request.index_file,
+            request.frames,
         )
         for backend in self._analysis_backends(request.analysis_backend, query):
             backend.validate_request(request)

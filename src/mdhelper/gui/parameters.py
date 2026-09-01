@@ -48,6 +48,7 @@ from mdhelper.gui.selections import (
 class ParameterPanel(QGroupBox):
     energy_terms_requested = Signal(str)
     analysis_backend_changed = Signal()
+    backend_requirements_changed = Signal()
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__("Analysis Settings", parent)
@@ -91,6 +92,7 @@ class ParameterPanel(QGroupBox):
         self.stack.setCurrentIndex(index)
         self.frames.setVisible(self._analysis_type() != "energy")
         self._set_backend_choices()
+        self.backend_requirements_changed.emit()
 
     def _set_backend_choices(self) -> None:
         previous = self.analysis_backend.currentData()
@@ -305,6 +307,13 @@ class ParameterPanel(QGroupBox):
         self.stride = QSpinBox()
         self.stride.setRange(1, 2_000_000_000)
         self.stride.setValue(1)
+        self.start.valueChanged.connect(
+            lambda _value: self.backend_requirements_changed.emit()
+        )
+        self.stop.editingFinished.connect(self.backend_requirements_changed.emit)
+        self.stride.valueChanged.connect(
+            lambda _value: self.backend_requirements_changed.emit()
+        )
         grid.addWidget(QLabel("First frame (0-based)"), 0, 0)
         grid.addWidget(self.start, 0, 1)
         grid.addWidget(QLabel("Stop frame (exclusive)"), 0, 2)
@@ -529,6 +538,9 @@ class ParameterPanel(QGroupBox):
 
     def _analysis_type(self) -> AnalysisType:
         return cast(AnalysisType, self.analysis_choice.currentData())
+
+    def analysis_type_value(self) -> AnalysisType:
+        return self._analysis_type()
 
     def requires_selections(self) -> bool:
         return self._analysis_type() != "energy"
