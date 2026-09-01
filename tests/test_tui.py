@@ -459,6 +459,9 @@ def test_tui_default_export_directory_follows_selected_trajectory(tmp_path: Path
     assert workspace.draft("rdf").output == str(
         trajectory.parent / "results" / "rdf"
     )
+    assert workspace.draft("cumulative_rdf").output == str(
+        trajectory.parent / "results" / "cn"
+    )
 
 
 def test_tui_analysis_setup_opens_options_before_run_confirmation() -> None:
@@ -678,7 +681,7 @@ def test_tui_runs_rdf_cn_and_exports_one_combined_figure(tmp_path: Path) -> None
     export = tmp_path / "rdf-cn-output"
     assert {path.name for path in export.iterdir()} == {
         "rdf",
-        "cumulative_rdf",
+        "cn",
         "rdf-cn.png",
         "rdf-cn.svg",
         "rdf-cn.pdf",
@@ -687,7 +690,7 @@ def test_tui_runs_rdf_cn_and_exports_one_combined_figure(tmp_path: Path) -> None
         "result.json",
         "rdf.csv",
     }
-    assert {path.name for path in (export / "cumulative_rdf").iterdir()} == {
+    assert {path.name for path in (export / "cn").iterdir()} == {
         "result.json",
         "cn.csv",
     }

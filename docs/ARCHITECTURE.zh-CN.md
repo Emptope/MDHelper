@@ -339,10 +339,10 @@ XTC/TRR reader 通过通用 XDR reader 子类把 MDAnalysis 的 `*_offsets.npz` 
 一基索引转换为内部零基索引。重复组、非法整数、重复原子、非正索引、越界索引或空组
 都会产生明确错误，不做静默修复。
 
-`io/export.py` 支持 JSON、CSV、文本附件、PNG、SVG 和 PDF：JSON 保留完整结果契约；CSV
+`io/export.py` 支持 JSON、CSV、PNG、SVG 和 PDF：JSON 保留完整结果契约；CSV
 使用稳定列和 15 位有效数字；Matplotlib 使用非交互 Agg 后端，PNG 默认 300 dpi；SVG/PDF
-保留矢量输出。GROMACS 结果把原始 XVG 文本保存在 result artifact 中，Export 会在
-integration 临时目录删除后仍原样写出这些源输出文件。所有写入先在目标目录生成临时文件，成功后原子替换。导出以
+保留矢量输出。integration stdout/stderr 正文写入结果同目录的 `.out`/`.err` 文件；持久化
+JSON 只保留流指纹，不保留正文或路径。所有写入先在目标目录生成临时文件，成功后原子替换。导出以
 `AnalysisResult` 或 `PlotModel` 为输入，因此三个表现层的数据语义相同。
 
 ## 11. `project`：项目聚合与持久化
@@ -352,7 +352,7 @@ project-root/
   mdhelper-project.json
   results/
     data/
-    logs/
+    runs/
   figures/
   cache/
 ```
@@ -367,19 +367,21 @@ project-root/
 | `project.py` | `Project` 聚合 manifest、input 和 result 仓库，向应用层提供创建、打开、提交和读取。 |
 | `manifests.py` | 严格校验 `mdhelper-project.json`；记录输入、结果索引和 schema 版本，不迁移旧字段。 |
 | `inputs.py` | 每个输入只保存一个路径和 SHA-256；可移植时使用项目相对路径，Windows 跨卷无法表示相对路径时使用绝对路径。移动后的文件只有 SHA-256 相同才重新关联。 |
-| `runs.py` | 将 integration stdout/stderr 原子写入专用日志；manifest 和结果文件只保留项目相对路径与 SHA-256，读取时校验并恢复内存记录。 |
+| `runs.py` | 校验 integration run；结果流以 analysis ID 命名写入 `results/data`，独立 run 及其流写入 `results/runs`，读取时校验 SHA-256 并恢复内存记录。 |
 | `results.py` | 验证请求/结果/provenance，写入结果，计算哈希并更新紧凑 manifest 索引；读取时由 analysis ID 推导结果路径，并检查路径、哈希和契约。 |
 | `schema.py` | 运行时 Python schema 校验器，递归拒绝未知字段、缺失字段和错误类型。 |
 | `storage.py` | JSON 序列化、同目录临时文件和 `os.replace` 原子替换等底层存储原语。 |
 | `__init__.py` | 导出项目公共接口。 |
 
 结果提交顺序是：严格校验请求、结果和输入 provenance；将 integration stdout/stderr
-原子写入 `results/logs/`，并在持久化记录中替换为相对路径和 SHA-256；将完整结果原子写入
-`results/data/<analysis_id>.json`；计算文件哈希；将 ID、分析类型、提交时间和哈希加入 manifest 并原子提交。manifest 不重复保存 request、method、流正文、恒定完成状态和可推导路径。若 manifest
-提交失败，刚创建且未被索引的结果与日志文件都会被删除。
+作为 `<analysis_id>.out/.err` 原子写入 `results/data/`，并在持久化记录中用 SHA-256
+替换流正文；将完整结果原子写入 `results/data/<analysis_id>.json`；计算文件哈希；将 ID、
+分析类型、提交时间和哈希加入 manifest 并原子提交。manifest 不保存 integration run 或
+integration preference，也不重复保存 request、method、流正文、恒定完成状态和可推导路径。
+若 manifest 提交失败，刚创建且未被索引的结果与流文件都会被删除。
 
 读取时拒绝结果路径逃逸 `results/data/`；每条记录必须带结果哈希，加载时会校验该哈希，
-随后校验日志路径与指纹、恢复内存中的 stdout/stderr，再重新解析结果契约。
+随后按 analysis ID 和 run 顺序定位流文件、校验指纹、恢复内存中的 stdout/stderr，再重新解析结果契约。
 `schemas/` 中的 JSON Schema 面向发布、测试和外部工具；运行时以 `project/schema.py`
 的严格校验为准，二者变更必须同步。
 
@@ -495,7 +497,7 @@ Energy 始终可通过 MDAnalysis 使用；GROMACS RDF/CN 需要 `rdf` capabilit
 | `runtime/environment.py` | 构造可控子进程环境，避免无关用户环境改变行为。 |
 | `runtime/logging.py` | 在平台用户日志目录初始化日志并记录 integration 完整命令；可由 `MDHELPER_LOG` 覆盖，失败时退化为 `NullHandler`。 |
 
-外部工具运行记录可以写入项目 `integration_runs` 审计历史。显式 GROMACS RDF/CN 通过
+独立外部工具运行记录可以写入项目 `results/runs/` 审计目录。显式 GROMACS RDF/CN 通过
 Integration 调用 `gmx rdf`，其中 cumulative RDF 添加 `-cn`；GROMACS Energy 调用 `gmx energy`。任何对结果有贡献的
 命令都在结果中显示软件正式名称、版本、可执行文件和
 子命令。非零退出保留结构化记录，由调用用例决定如何呈现。

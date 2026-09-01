@@ -174,7 +174,7 @@ def test_result_validation_rejects_unknown_and_non_json_content() -> None:
         request=request.to_dict(),
     )
     value = result.to_dict()
-    assert value["artifacts"] == {}
+    assert "artifacts" not in value
     assert "uncertainty" not in value
     assert "status" not in value
     value["unknown"] = True
@@ -192,11 +192,6 @@ def test_result_validation_rejects_unknown_and_non_json_content() -> None:
         AnalysisResult.from_dict(value)
 
     value = result.to_dict()
-    value["artifacts"] = {"../raw.xvg": "source"}
-    with pytest.raises(ConfigurationError, match="plain file names"):
-        AnalysisResult.from_dict(value)
-
-    value = result.to_dict()
-    value["artifacts"] = {"raw.xvg": 1}
-    with pytest.raises(ConfigurationError, match="contents must be strings"):
+    value["artifacts"] = {}
+    with pytest.raises(ConfigurationError, match="unknown fields"):
         AnalysisResult.from_dict(value)

@@ -20,23 +20,12 @@ from mdhelper.core.plotting import (
     draw_plot,
     results_plots,
 )
+from mdhelper.services.run_streams import (
+    externalize_run_streams,
+    remove_run_streams,
+)
 
 EXPORT_SIGNIFICANT_DIGITS = 15
-_RESERVED_EXPORT_NAMES = {
-    "result.json",
-    "rdf.csv",
-    "cn.csv",
-    "energy.csv",
-    "rdf.png",
-    "rdf.svg",
-    "rdf.pdf",
-    "cumulative_rdf.png",
-    "cumulative_rdf.svg",
-    "cumulative_rdf.pdf",
-    "energy.png",
-    "energy.svg",
-    "energy.pdf",
-}
 
 
 def _clean_number(value: float) -> float:
@@ -98,32 +87,6 @@ def _atomic_csv(path: Path, header: list[str], rows: list[list[Any]]) -> None:
             f"Could not write CSV export: {path}",
             details={"exception": f"{type(exc).__name__}: {exc}"},
         ) from exc
-
-
-def _atomic_text(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
-    try:
-        with temporary.open("w", encoding="utf-8", newline="") as handle:
-            handle.write(content)
-        os.replace(temporary, path)
-    except OSError as exc:
-        temporary.unlink(missing_ok=True)
-        raise BackendError(
-            f"Could not write analysis artifact: {path}",
-            details={"exception": f"{type(exc).__name__}: {exc}"},
-        ) from exc
-
-
-def _export_artifacts(result: AnalysisResult, output: Path) -> list[Path]:
-    paths: list[Path] = []
-    for name, content in result.artifacts.items():
-        if name in _RESERVED_EXPORT_NAMES:
-            raise BackendError(f"Analysis artifact conflicts with a standard export: {name}")
-        path = output / name
-        _atomic_text(path, content)
-        paths.append(path)
-    return paths
 
 
 def _export_csv(result: AnalysisResult, output: Path) -> list[Path]:
@@ -336,8 +299,26 @@ def export_result(
 ) -> list[Path]:
     output = _output_directory(output_directory)
     metadata = output / "result.json"
-    _atomic_json(metadata, result.to_dict())
-    paths = [metadata, *_export_csv(result, output), *_export_artifacts(result, output)]
+    value = result.to_dict()
+    stream_paths: list[Path] = []
+    provenance = value.get("provenance")
+    if isinstance(provenance, dict):
+        raw_runs = provenance.get("integration_runs")
+        if raw_runs is not None:
+            if not isinstance(raw_runs, list):
+                raise BackendError("Integration runs must be an array before export.")
+            records = [dict(record) for record in raw_runs if isinstance(record, dict)]
+            if len(records) != len(raw_runs):
+                raise BackendError("Integration runs must be objects before export.")
+            if records:
+                stored, stream_paths = externalize_run_streams(records, output, "run")
+                provenance["integration_runs"] = stored
+    try:
+        _atomic_json(metadata, value)
+    except BaseException:
+        remove_run_streams(stream_paths)
+        raise
+    paths = [metadata, *_export_csv(result, output), *stream_paths]
     if include_figures:
         paths.extend(
             _write_figures((result,), output, scheme=scheme, limits=limits, size=size)

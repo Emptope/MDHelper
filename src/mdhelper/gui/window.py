@@ -22,6 +22,7 @@ from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.species import SpeciesRoleSuggestion, role_decision
 from mdhelper.gui.analysis import AnalysisPanel
 from mdhelper.gui.dialogs import IntegrationsDialog
+from mdhelper.gui.export import export_directories, result_exports
 from mdhelper.gui.fonts import configure_ui_font
 from mdhelper.gui.formatting import (
     error_text,
@@ -546,15 +547,23 @@ class MainWindow(QMainWindow):
         try:
             paths = []
             unique = tuple({result.analysis_id: result for result in plotted}.values())
-            for result in unique:
-                output = (
-                    Path(directory)
-                    if len(unique) == 1
-                    else Path(directory) / f"{result.analysis_type}-{result.analysis_id}"
-                )
+            items = tuple(
+                item
+                for result in unique
+                for item in result_exports(result)
+            )
+            nested = len(unique) > 1 or any(
+                result.analysis_type == "energy" for result in unique
+            )
+            outputs = (
+                export_directories(Path(directory), items)
+                if nested
+                else (Path(directory),)
+            )
+            for item, output in zip(items, outputs, strict=True):
                 paths.extend(
                     self.application.analyses.export(
-                        result,
+                        item.result,
                         output,
                         include_figures=False,
                     )

@@ -225,8 +225,6 @@ class _GromacsEnergy:
                     details={"integration_run": record.to_dict()},
                 )
             time_ps, series, y_label = _parse_xvg(output, request.energy_terms)
-            with output.open("r", encoding="utf-8", errors="replace", newline="") as handle:
-                raw_output = handle.read()
         provenance = dict(inputs.provenance)
         provenance["integration_runs"] = [record.to_dict()]
         return AnalysisResult(
@@ -237,7 +235,6 @@ class _GromacsEnergy:
             units={"time_ps": "ps", "series": y_label},
             diagnostics={"n_samples": len(time_ps)},
             provenance=provenance,
-            artifacts={"gromacs-energy.xvg": raw_output},
             request=request.to_dict(),
         )
 

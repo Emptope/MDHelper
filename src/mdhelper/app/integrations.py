@@ -76,16 +76,6 @@ class IntegrationUseCases:
         input_text: str | None = None,
         required_capabilities: tuple[str, ...] = (),
     ) -> IntegrationRunRecord:
-        preference = (
-            project.manifest.get("integration_preferences", {}).get(name.casefold(), {})
-            if project
-            else {}
-        )
-        required = tuple(
-            dict.fromkeys(
-                [*preference.get("required_capabilities", ()), *required_capabilities]
-            )
-        )
         try:
             record = self.context.integrations.run(
                 name,
@@ -96,7 +86,7 @@ class IntegrationUseCases:
                 cancel_event,
                 output_files,
                 input_text=input_text,
-                required_capabilities=required,
+                required_capabilities=required_capabilities,
             )
         except MDHelperError as exc:
             integration_run = (exc.details or {}).get("integration_run")

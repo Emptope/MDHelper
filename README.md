@@ -182,8 +182,8 @@ dependent expressions such as `around`, `sphzone`, and `prop` are therefore reje
 
 ## Projects and exports
 
-A project keeps input fingerprints, confirmed species roles, completed results, integration run
-records, and plot state together. Each complete result is stored and fingerprinted once under
+A project keeps input fingerprints, confirmed species roles, completed results, and plot state
+together. Each complete result is stored and fingerprinted once under
 `results/data/`:
 
 ```text
@@ -192,9 +192,12 @@ analysis-project/
   results/
     data/
       <analysis-id>.json
-    logs/
-      <run-id>.stdout.log
-      <run-id>.stderr.log
+      <analysis-id>.out
+      <analysis-id>.err
+    runs/
+      <run-id>.json
+      <run-id>.out
+      <run-id>.err
   figures/
   cache/
 ```
@@ -216,8 +219,10 @@ The project path must be new or empty. Pass `--project analysis-project` to `ins
 completed result. Energy commits add the fingerprinted EDR file as the `energy` input. Projects
 can be moved; MDHelper reconnects inputs only when their SHA-256 fingerprints still match. All
 GROMACS command work directories and generated source outputs for project runs are retained under
-the project's `cache/` directory. Captured integration stdout and stderr are stored in dedicated,
-fingerprinted files under `results/logs/`; the manifest keeps only their relative paths and hashes.
+the project's `cache/` directory. Result-related integration stdout and stderr are fingerprinted as
+`<analysis-id>.out` and `<analysis-id>.err` beside the result JSON; additional runs use numeric
+suffixes. Standalone integration audit records and streams are stored under `results/runs/`.
+Neither integration runs nor integration preferences are stored in the manifest.
 
 In the Windows GUI, **File > New Project** discovers direct `.tpr`/`.gro` topology,
 `.xtc`/`.trr`/`.gro` trajectory, and optional `.ndx` files in a selected directory. A sole
@@ -230,9 +235,10 @@ materializes an in-place project beside the trajectory. **File > Open Project** 
 `mdhelper-project.json` and verifies its inputs before restoring roles, results, and plot state.
 
 Direct analysis exports contain a complete `result.json`, analysis-specific CSV files, and, by
-default, PNG, SVG, and PDF figures. GROMACS results also export the unmodified XVG files produced by
-`gmx rdf` or `gmx energy`. Each integration run stores the exact executed command in `result.json`
-and the diagnostic log. Runtime progress wraps the latest native output line as `GROMACS: ...`
+default, PNG, SVG, and PDF figures. Integration stream bodies are written beside the result as
+`run.out` and `run.err`; additional runs use numeric suffixes. The JSON keeps the exact command and
+stream fingerprints, but no stdout, stderr, stream paths, or generic artifact field. Runtime
+progress wraps the latest native output line as `GROMACS: ...`
 instead of displaying that command. Numeric JSON and CSV values use stable 15-significant-digit
 formatting; PNG files use 300 DPI, while SVG and PDF remain vector output.
 
@@ -243,6 +249,11 @@ default, with one plot per window. Select energy rows in **Plot series** and use
 them on shared axes in one window; **Separate** restores individual plot windows. These groups are
 marked as `Combined` in the Plot column and preserved in project plot state and figure
 exports.
+
+GUI multi-result exports use readable directories such as `rdf-A-B` and `cn-A-B`. Energy exports
+create one directory per curve, such as `energy-Potential`; 46 selected terms therefore create 46
+bounded names instead of one concatenated name. Unsafe characters are replaced, names are capped
+at 120 characters, and numeric suffixes prevent collisions.
 
 The TUI analysis menu also provides **RDF + CN Combined Plot**. It reuses one radial setup for both
 analyses, keeps their raw exports separate, and writes one combined PNG/SVG/PDF figure set.

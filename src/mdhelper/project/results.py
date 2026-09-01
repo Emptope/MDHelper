@@ -57,7 +57,9 @@ class ResultRepository:
                 "Commit the exact request that produced this result.",
             )
         input_records = self.inputs.result_records(manifest, request, result)
-        result_path = self.root / "results" / "data" / f"{result.analysis_id}.json"
+        result_path = self._path({"analysis_id": result.analysis_id})
+        if result_path is None:
+            raise ConfigurationError("Analysis result ID cannot form a project result path.")
         if result_path.exists() or any(
             entry.get("analysis_id") == result.analysis_id
             for entry in manifest.get("analyses", [])
@@ -67,9 +69,9 @@ class ResultRepository:
                 "Keep each analysis_id unique; reopen the existing result instead.",
             )
         run_records = self._run_records(result.provenance)
-        log_paths: list[Path] = []
+        stream_paths: list[Path] = []
         try:
-            stored_runs, log_paths = self.runs.store(run_records)
+            stored_runs, stream_paths = self.runs.store(run_records, result.analysis_id)
             stored_result = result.to_dict()
             if stored_runs:
                 stored_result["provenance"]["integration_runs"] = stored_runs
@@ -91,15 +93,11 @@ class ResultRepository:
             }
             if isinstance(request, RadialRequest) and request.species_roles:
                 updated["species_roles"] = dict(request.species_roles)
-            updated["integration_runs"] = [
-                *manifest.get("integration_runs", []),
-                *stored_runs,
-            ]
             updated["analyses"] = [*manifest.get("analyses", []), entry]
             updated = self.manifests.commit(updated)
         except BaseException:
             result_path.unlink(missing_ok=True)
-            self.runs.remove(log_paths)
+            self.runs.remove(stream_paths)
             raise
         return updated, result_path
 
@@ -156,7 +154,9 @@ class ResultRepository:
             if isinstance(provenance, dict):
                 stored_runs = self._run_records(provenance)
                 if stored_runs:
-                    provenance["integration_runs"] = self.runs.hydrate(stored_runs)
+                    provenance["integration_runs"] = self.runs.hydrate(
+                        stored_runs, analysis_id
+                    )
             result = AnalysisResult.from_dict(value)
             if result.analysis_id != analysis_id:
                 raise ConfigurationError(

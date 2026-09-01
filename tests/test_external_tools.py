@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -408,14 +409,13 @@ def test_disabled_detection_allows_only_explicit_override(
     assert [item.source for item in status.detections] == ["run_override"]
 
 
-def test_project_records_portable_integration_requirement_and_run(tmp_path: Path) -> None:
+def test_project_archives_integration_run_outside_manifest(tmp_path: Path) -> None:
     manager, _program_path, registry = _fake_integration(tmp_path)
     topology = tmp_path / "topology"
     trajectory = tmp_path / "trajectory"
     topology.write_text("topology", encoding="utf-8")
     trajectory.write_text("trajectory", encoding="utf-8")
     project = Project.create(tmp_path / "project", topology, trajectory)
-    project.set_integration_preference("fake", True, ("echo",))
     application = ApplicationService(
         UserConfig(
             integrations={"fake": IntegrationConfig(path=str(Path(sys.executable)))}
@@ -425,34 +425,40 @@ def test_project_records_portable_integration_requirement_and_run(tmp_path: Path
     application.context.integrations.environment = manager.environment
 
     record = application.integrations.run(
-        "fake", ["echo"], tmp_path, project=project
+        "fake", ["echo"], tmp_path, project=project, required_capabilities=("echo",)
     )
 
     assert record.status == "completed"
     reopened = Project.open(project.root)
-    preference = reopened.manifest["integration_preferences"]["fake"]
-    assert preference == {"preferred": True, "required_capabilities": ["echo"]}
-    assert "path" not in preference
-    stored = reopened.manifest["integration_runs"][0]
+    assert "integration_preferences" not in reopened.manifest
+    assert "integration_runs" not in reopened.manifest
+    run_paths = tuple((project.root / "results" / "runs").glob("*.json"))
+    assert len(run_paths) == 1
+    run_path = run_paths[0]
+    stored = json.loads(run_path.read_text(encoding="utf-8"))
     assert "stdout" not in stored
     assert "stderr" not in stored
-    for stream in ("stdout", "stderr"):
+    assert "stdout_path" not in stored
+    assert "stderr_path" not in stored
+    for stream, extension in (("stdout", "out"), ("stderr", "err")):
         content = getattr(record, stream)
-        path = project.root / stored[f"{stream}_path"]
-        assert path.parent == project.root / "results" / "logs"
+        path = run_path.with_suffix(f".{extension}")
         assert path.read_text(encoding="utf-8") == content
         assert stored[f"{stream}_sha256"] == hashlib.sha256(
             content.encode("utf-8")
         ).hexdigest()
 
-    reopened.set_integration_preference("fake", True, ("missing",))
     with pytest.raises(BackendError, match="lacks required capabilities"):
         application.integrations.run(
-            "fake", ["echo"], tmp_path, project=reopened
+            "fake",
+            ["echo"],
+            tmp_path,
+            project=reopened,
+            required_capabilities=("missing",),
         )
-    assert len(reopened.manifest["integration_runs"]) == 1
+    assert len(tuple((project.root / "results" / "runs").glob("*.json"))) == 1
 
-    stdout_path = project.root / stored["stdout_path"]
+    stdout_path = run_path.with_suffix(".out")
     stdout_path.write_text("changed output\n", encoding="utf-8")
-    with pytest.raises(ConfigurationError, match="log fingerprint changed"):
+    with pytest.raises(ConfigurationError, match="stream fingerprint changed"):
         Project.open(project.root, verify_inputs=False)

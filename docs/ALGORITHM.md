@@ -289,13 +289,15 @@ development-era request names or plot states.
 Project input relocation is accepted only when the content hash is unchanged.
 
 Result commit validates the embedded request, input paths, any recorded input fingerprints, and ID;
-writes integration stdout/stderr to dedicated fingerprinted files under `results/logs`; replaces
-the persisted stream bodies with relative paths and hashes; writes one full result under
+writes integration stdout/stderr to deterministic fingerprinted `.out`/`.err` files beside the
+result under `results/data`; replaces persisted stream bodies with hashes; writes one full result under
 `results/data/<analysis_id>.json`; hashes that file; and then atomically commits the manifest.
-If manifest commit fails, the new unindexed result and logs are removed. Every compact manifest result entry
+If manifest commit fails, the new unindexed result and streams are removed. Every compact manifest result entry
 requires the ID, analysis type, commit time, and hash; it does not duplicate the request, method,
 constant completion state, or derived path. Loading checks path containment, file existence,
-content identity, result-entry identity, log containment and identity, and the strict result contract.
+content identity, result-entry identity, stream identity, and the strict result contract. The manifest
+contains neither integration preferences nor integration run history; standalone runs are archived
+under `results/runs`.
 JSON and TOML atomic writes use a same-directory temporary file and `os.replace`.
 
 ## 12. External tools, configuration, and tasks

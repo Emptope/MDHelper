@@ -5,8 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from mdhelper.integrations import DEFAULT_INTEGRATION_REGISTRY
-
 from .common import command
 
 
@@ -35,18 +33,6 @@ def add_project_commands(commands: Any) -> None:
     roles_parser = command(actions, "set-roles", "Replace confirmed species roles.")
     roles_parser.add_argument("--path", type=Path, required=True)
     roles_parser.add_argument("--roles", type=dict[str, str], required=True)
-
-    integration_parser = command(
-        actions, "set-integration", "Set a portable integration preference."
-    )
-    integration_parser.add_argument("--path", type=Path, required=True)
-    integration_parser.add_argument(
-        "--integration", required=True, choices=DEFAULT_INTEGRATION_REGISTRY.names()
-    )
-    integration_parser.add_argument("--preferred", type=bool, default=True)
-    integration_parser.add_argument(
-        "--required-capabilities", type=list[str], default=[]
-    )
 
     list_parser = command(actions, "list-results", "List completed project results.")
     list_parser.add_argument("--path", type=Path, required=True)

@@ -744,10 +744,11 @@ class Tui:
         directory = Path(output)
         paths = []
         for result in results:
+            export_name = "cn" if result.analysis_type == "cumulative_rdf" else "rdf"
             paths.extend(
                 self.application.analyses.export(
                     result,
-                    directory / result.analysis_type,
+                    directory / export_name,
                     include_figures=False,
                 )
             )

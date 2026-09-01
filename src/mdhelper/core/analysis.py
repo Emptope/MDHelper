@@ -303,7 +303,6 @@ class AnalysisResult:
     units: dict[str, str]
     diagnostics: dict[str, Any]
     provenance: dict[str, Any]
-    artifacts: dict[str, str] = field(default_factory=dict)
     request: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     analysis_id: str = field(default_factory=lambda: str(uuid4()))
@@ -357,25 +356,6 @@ class AnalysisResult:
             for key, unit in self.units.items()
         ):
             raise ConfigurationError("Analysis result units must map string fields to strings.")
-        if not isinstance(self.artifacts, dict):
-            raise ConfigurationError("Analysis result artifacts must be an object.")
-        for name, content in self.artifacts.items():
-            if (
-                not isinstance(name, str)
-                or not name
-                or name != name.strip()
-                or name in {".", ".."}
-                or "/" in name
-                or "\\" in name
-                or "\x00" in name
-            ):
-                raise ConfigurationError(
-                    "Analysis result artifact names must be plain file names."
-                )
-            if not isinstance(content, str):
-                raise ConfigurationError(
-                    "Analysis result artifact contents must be strings."
-                )
         if not isinstance(self.warnings, list) or any(
             not isinstance(warning, str) for warning in self.warnings
         ):

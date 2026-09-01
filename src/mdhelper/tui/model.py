@@ -110,7 +110,8 @@ class Workspace:
             if self.project is not None
             else Path(self.trajectory).expanduser().resolve().parent / "results"
         )
-        return str(base / name)
+        export_name = "cn" if name == "cumulative_rdf" else name
+        return str(base / export_name)
 
     def radial_output_directory(self) -> str:
         if not self.radial_output:

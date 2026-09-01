@@ -362,7 +362,6 @@ class GromacsBackend:
             cn_output = root / "cn.xvg"
             cn_radius: NDArray[np.float64] | None = None
             cumulative: NDArray[np.float64] | None = None
-            raw_cn: str | None = None
             if inputs.source is not None:
                 audit, times, indices = _audit_bounds(inputs.source, inputs)
                 frame_args = _frame_args(inputs.source, inputs, times)
@@ -473,16 +472,8 @@ class GromacsBackend:
             elif audit.first_time_ps is None:
                 audit = _run_audit(record.stdout, record.stderr, indices)
             rdf_radius, rdf = _parse_curve(rdf_output, "RDF")
-            with rdf_output.open(
-                "r", encoding="utf-8", errors="replace", newline=""
-            ) as handle:
-                raw_rdf = handle.read()
             if request.analysis_type == "cumulative_rdf":
                 cn_radius, cumulative = _parse_curve(cn_output, "cumulative RDF")
-                with cn_output.open(
-                    "r", encoding="utf-8", errors="replace", newline=""
-                ) as handle:
-                    raw_cn = handle.read()
         check_cancel(inputs.cancel_event)
         shell = first_shell(rdf_radius, rdf)
         if request.analysis_type == "cumulative_rdf" and shell.get("available"):
@@ -553,9 +544,6 @@ class GromacsBackend:
                 **common_parameters,
                 "definition": "GROMACS gmx rdf -cn cumulative number RDF",
             }
-        artifacts = {"gromacs-rdf.xvg": raw_rdf}
-        if raw_cn is not None:
-            artifacts["gromacs-cn.xvg"] = raw_cn
         return AnalysisResult(
             analysis_type=request.analysis_type,
             method_version=METHOD_VERSION,
@@ -564,7 +552,6 @@ class GromacsBackend:
             units=units,
             diagnostics=diagnostics,
             provenance=provenance,
-            artifacts=artifacts,
             request=request.to_dict(),
             warnings=first_shell_warnings(shell),
         )

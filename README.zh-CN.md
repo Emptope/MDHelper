@@ -171,7 +171,7 @@ RDF/CN 使用 GROMACS selection expression。
 
 ## 项目与导出
 
-项目会集中保存输入指纹、已确认的物种角色、已完成结果、integration 运行记录和绘图状态。
+项目会集中保存输入指纹、已确认的物种角色、已完成结果和绘图状态。
 每份完整结果仅在 `results/data/` 下保存一次并校验指纹：
 
 ```text
@@ -180,9 +180,12 @@ analysis-project/
   results/
     data/
       <analysis-id>.json
-    logs/
-      <run-id>.stdout.log
-      <run-id>.stderr.log
+      <analysis-id>.out
+      <analysis-id>.err
+    runs/
+      <run-id>.json
+      <run-id>.out
+      <run-id>.err
   figures/
   cache/
 ```
@@ -203,8 +206,10 @@ uv run mdhelper project show --path analysis-project
 `--project analysis-project`，即可在适用时复用经过校验的输入，并在成功后提交结果。
 Energy 提交会把 EDR 文件作为带指纹的 `energy` 输入加入项目。项目可以移动；只有输入
 文件的 SHA-256 指纹仍然匹配时，MDHelper 才会重新连接这些文件。项目运行的全部 GROMACS
-命令工作目录和生成的源输出统一保留在当前项目的 `cache/` 目录下。integration 捕获的
-stdout 和 stderr 分别写入 `results/logs/` 下的专用文件；manifest 只保存相对路径和指纹。
+命令工作目录和生成的源输出统一保留在当前项目的 `cache/` 目录下。与结果有关的 integration
+stdout 和 stderr 会作为带指纹的 `<analysis-id>.out` 与 `<analysis-id>.err` 写在结果 JSON
+旁；更多 run 使用数字后缀。独立 integration 的审计记录和流文件放在 `results/runs/`。
+manifest 不保存 integration run，也不保存 integration preference。
 
 Windows GUI 的 **File > New Project** 会发现所选目录直属的 `.tpr`/`.gro` topology、
 `.xtc`/`.trr`/`.gro` trajectory 和可选 `.ndx` 文件。仅有一个索引候选时会自动
@@ -215,8 +220,9 @@ Windows GUI 的 **File > New Project** 会发现所选目录直属的 `.tpr`/`.g
 **File > Open Project** 会显式打开 `mdhelper-project.json`，校验输入后恢复角色、结果与绘图状态。
 
 直接分析导出包含完整的 `result.json`、对应分析的 CSV 文件，以及默认生成的 PNG、SVG、
-PDF 图像。GROMACS 结果还会导出 `gmx rdf` 或 `gmx energy` 生成的未经修改的 XVG 文件。
-每次 integration 运行的完整执行命令都会写入 `result.json` 和诊断日志；运行时进度只把
+PDF 图像。integration 流正文会作为 `run.out` 和 `run.err` 写在结果旁，更多 run 使用数字
+后缀。JSON 保留完整执行命令和流指纹，但不包含 stdout、stderr、流路径或通用 artifact
+字段；运行时进度只把
 最新一行原生输出包装为 `GROMACS: ...`，不显示完整命令。JSON 与 CSV 数值采用稳定的
 15 位有效数字格式；PNG 使用 300 DPI，SVG 和 PDF 保持矢量格式。
 
@@ -226,6 +232,10 @@ energy term 默认各自在独立窗口中绘图，一个窗口只显示一张�
 energy 行并使用 **Combine** 可将其绘制到同一窗口的共享坐标轴，**Separate** 可恢复独立
 绘图窗口。组合行会在 Plot 列显示 `Combined` 标记；组合关系会保存在项目绘图状态和图像
 导出中。
+
+GUI 多结果导出使用 `rdf-A-B`、`cn-A-B` 等可读目录。Energy 每条曲线单独建立目录，例如
+`energy-Potential`；选择 46 个 term 会生成 46 个有长度上限的名称，而不是把全部 term
+拼成一个名称。非法字符会被替换，名称最长 120 个字符，冲突时追加数字后缀。
 
 TUI 分析菜单也提供 **RDF + CN Combined Plot**。它让两项分析复用同一套径向配置，分别保存
 原始结果，并输出一套合并的 PNG/SVG/PDF 图像。

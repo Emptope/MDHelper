@@ -71,8 +71,6 @@ class Project:
             "created_at": datetime.now(UTC).isoformat(),
             "inputs": records,
             "species_roles": roles,
-            "integration_preferences": {},
-            "integration_runs": [],
             "analyses": [],
             "plot": PlotState().to_dict(),
         }
@@ -93,7 +91,7 @@ class Project:
         manifest = manifests.load()
         manifests.ensure_layout()
         project = cls(project_root, manifest)
-        project._runs.verify(manifest["integration_runs"])
+        project._runs.verify_archive()
         if verify_inputs:
             project.resolve_inputs(verify_fingerprints=True)
         return project
@@ -155,44 +153,8 @@ class Project:
         state.validate()
         self._commit({**self.manifest, "plot": state.to_dict()})
 
-    def set_integration_preference(
-        self,
-        logical_name: str,
-        preferred: bool,
-        required_capabilities: tuple[str, ...] = (),
-    ) -> None:
-        name = logical_name.strip().casefold()
-        if not name:
-            raise ConfigurationError("A project tool preference requires a tool name.")
-        preference = {
-            "preferred": preferred,
-            "required_capabilities": list(required_capabilities),
-        }
-        self._commit(
-            {
-                **self.manifest,
-                "integration_preferences": {
-                    **self.manifest["integration_preferences"],
-                    name: preference,
-                },
-            }
-        )
-
     def record_integration_run(self, record: dict[str, Any]) -> None:
-        records, paths = self._runs.store((record,))
-        try:
-            self._commit(
-                {
-                    **self.manifest,
-                    "integration_runs": [
-                        *self.manifest.get("integration_runs", []),
-                        records[0],
-                    ],
-                }
-            )
-        except BaseException:
-            self._runs.remove(paths)
-            raise
+        self._runs.record(record)
 
     def commit_result(self, request: AnalysisRequest, result: AnalysisResult) -> Path:
         self.manifest, path = self._results.commit(self.manifest, request, result)

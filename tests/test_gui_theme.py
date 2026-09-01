@@ -1040,8 +1040,11 @@ def test_gui_export_includes_every_visible_result_and_current_plot(
         "plot.svg",
         "plot.pdf",
     }
-    for result in (first, second):
-        output = tmp_path / f"{result.analysis_type}-{result.analysis_id}"
+    outputs = (
+        tmp_path / "rdf-A-B",
+        tmp_path / "rdf-A-C",
+    )
+    for output in outputs:
         assert {path.name for path in output.iterdir()} == {
             "result.json",
             "rdf.csv",
@@ -1052,6 +1055,43 @@ def test_gui_export_includes_every_visible_result_and_current_plot(
         display_width / display_height,
         abs=0.001,
     )
+    window.close()
+
+
+def test_gui_export_directories_add_readable_numeric_suffixes(tmp_path: Path) -> None:
+    first = _rdf_result("A", "B")
+    second = _rdf_result("A", "B")
+    (tmp_path / "rdf-A-B").mkdir()
+
+    items = (*window_module.result_exports(first), *window_module.result_exports(second))
+    directories = window_module.export_directories(tmp_path, items)
+
+    assert tuple(path.name for path in directories) == ("rdf-A-B-2", "rdf-A-B-3")
+
+
+def test_gui_exports_each_energy_curve_to_its_own_directory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    energy_result: AnalysisResult,
+) -> None:
+    window = MainWindow()
+    window.results.show_result(energy_result)
+    window.session.result = energy_result
+    monkeypatch.setattr(
+        window_module.QFileDialog,
+        "getExistingDirectory",
+        lambda *_args, **_kwargs: str(tmp_path),
+    )
+    monkeypatch.setattr(QMessageBox, "information", lambda *_args, **_kwargs: None)
+
+    window._export_result()
+
+    for term in ("Potential", "Temperature", "Pressure"):
+        output = tmp_path / f"energy-{term}"
+        assert {path.name for path in output.iterdir()} == {"result.json", "energy.csv"}
+        assert (output / "energy.csv").read_text(encoding="utf-8").splitlines()[0] == (
+            f"time_ps,{term}"
+        )
     window.close()
 
 

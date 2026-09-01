@@ -33,14 +33,6 @@ def handle(args: Namespace, app: ApplicationService) -> int:
         project = app.projects.open(options.path, verify_inputs=False)
         app.projects.set_species_roles(project, options.roles)
         write_json(project.manifest)
-    elif action == "set-integration":
-        project = app.projects.open(options.path, verify_inputs=False)
-        project.set_integration_preference(
-            options.integration,
-            options.preferred,
-            tuple(options.required_capabilities),
-        )
-        write_json(project.manifest)
     elif action == "list-results":
         project = app.projects.open(options.path, verify_inputs=False)
         write_json({"analyses": list(app.projects.list_results(project))})

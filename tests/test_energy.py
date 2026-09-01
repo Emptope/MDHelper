@@ -170,13 +170,15 @@ def test_gromacs_energy_backend_standardizes_exports_and_project_data(
     assert {path.name for path in paths} == {
         "result.json",
         "energy.csv",
-        "gromacs-energy.xvg",
+        "run.out",
+        "run.err",
     }
-    assert (output / "gromacs-energy.xvg").read_text(encoding="utf-8") == (
-        '@ yaxis label "Energy (kJ/mol)"\n0 1 10\n1 2 20\n'
-    )
+    assert (output / "run.out").read_text(encoding="utf-8") == run["stdout"]
+    assert (output / "run.err").read_text(encoding="utf-8") == run["stderr"]
     stored = json.loads((output / "result.json").read_text(encoding="utf-8"))
-    assert stored["provenance"]["integration_runs"][0]["command"] == run["command"]
+    stored_run = stored["provenance"]["integration_runs"][0]
+    assert stored_run["command"] == run["command"]
+    assert not {"stdout", "stderr", "stdout_path", "stderr_path"} & set(stored_run)
     assert progress
     assert all(message.startswith("GROMACS: ") for _, _, message in progress)
     assert any("Energy output written" in message for _, _, message in progress)
@@ -404,16 +406,16 @@ def test_gromacs_rdf_uses_native_commands_and_frame_range(
     assert {path.name for path in paths} == {
         "result.json",
         "rdf.csv" if analysis_type == "rdf" else "cn.csv",
-        "gromacs-rdf.xvg",
-        *(() if analysis_type == "rdf" else ("gromacs-cn.xvg",)),
+        "run.out",
+        "run.err",
+        "run-2.out",
+        "run-2.err",
     }
-    assert (output / "gromacs-rdf.xvg").read_text(encoding="utf-8") == (
-        "0.00 0.0\n0.05 2.0\n0.10 1.0\n"
+    stored = json.loads((output / "result.json").read_text(encoding="utf-8"))
+    assert all(
+        not {"stdout", "stderr", "stdout_path", "stderr_path"} & set(run)
+        for run in stored["provenance"]["integration_runs"]
     )
-    if analysis_type == "cumulative_rdf":
-        assert (output / "gromacs-cn.xvg").read_text(encoding="utf-8") == (
-            "0.05 0.0\n0.10 1.5\n0.15 2.0\n"
-        )
 
 
 def test_gromacs_pipeline_uses_its_own_input_and_expression_processing(

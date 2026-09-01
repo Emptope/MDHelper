@@ -11,8 +11,8 @@
 
 ## 已完成
 
-- [x] [Feature] 不要在项目配置文件 mdhelper-project.json 中记录 stdout 和 stderr，记录到项目 results 目录下特定的日志文件里；mdhelper-project.json 只记录与项目有关的元数据，其余无关数据放到 results, results/data 或 cache 文件夹中。
-- [x] [BugFix] Result 导出的绘图文件绘图比例与显示的绘图比例不一致。
+- [x] [BugFix] Result Export 使用可读目录名；RDF/CN 按选择命名，Energy 每条曲线单独导出且名称长度受限。
+- [x] [Feature] 精简初版 project/result 持久化；manifest 删除 integration preference/run，result 删除 artifacts，stdout/stderr 外置为同目录 .out/.err。
 
 ## 完成标准（每轮改动后需重新确认）
 

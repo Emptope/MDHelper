@@ -10,7 +10,7 @@ from mdhelper.core.errors import ConfigurationError
 from mdhelper.project.schema import validate_manifest
 from mdhelper.project.storage import atomic_json
 
-PROJECT_DIRECTORIES = ("results", "results/data", "results/logs", "figures", "cache")
+PROJECT_DIRECTORIES = ("results", "results/data", "results/runs", "figures", "cache")
 PROJECT_MANIFEST = "mdhelper-project.json"
 
 

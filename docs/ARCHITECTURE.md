@@ -201,16 +201,16 @@ directly to `gmx rdf`; finite sampled ranges use one GROMACS-generated exact sub
 ## 9. I/O and projects
 
 NDX parsing lives under `io`, independently of CLI and GUI. Export accepts a validated
-`AnalysisResult` and writes JSON/CSV data, text artifacts, and PNG/SVG/PDF plots through atomic
+`AnalysisResult` and writes JSON/CSV data and PNG/SVG/PDF plots through atomic
 same-directory replacement. RDF exports `radius_nm,g_r`; cumulative RDF exports
-`radius_nm,cumulative_number`. GROMACS results retain the source XVG text as result artifacts so
-direct Export can write the files after the integration temporary directory is removed.
+`radius_nm,cumulative_number`. Integration stdout/stderr bodies are external `.out`/`.err` files;
+persisted JSON retains stream fingerprints but not stream bodies or paths.
 
-A project is rooted by `mdhelper-project.json` and owns `results/data`, `results/logs`, `figures`,
+A project is rooted by `mdhelper-project.json` and owns `results/data`, `results/runs`, `figures`,
 and `cache`. Its manifest records schema/application version, content-addressed inputs, confirmed
-roles, integration preferences and compact run metadata, strict plot state, and committed analysis
-entries. Captured stdout and stderr are stored in dedicated fingerprinted files under
-`results/logs`; run metadata contains only their relative paths and hashes. Every analysis
+roles, strict plot state, and committed analysis entries. Result integration metadata stays in the
+result JSON, with deterministic fingerprinted `.out`/`.err` siblings under `results/data`.
+Standalone integration records and streams live under `results/runs`. Every analysis
 entry includes an ID, analysis type, commit time, and hash. Its result path is derived as
 `results/data/<analysis_id>.json`; request and method metadata live only in that complete result.
 Opening rejects old or incomplete schema-1 data; it never rewrites an incompatible manifest into

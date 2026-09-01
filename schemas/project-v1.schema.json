@@ -10,8 +10,6 @@
     "created_at",
     "inputs",
     "species_roles",
-    "integration_preferences",
-    "integration_runs",
     "plot",
     "analyses"
   ],
@@ -35,14 +33,6 @@
       "additionalProperties": {
         "enum": ["cation", "anion", "solvent", "additive", "polymer", "surface", "other"]
       }
-    },
-    "integration_preferences": {
-      "type": "object",
-      "additionalProperties": {"$ref": "#/$defs/integration_preference"}
-    },
-    "integration_runs": {
-      "type": "array",
-      "items": {"$ref": "#/$defs/integration_run"}
     },
     "plot": {
       "type": "object",
@@ -106,19 +96,6 @@
     }
   },
   "$defs": {
-    "integration_preference": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["preferred", "required_capabilities"],
-      "properties": {
-        "preferred": {"type": "boolean"},
-        "required_capabilities": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {"type": "string", "minLength": 1}
-        }
-      }
-    },
     "input": {
       "type": "object",
       "additionalProperties": false,
@@ -130,47 +107,6 @@
           "description": "Relative when portable, otherwise absolute across Windows volumes."
         },
         "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
-      }
-    },
-    "integration_run": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "name", "display_name", "path", "version", "command", "arguments", "working_directory",
-        "environment_summary", "exit_code", "stdout_path", "stdout_sha256", "stderr_path",
-        "stderr_sha256", "started_at",
-        "output_fingerprints", "elapsed_seconds", "status"
-      ],
-      "properties": {
-        "name": {"type": "string", "minLength": 1},
-        "display_name": {"type": "string", "minLength": 1},
-        "path": {"type": "string", "minLength": 1},
-        "version": {"type": "string", "minLength": 1},
-        "command": {"type": "string", "minLength": 1},
-        "arguments": {"type": "array", "items": {"type": "string"}},
-        "working_directory": {"type": "string", "minLength": 1},
-        "environment_summary": {
-          "type": "object",
-          "additionalProperties": {"type": "string"}
-        },
-        "exit_code": {"type": "integer"},
-        "stdout_path": {
-          "type": "string",
-          "pattern": "^results/logs/[^/\\\\]+\\.stdout\\.log$"
-        },
-        "stdout_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "stderr_path": {
-          "type": "string",
-          "pattern": "^results/logs/[^/\\\\]+\\.stderr\\.log$"
-        },
-        "stderr_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "started_at": {"type": "string", "format": "date-time"},
-        "output_fingerprints": {
-          "type": "object",
-          "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
-        },
-        "elapsed_seconds": {"type": "number", "minimum": 0},
-        "status": {"enum": ["completed", "failed", "cancelled", "timed_out"]}
       }
     }
   }

@@ -181,13 +181,15 @@ def test_project_result_externalizes_integration_output(
 
     stored_result = json.loads(result_path.read_text(encoding="utf-8"))
     stored_run = stored_result["provenance"]["integration_runs"][0]
-    assert stored_run == project.manifest["integration_runs"][0]
+    assert "integration_runs" not in project.manifest
+    assert "integration_preferences" not in project.manifest
     assert "stdout" not in stored_run
     assert "stderr" not in stored_run
-    for stream in ("stdout", "stderr"):
+    assert "stdout_path" not in stored_run
+    assert "stderr_path" not in stored_run
+    for stream, extension in (("stdout", "out"), ("stderr", "err")):
         content = run[stream]
-        path = project.root / stored_run[f"{stream}_path"]
-        assert path.parent == project.root / "results" / "logs"
+        path = project.root / "results" / "data" / f"{result.analysis_id}.{extension}"
         assert path.read_text(encoding="utf-8") == content
         assert stored_run[f"{stream}_sha256"] == hashlib.sha256(
             content.encode("utf-8")
@@ -197,7 +199,7 @@ def test_project_result_externalizes_integration_output(
     assert loaded_run["stderr"] == run["stderr"]
     _validate_schema(project.manifest, "project-v1.schema.json")
 
-    existing_logs = set((project.root / "results" / "logs").iterdir())
+    existing_streams = set((project.root / "results" / "data").iterdir())
     failed = copy.deepcopy(result)
     failed.analysis_id = str(uuid4())
     original_atomic_json = manifest_module.atomic_json
@@ -210,11 +212,61 @@ def test_project_result_externalizes_integration_output(
     monkeypatch.setattr(manifest_module, "atomic_json", fail_manifest)
     with pytest.raises(ConfigurationError, match="simulated log commit interruption"):
         project.commit_result(request, failed)
-    assert set((project.root / "results" / "logs").iterdir()) == existing_logs
+    assert set((project.root / "results" / "data").iterdir()) == existing_streams
     assert not (project.root / "results" / "data" / f"{failed.analysis_id}.json").exists()
 
 
-def test_export_removes_binary_float_artifacts(tmp_path: Path) -> None:
+def test_direct_result_export_externalizes_run_streams(tmp_path: Path) -> None:
+    request = RadialRequest(
+        analysis_type="rdf",
+        topology="topology",
+        trajectory="trajectory",
+        reference="A",
+        selection="B",
+    )
+    run = {
+        "name": "tool",
+        "display_name": "Tool",
+        "path": "tool",
+        "version": "1.0",
+        "command": "tool run",
+        "arguments": ["run"],
+        "working_directory": str(tmp_path),
+        "environment_summary": {},
+        "exit_code": 0,
+        "stdout": "standard output\n",
+        "stderr": "standard error\n",
+        "started_at": "2026-01-01T00:00:00+00:00",
+        "output_fingerprints": {},
+        "elapsed_seconds": 1.0,
+        "status": "completed",
+    }
+    result = AnalysisResult(
+        analysis_type="rdf",
+        data={"radius_nm": [0.1], "g_r": [1.0]},
+        parameters={},
+        units={},
+        diagnostics={},
+        provenance={"integration_runs": [run]},
+        request=request.to_dict(),
+    )
+
+    paths = export_result(result, tmp_path, include_figures=False)
+
+    assert {path.name for path in paths} == {
+        "result.json",
+        "rdf.csv",
+        "run.out",
+        "run.err",
+    }
+    stored = json.loads((tmp_path / "result.json").read_text(encoding="utf-8"))
+    stored_run = stored["provenance"]["integration_runs"][0]
+    assert not {"stdout", "stderr", "stdout_path", "stderr_path"} & set(stored_run)
+    assert (tmp_path / "run.out").read_text(encoding="utf-8") == run["stdout"]
+    assert (tmp_path / "run.err").read_text(encoding="utf-8") == run["stderr"]
+
+
+def test_export_removes_binary_float_noise(tmp_path: Path) -> None:
     request = RadialRequest(
         analysis_type="rdf",
         topology="topology",

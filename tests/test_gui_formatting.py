@@ -8,6 +8,7 @@ from mdhelper.app.reports import (
     report_for,
 )
 from mdhelper.core.analysis import AnalysisResult, EnergyRequest, RadialRequest
+from mdhelper.gui.export import result_exports
 from mdhelper.gui.formatting import result_label, result_summary, result_summary_html
 
 
@@ -182,6 +183,64 @@ def test_energy_result_history_omits_absent_selection() -> None:
 
     assert text.endswith(" | Energy")
     assert "None" not in text
+
+
+def test_result_export_name_describes_radial_pair() -> None:
+    request = RadialRequest(
+        analysis_type="rdf",
+        topology=r"D:\runs\topology.tpr",
+        trajectory=r"D:\runs\salt water.xtc",
+        reference="resname LI",
+        selection="name O*",
+    )
+    result = _rdf_result()
+    result.request = request.to_dict()
+
+    assert result_exports(result)[0].name == "rdf-resname-LI-name-O"
+
+    result.analysis_type = "cumulative_rdf"
+    result.request = RadialRequest(
+        analysis_type="cumulative_rdf",
+        topology="topology.tpr",
+        trajectory="trajectory.xtc",
+        reference="resname LI",
+        selection="name O*",
+    ).to_dict()
+
+    assert result_exports(result)[0].name == "cn-resname-LI-name-O"
+
+
+def test_result_exports_split_every_energy_curve_into_a_bounded_item() -> None:
+    terms = tuple(f"Term {index:02d}" for index in range(46))
+    request = EnergyRequest(
+        analysis_type="energy",
+        energy_file="/runs/equilibration.edr",
+        energy_terms=terms,
+    )
+    result = AnalysisResult(
+        analysis_type="energy",
+        data={
+            "time_ps": [0.0],
+            "series": {term: [float(index)] for index, term in enumerate(terms)},
+        },
+        parameters={},
+        units={},
+        diagnostics={},
+        provenance={},
+        request=request.to_dict(),
+    )
+
+    items = result_exports(result)
+
+    assert len(items) == 46
+    assert items[0].name == "energy-Term-00"
+    assert items[-1].name == "energy-Term-45"
+    assert all(len(item.name) <= 120 for item in items)
+    for term, item in zip(terms, items, strict=True):
+        item_request = EnergyRequest.from_dict(item.result.request)
+        assert isinstance(item_request, EnergyRequest)
+        assert item_request.energy_terms == (term,)
+        assert tuple(item.result.data["series"]) == (term,)
 
 
 def test_every_analysis_report_inherits_the_shared_contract() -> None:
