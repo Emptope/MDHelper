@@ -45,6 +45,8 @@ from mdhelper.gui.layout import PAGE_MARGIN, PAGE_SPACING, ActionBar
 from mdhelper.gui.parameters import ParameterPanel
 from mdhelper.gui.results import ResultPanel
 from mdhelper.gui.selections import (
+    GROMACS_SELECTION_HINTS,
+    SELECTION_DOCUMENTATION,
     SELECTION_HINTS,
     SelectionInput,
     SelectionSeries,
@@ -172,15 +174,52 @@ def test_selection_hints_follow_expression_source_and_use_a_table() -> None:
     parameters.set_gromacs_configured(True)
     parameters.set_gromacs_available(True)
     parameters.set_analysis_backend("gromacs")
+    assert not parameters.rdf_inputs.hint_button.isHidden()
+    assert not parameters.cn_inputs.hint_button.isHidden()
+    assert parameters.rdf_inputs.reference_label.text() == "Reference (-ref)"
+    assert parameters.rdf_inputs.selection_label.text() == "Selection (-sel)"
+    assert parameters.rdf_reference.expression.placeholderText() == "GROMACS Selection Language"
+    parameters.rdf_inputs.hint_button.click()
+    dialog = parameters._hint_dialog
+    assert dialog is not None
+    assert dialog.windowTitle() == "GROMACS Selection Language"
+    assert dialog.table.rowCount() == len(GROMACS_SELECTION_HINTS)
+    gromacs_hints = {
+        dialog.table.item(row, 0).text(): dialog.table.item(row, 2).text()
+        for row in range(dialog.table.rowCount())
+    }
+    assert gromacs_hints == {
+        "Reference (-ref)": "Passed to gmx rdf -ref",
+        "Selection (-sel)": "Passed to gmx rdf -sel",
+    }
+    assert [
+        dialog.table.horizontalHeaderItem(column).text() for column in range(3)
+    ] == ["Field", "Syntax", "Handling"]
+    assert dialog.documentation.openExternalLinks()
+    assert SELECTION_DOCUMENTATION["gromacs"] in dialog.documentation.text()
+
+    parameters.set_selection_source("index", {"System": 10})
     assert parameters.rdf_inputs.hint_button.isHidden()
     assert parameters.cn_inputs.hint_button.isHidden()
+    assert parameters.rdf_inputs.reference_label.text() == "Reference (-ref)"
+    assert parameters.rdf_reference.currentWidget() is parameters.rdf_reference.group
+    assert parameters.rdf_reference.group.count() == 1
+    assert parameters.rdf_reference.group.currentData() == "System"
+
     parameters.set_analysis_backend("mdanalysis")
+    assert parameters.rdf_inputs.hint_button.isHidden()
+    assert parameters.cn_inputs.hint_button.isHidden()
+    assert parameters.rdf_inputs.reference_label.text() == "Reference"
+    assert parameters.rdf_inputs.selection_label.text() == "Selection"
+
+    parameters.set_selection_source("expression", {})
     assert not parameters.rdf_inputs.hint_button.isHidden()
     assert not parameters.cn_inputs.hint_button.isHidden()
 
     parameters.rdf_inputs.hint_button.click()
     dialog = parameters._hint_dialog
     assert dialog is not None
+    assert dialog.windowTitle() == "MDAnalysis Selection Syntax"
     assert not dialog.isModal()
     assert dialog.isVisible()
 
@@ -191,11 +230,14 @@ def test_selection_hints_follow_expression_source_and_use_a_table() -> None:
     ] == ["Selector", "Meaning", "Example"]
     assert dialog.table.item(0, 0).text() == "all"
     assert dialog.table.item(4, 2).text() == "resname SOL"
+    assert SELECTION_DOCUMENTATION["mdanalysis"] in dialog.documentation.text()
     dialog.close()
 
 
 def test_selection_source_language_follows_the_complete_backend() -> None:
     inputs = InputPanel()
+
+    assert inputs.selection_source.currentData() == "expression"
 
     inputs.set_analysis_backend("mdanalysis")
     expression = inputs.selection_source.findData("expression")

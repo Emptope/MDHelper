@@ -27,7 +27,9 @@ from PySide6.QtWidgets import (
 from mdhelper.core.errors import InputError
 from mdhelper.gui.layout import configure_button
 
-SELECTION_HINTS = (
+SelectionHints = tuple[tuple[str, str, str], ...]
+
+MDANALYSIS_SELECTION_HINTS: SelectionHints = (
     ("all", "Every atom", "all"),
     ("name", "Atom name; patterns are accepted", "name O*"),
     ("type", "Topology atom type", "type OW"),
@@ -40,17 +42,29 @@ SELECTION_HINTS = (
     ("( expression )", "Make precedence explicit", "(resname SOL or resname ADD) and name O*"),
 )
 
+GROMACS_SELECTION_HINTS: SelectionHints = (
+    ("Reference (-ref)", "GROMACS Selection Language", "Passed to gmx rdf -ref"),
+    ("Selection (-sel)", "GROMACS Selection Language", "Passed to gmx rdf -sel"),
+)
+
+SELECTION_DOCUMENTATION = {
+    "gromacs": "https://manual.gromacs.org/current/onlinehelp/selections.html",
+    "mdanalysis": "https://userguide.mdanalysis.org/stable/selections.html",
+}
+
+# Retain the concise name for the default expression backend.
+SELECTION_HINTS = MDANALYSIS_SELECTION_HINTS
+
 
 class SelectionHintDialog(QDialog):
-    """Show the supported static MDAnalysis selection building blocks."""
+    """Show common selection building blocks for one expression backend."""
 
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, backend: str, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle("MDAnalysis Selection Syntax")
         self.setWindowModality(Qt.WindowModality.NonModal)
         self.resize(760, 390)
         self.setMinimumSize(680, 340)
-        self.table = QTableWidget(len(SELECTION_HINTS), 3)
+        self.table = QTableWidget(0, 3)
         self.table.setHorizontalHeaderLabels(("Selector", "Meaning", "Example"))
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
@@ -58,12 +72,39 @@ class SelectionHintDialog(QDialog):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        for row, values in enumerate(SELECTION_HINTS):
-            for column, value in enumerate(values):
-                self.table.setItem(row, column, QTableWidgetItem(value))
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.addWidget(self.table)
+        self.documentation = QLabel()
+        self.documentation.setOpenExternalLinks(True)
+        self.documentation.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextBrowserInteraction
+        )
+        layout.addWidget(self.documentation)
+        self.backend = ""
+        self.set_backend(backend)
+
+    def set_backend(self, backend: str) -> None:
+        backend = "gromacs" if backend == "gromacs" else "mdanalysis"
+        if backend == self.backend:
+            return
+        self.backend = backend
+        if backend == "gromacs":
+            title = "GROMACS Selection Language"
+            hints = GROMACS_SELECTION_HINTS
+            headers = ("Field", "Syntax", "Handling")
+        else:
+            title = "MDAnalysis Selection Syntax"
+            hints = MDANALYSIS_SELECTION_HINTS
+            headers = ("Selector", "Meaning", "Example")
+        self.setWindowTitle(title)
+        self.table.setHorizontalHeaderLabels(headers)
+        self.table.setRowCount(len(hints))
+        for row, values in enumerate(hints):
+            for column, value in enumerate(values):
+                self.table.setItem(row, column, QTableWidgetItem(value))
+        url = SELECTION_DOCUMENTATION[backend]
+        self.documentation.setText(f'<a href="{url}">{url}</a>')
 
 
 class SelectionInput(QStackedWidget):
@@ -89,16 +130,26 @@ class SelectionInput(QStackedWidget):
             self._remember_group()
         self.source = source
         if source == "index":
+            selected = self._group_value
             self.group.blockSignals(True)
             try:
                 self.group.clear()
                 for name, count in groups.items():
                     self.group.addItem(f"{name} ({count} atoms)", name)
+                if groups:
+                    self.group.setEnabled(True)
+                    index = self.group.findData(selected)
+                    self.group.setCurrentIndex(index if index >= 0 else 0)
+                else:
+                    self.group.addItem("No index groups loaded")
+                    self.group.setEnabled(False)
             finally:
                 self.group.blockSignals(False)
             self.setCurrentWidget(self.group)
-            if self._group_value:
-                self.setText(self._group_value)
+            if groups:
+                self._remember_group()
+            else:
+                self._group_value = ""
         else:
             self.setCurrentWidget(self.expression)
 

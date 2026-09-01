@@ -13,6 +13,10 @@ _FRAME_PROGRESS = re.compile(
 )
 _LAST_FRAME = re.compile(r"(?i)last\s+frame\s+(\d+)\s+time\s+[-+0-9.eE]+")
 _ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+_ERROR_HEADING = re.compile(
+    r"(?:Error in user input|Fatal error|Inconsistency in user input):",
+    flags=re.IGNORECASE,
+)
 
 
 def _output_line(value: str) -> str | None:
@@ -27,6 +31,32 @@ def _output_line(value: str) -> str | None:
 def output_message(stdout: str, stderr: str) -> str | None:
     line = _output_line(stderr) or _output_line(stdout)
     return f"GROMACS: {line}" if line is not None else None
+
+
+def error_message(stdout: str, stderr: str) -> str | None:
+    """Extract the native GROMACS error block from captured process output."""
+
+    for value in (stderr, stdout):
+        lines = _ANSI.sub("", value).splitlines()
+        starts = tuple(
+            index
+            for index, line in enumerate(lines)
+            if _ERROR_HEADING.fullmatch(line.strip())
+        )
+        if not starts:
+            continue
+        result: list[str] = []
+        for raw in lines[starts[-1] :]:
+            line = "".join(
+                " " if ord(character) < 32 else character for character in raw
+            ).strip()
+            if line.startswith(("For more information", "----------------")):
+                break
+            if line:
+                result.append(line)
+        if result:
+            return "\n".join(result)
+    return None
 
 
 def frame_progresses(stdout: str, stderr: str) -> tuple[tuple[int, float], ...]:

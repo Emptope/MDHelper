@@ -107,6 +107,23 @@ def test_tools_separates_integrations_templates_and_configuration(monkeypatch) -
     assert calls == ["integrations", "templates", "configuration"]
 
 
+def test_templates_menu_uses_numbered_choices() -> None:
+    output = StringIO()
+    application = ApplicationService(UserConfig())
+    tui = Tui(application, Terminal(StringIO("1\n0\n"), output))
+    templates = application.templates.list()
+
+    try:
+        tui._templates()
+    finally:
+        tui.tasks.shutdown()
+
+    text = output.getvalue()
+    for number, template in enumerate(templates, 1):
+        assert f" {number:>2}  {template.category} / {template.title}" in text
+    assert templates[0].content in text
+
+
 def test_opening_project_returns_to_main_menu(monkeypatch) -> None:
     application = ApplicationService(UserConfig())
     tui = Tui(application, Terminal(StringIO("1\n"), StringIO()))
@@ -544,9 +561,10 @@ def test_tui_analysis_setup_opens_options_before_run_confirmation() -> None:
 
 
 def test_tui_analysis_menu_includes_rdf_cn_combined_plot(monkeypatch) -> None:
+    output = StringIO()
     tui = Tui(
         ApplicationService(UserConfig()),
-        Terminal(StringIO("4\n0\n"), StringIO()),
+        Terminal(StringIO("3\n0\n"), output),
     )
     tui.workspace.topology = "topology.gro"
     tui.workspace.trajectory = "trajectory.xtc"
@@ -560,6 +578,10 @@ def test_tui_analysis_menu_includes_rdf_cn_combined_plot(monkeypatch) -> None:
         tui.tasks.shutdown()
 
     assert calls == [None]
+    text = output.getvalue()
+    assert text.index("  2  Cumulative Coordination Number (CN)") < text.index(
+        "  3  RDF + CN Combined Plot"
+    ) < text.index("  4  Energy Analysis")
 
 
 def test_tui_keeps_energy_available_through_auto_backend(monkeypatch) -> None:

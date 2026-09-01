@@ -16,6 +16,7 @@ from mdhelper.app import ApplicationService
 from mdhelper.core.errors import BackendError, ConfigurationError, TaskCancelled
 from mdhelper.integrations import DEFAULT_INTEGRATION_REGISTRY
 from mdhelper.integrations.gromacs import GromacsAdapter
+from mdhelper.integrations.gromacs import error_message as gromacs_error_message
 from mdhelper.integrations.gromacs import frame_count as gromacs_frame_count
 from mdhelper.integrations.gromacs import frame_progress as gromacs_frame_progress
 from mdhelper.integrations.gromacs import output_message as gromacs_output_message
@@ -185,6 +186,25 @@ def test_gromacs_output_parsing() -> None:
         "GROMACS: Step 10  Potential -1.0"
     )
     assert gromacs_output_message("", "") is None
+    stderr = """
+Error in user input:
+Invalid command-line options
+  In command-line option -sel
+    Invalid selection 'resname FSI and name O*'
+      Near '*'
+        syntax error
+
+For more information and tips for troubleshooting, please check the GROMACS website.
+"""
+    assert gromacs_error_message("", stderr) == (
+        "Error in user input:\n"
+        "Invalid command-line options\n"
+        "In command-line option -sel\n"
+        "Invalid selection 'resname FSI and name O*'\n"
+        "Near '*'\n"
+        "syntax error"
+    )
+    assert gromacs_error_message("unrelated", "output") is None
 
 
 def test_vmd_version_detect_and_output_parsing(tmp_path: Path) -> None:

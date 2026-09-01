@@ -388,16 +388,40 @@ class ParameterPanel(QGroupBox):
         self._sync_selection_hints()
 
     def _sync_selection_hints(self) -> None:
-        visible = (
-            self._selection_source == "expression"
-            and self.analysis_backend_value() in {"auto", "mdanalysis"}
-        )
+        backend = self.analysis_backend_value()
+        expression = self._selection_source == "expression"
+        visible = expression and backend in {"auto", "mdanalysis", "gromacs"}
         self.rdf_inputs.set_hint_visible(visible)
         self.cn_inputs.set_hint_visible(visible)
+        gromacs = backend == "gromacs"
+        labels = (
+            ("Reference (-ref)", "Selection (-sel)")
+            if gromacs
+            else ("Reference", "Selection")
+        )
+        for editor in (self.rdf_inputs, self.cn_inputs):
+            editor.reference_label.setText(labels[0])
+            editor.selection_label.setText(labels[1])
+        placeholders = (
+            ("GROMACS Selection Language", "GROMACS Selection Language")
+            if gromacs
+            else ("selection", "selection")
+        )
+        for reference, selection in (
+            (self.rdf_reference, self.rdf_selection),
+            (self.cn_reference, self.cn_selection),
+        ):
+            reference.setPlaceholderText(placeholders[0])
+            selection.setPlaceholderText(placeholders[1])
+        if self._hint_dialog is not None:
+            self._hint_dialog.set_backend(backend)
 
     def _show_selection_hint(self) -> None:
+        backend = self.analysis_backend_value()
         if self._hint_dialog is None:
-            self._hint_dialog = SelectionHintDialog(self)
+            self._hint_dialog = SelectionHintDialog(backend, self)
+        else:
+            self._hint_dialog.set_backend(backend)
         self._hint_dialog.show()
         self._hint_dialog.raise_()
         self._hint_dialog.activateWindow()

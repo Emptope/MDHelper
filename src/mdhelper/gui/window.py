@@ -472,6 +472,7 @@ class MainWindow(QMainWindow):
         self.load.inputs.topology.edit.setText(str(topology))
         self.load.inputs.trajectory.edit.setText(str(trajectory))
         self.load.inputs.index_file.edit.setText("" if index_file is None else str(index_file))
+        self.load.inputs.selection_source.setCurrentIndex(0 if index_file is not None else 1)
         _project, created = self.session.ensure(
             directory,
             topology,

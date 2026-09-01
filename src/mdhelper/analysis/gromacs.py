@@ -24,6 +24,7 @@ from mdhelper.core.errors import BackendError, FormatError
 from mdhelper.core.system import FrameRange
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.integrations.gromacs import (
+    error_message,
     frame_count,
     frame_progress,
     frame_progresses,
@@ -429,6 +430,7 @@ class GromacsBackend:
             if record.status != "completed":
                 raise BackendError(
                     f"GROMACS RDF exited with code {record.exit_code}.",
+                    error_message(record.stdout, record.stderr) or "",
                     details={"integration_run": record.to_dict()},
                 )
             if audit.count == 0:

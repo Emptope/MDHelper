@@ -444,16 +444,16 @@ class Tui:
             options = [
                 (analysis_label("rdf"), "1"),
                 (analysis_label("cumulative_rdf"), "2"),
+                ("RDF + CN Combined Plot", "3"),
+                (analysis_label("energy"), "4"),
             ]
-            options.append((analysis_label("energy"), "3"))
-            options.append(("RDF + CN Combined Plot", "4"))
             choice = self.terminal.menu(
                 "Choose analysis",
                 tuple(options),
             )
             if choice is None:
                 return
-            if choice == "4":
+            if choice == "3":
                 self._rdf_cn_setup()
                 continue
             analysis_type = cast(
@@ -461,7 +461,7 @@ class Tui:
                 {
                     "1": "rdf",
                     "2": "cumulative_rdf",
-                    "3": "energy",
+                    "4": "energy",
                 }[choice],
             )
             self._analysis_setup(self.workspace.draft(analysis_type))
@@ -889,16 +889,16 @@ class Tui:
     def _templates(self) -> None:
         while True:
             templates = self.application.templates.list()
-            key = self.terminal.menu(
+            choice = self.terminal.menu(
                 "Templates",
                 tuple(
-                    (f"{item.category} / {item.title}", item.key)
-                    for item in templates
+                    (f"{item.category} / {item.title}", str(number))
+                    for number, item in enumerate(templates, 1)
                 ),
             )
-            if key is None:
+            if choice is None:
                 return
-            template = self.application.templates.get(key)
+            template = templates[int(choice) - 1]
             self.terminal.rule(template.title)
             self.terminal.write(template.content)
 

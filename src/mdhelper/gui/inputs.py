@@ -23,6 +23,8 @@ class InputPanel(QGroupBox):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__("Simulation Inputs", parent)
+        self._analysis_backend = "auto"
+        self._index_groups: dict[str, int] = {}
         form = QFormLayout(self)
         form.setHorizontalSpacing(12)
         form.setVerticalSpacing(10)
@@ -36,6 +38,7 @@ class InputPanel(QGroupBox):
         self.selection_source = QComboBox()
         self.selection_source.addItem("GROMACS index groups (.ndx)", "index")
         self.selection_source.addItem("MDAnalysis selection expressions", "expression")
+        self.selection_source.setCurrentIndex(1)
         self.index_summary = QLabel()
         self.index_summary.setWordWrap(True)
         self.index_summary.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -47,8 +50,10 @@ class InputPanel(QGroupBox):
         self.topology.edit.textChanged.connect(lambda _text: self.system_changed.emit())
         self.trajectory.edit.textChanged.connect(lambda _text: self.system_changed.emit())
         self.index_file.edit.textChanged.connect(lambda _text: self.index_changed.emit())
+        self._sync_source_choices()
 
     def set_analysis_backend(self, backend: str) -> None:
+        self._analysis_backend = backend
         labels = {
             "auto": "MDAnalysis selection expressions",
             "native": "Selection expressions unavailable for Native",
@@ -57,12 +62,21 @@ class InputPanel(QGroupBox):
         }
         index = self.selection_source.findData("expression")
         self.selection_source.setItemText(index, labels.get(backend, labels["auto"]))
-        set_choice_enabled(
-            self.selection_source,
-            "expression",
-            backend != "native",
-            "index",
+        self._sync_source_choices()
+
+    def _sync_source_choices(self) -> None:
+        expression = self._analysis_backend != "native"
+        index = self._analysis_backend == "native" or bool(self._index_groups) or bool(
+            self.index_value()
         )
+        if expression:
+            set_choice_enabled(self.selection_source, "expression", True, "index")
+        if index:
+            set_choice_enabled(self.selection_source, "index", True, "expression")
+        if not index:
+            set_choice_enabled(self.selection_source, "index", False, "expression")
+        if not expression:
+            set_choice_enabled(self.selection_source, "expression", False, "index")
 
     def index_path(self, required: bool = False) -> str | None:
         if self.selection_source.currentData() != "index":
@@ -87,6 +101,8 @@ class InputPanel(QGroupBox):
             self.selection_source.setCurrentIndex(0 if request.index_file else 1)
 
     def set_index_groups(self, groups: dict[str, int]) -> None:
+        self._index_groups = dict(groups)
+        self._sync_source_choices()
         if not groups:
             self.index_summary.setText("No groups found")
             self.index_summary.setToolTip("")
@@ -98,5 +114,6 @@ class InputPanel(QGroupBox):
         self.topology.edit.clear()
         self.trajectory.edit.clear()
         self.index_file.edit.clear()
-        self.selection_source.setCurrentIndex(0)
         self.set_index_groups({})
+        source = "index" if self._analysis_backend == "native" else "expression"
+        self.selection_source.setCurrentIndex(self.selection_source.findData(source))

@@ -11,13 +11,10 @@
 
 ## 已完成
 
-- [x] [BugFix] 非默认 GROMACS RDF/CN 帧范围在 App、GUI、TUI 前置校验 `rdf`、`trjconv`、`check` capabilities。
-- [x] [Feature] Energy 组合图使用 `energy-<term1>-<term2>-...` 命名。
-- [x] [BugFix] Open Plot Window 与 Save Plot、Export 保持绘图内容比例一致。
-- [x] [Feature] 统一 GUI/TUI 的 RDF/CN 图片导出：结果导出保存单项图，组合 Save Plot 使用 `rdf-cn` 递增命名。
-- [x] [BugFix] Stop frame 越界提示显示实际 `Total frame count`。
-- [x] [Feature] 修改 TUI 导出分析绘图和分析结果行为，使其与 GUI 行为一致。
-- [x] [BugFix] 修复 Stop frame 设置大于总帧数时没有报错的问题。
+- [x] [BugFix] 修复 Selection Hint 的 NDX 显隐、官方语法链接和 GROMACS RDF 失败诊断。
+- [x] [Feature] 明确选用 GROMACS 后端时 Reference 和 Selection 的选择语句，并提供与 MDAnalysis 后端类似的 Hint 按钮。
+- [x] [Feature] TUI 界面将 RDF + CN 分析放置在 CN 分析下方，Energy 分析上方。
+- [x] [BugFix] TUI Templates 界面无编号。
 
 ## 完成标准（每轮改动后需重新确认）
 

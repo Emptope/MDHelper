@@ -93,6 +93,15 @@ def _program(path: Path) -> Path:
         "        print(frames.read_text(encoding='ascii'), end='')\n"
         "    shutil.copyfile(source, output)\n"
         "elif command == 'rdf':\n"
+        "    selection = sys.argv[sys.argv.index('-sel') + 1]\n"
+        "    if '*' in selection and '\"' not in selection:\n"
+        "        print('Error in user input:', file=sys.stderr)\n"
+        "        print('Invalid command-line options', file=sys.stderr)\n"
+        "        print('  In command-line option -sel', file=sys.stderr)\n"
+        "        print(f'    Invalid selection {selection!r}', file=sys.stderr)\n"
+        "        print(\"      Near '*'\", file=sys.stderr)\n"
+        "        print('        syntax error', file=sys.stderr)\n"
+        "        raise SystemExit(1)\n"
         "    rdf = Path(sys.argv[sys.argv.index('-o') + 1])\n"
         "    for frame in range(3):\n"
         "        print(f'Reading frame {frame} time {frame:.3f}', flush=True)\n"
@@ -484,6 +493,38 @@ def test_gromacs_pipeline_uses_its_own_input_and_expression_processing(
     assert any("Reading frame" in message for _, _, message in progress)
     assert all(" -f " not in message for _, _, message in progress)
     assert all("Fingerprinting" not in message for _, _, message in progress)
+
+
+def test_gromacs_rdf_failure_reports_native_selection_error(tmp_path: Path) -> None:
+    trajectory = tmp_path / "trajectory"
+    trajectory.write_bytes(b"trajectory")
+    selection = "resname FSI and name O*"
+    request = RadialRequest(
+        analysis_type="rdf",
+        topology=str(trajectory),
+        trajectory=str(trajectory),
+        reference="resname LI",
+        selection=selection,
+        analysis_backend="gromacs",
+    )
+
+    with pytest.raises(BackendError, match="GROMACS RDF exited with code 1") as failed:
+        _application(tmp_path).analyses.run(request)
+
+    assert failed.value.hint == (
+        "Error in user input:\n"
+        "Invalid command-line options\n"
+        "In command-line option -sel\n"
+        f"Invalid selection {selection!r}\n"
+        "Near '*'\n"
+        "syntax error"
+    )
+    assert failed.value.details is not None
+    run = failed.value.details["integration_run"]
+    assert isinstance(run, dict)
+    arguments = run["arguments"]
+    assert isinstance(arguments, list)
+    assert arguments[arguments.index("-sel") + 1] == selection
 
 
 def test_gromacs_open_sampled_range_uses_metadata_without_loading_trajectory(
