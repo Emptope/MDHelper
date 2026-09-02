@@ -451,8 +451,10 @@ TUI 会话状态保存当前输入和检测结果；各分析草稿相互独立�
 导出规划，项目图片同样平铺保存到 `figures`。初始 Load 菜单可打开项目、在没有输入时进入
 主菜单或退出。Open project 与 GUI 流程一致：已有项目直接打开，普通目录则从发现的输入候选
 中创建项目。依赖分析输入的操作保留前置校验，不依赖输入的主菜单操作在没有加载输入时仍可
-使用。Input files、Project 和 Species roles 直接位于主菜单，不再经过额外的 Workspace 子菜单。
-Tools 中的 Integrations 与 Templates 保持为独立状态。选定
+使用。System and project 作为单一主菜单入口，统一负责输入加载、体系检查、项目绑定和会话
+重置。统一加载动作将目录作为项目处理，将文件作为 topology 处理并继续请求 trajectory 等
+输入。Species roles 保持为独立的主菜单入口。Tools 中的 Integrations 与 Templates 保持为独立
+状态。选定
 EDR 后通过 App 用例按所选 Backend
 发现 terms；`auto` 先使用 MDAnalysis，无法读取时才按已检测 capability 回退到
 `gmx energy`，随后以带选中标记的有序多选菜单编辑 terms。

@@ -13,33 +13,54 @@ from mdhelper.tui.formatting import roles_text, summary_text
 
 
 class WorkspaceController(ControllerContext):
-    def _inputs(self) -> None:
+    def _workspace(self) -> None:
         while True:
             choice = self.terminal.menu(
-                "System and input files",
+                "System and project",
                 (
-                    ("Load topology and trajectory", "1"),
-                    ("Show current system summary", "2"),
-                    ("Reset the current session", "3"),
+                    ("Load inputs or project", "1"),
+                    ("Create a project from current inputs", "2"),
+                    ("Show current system summary", "3"),
+                    ("Save confirmed species roles", "4"),
+                    ("Detach project but keep loaded inputs", "5"),
+                    ("Reset the current session", "6"),
                 ),
             )
             if choice is None:
                 return
             if choice == "1":
-                self._load_inputs()
+                self._load_source()
                 return
             if choice == "2":
+                self._create_project()
+                return
+            if choice == "3":
                 self._show_summary()
-            elif choice == "3" and self.terminal.confirm(
+            elif choice == "4":
+                self._save_roles()
+            elif choice == "5":
+                self.workspace.project = None
+                self.terminal.write("Project detached; loaded inputs remain available.")
+            elif choice == "6" and self.terminal.confirm(
                 "Clear inputs, project state, drafts, and the in-memory result?"
             ):
                 self.workspace.clear()
                 self.terminal.write("Session reset.")
 
-    def _load_inputs(self) -> None:
-        topology = self.terminal.ask(
-            f"Topology path ({', '.join(TOPOLOGY_SUFFIXES)})"
+    def _load_source(self) -> None:
+        source = self.terminal.ask(
+            f"Topology path ({', '.join(TOPOLOGY_SUFFIXES)}) or project directory"
         )
+        if Path(source).expanduser().is_dir():
+            self._open_project(source)
+            return
+        self._load_inputs(source)
+
+    def _load_inputs(self, topology: str | None = None) -> None:
+        if topology is None:
+            topology = self.terminal.ask(
+                f"Topology path ({', '.join(TOPOLOGY_SUFFIXES)})"
+            )
         trajectory = self.terminal.ask(
             f"Trajectory path ({', '.join(TRAJECTORY_SUFFIXES)})"
         )
@@ -57,7 +78,7 @@ class WorkspaceController(ControllerContext):
         if not self.workspace.loaded:
             raise InputError(
                 "No topology and trajectory are loaded.",
-                "Choose 'Load topology and trajectory' first.",
+                "Choose 'Load inputs or project' first.",
             )
         summary = self.application.checks.inspect_system(
             self.workspace.topology,
@@ -95,37 +116,9 @@ class WorkspaceController(ControllerContext):
         self.terminal.heading("Current system")
         self.terminal.write(summary_text(self.workspace.summary))
 
-    def _projects(self) -> None:
-        while True:
-            project_label = (
-                "none" if self.workspace.project is None else str(self.workspace.project.root)
-            )
-            self.terminal.write(f"Current project: {project_label}")
-            choice = self.terminal.menu(
-                "Project",
-                (
-                    ("Open project", "1"),
-                    ("Create a project from current inputs", "2"),
-                    ("Save confirmed species roles", "3"),
-                    ("Detach project but keep loaded inputs", "4"),
-                ),
-            )
-            if choice is None:
-                return
-            if choice == "1":
-                self._open_project()
-                return
-            if choice == "2":
-                self._create_project()
-                return
-            if choice == "3":
-                self._save_roles()
-            elif choice == "4":
-                self.workspace.project = None
-                self.terminal.write("Project detached; loaded inputs remain available.")
-
-    def _open_project(self) -> None:
-        root = self.terminal.ask("Project directory")
+    def _open_project(self, root: str | Path | None = None) -> None:
+        if root is None:
+            root = self.terminal.ask("Project directory")
         if self.application.projects.exists(root):
             self._open_existing_project(root)
             return

@@ -87,10 +87,9 @@ class Tui(
             (
                 ("Analysis", "1"),
                 ("Results and export", "2"),
-                ("System and input files", "3"),
-                ("Project", "4"),
-                ("Species roles", "5"),
-                ("Tools", "6"),
+                ("System and project", "3"),
+                ("Species roles", "4"),
+                ("Tools", "5"),
                 ("Quit", "q"),
             ),
             back=False,
@@ -115,10 +114,9 @@ class Tui(
         actions = {
             "1": self._analyses,
             "2": self._results,
-            "3": self._inputs,
-            "4": self._projects,
-            "5": self._roles,
-            "6": self._tools,
+            "3": self._workspace,
+            "4": self._roles,
+            "5": self._tools,
         }
         self._perform(actions.get(choice or ""))
 

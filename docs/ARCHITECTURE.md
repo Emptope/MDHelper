@@ -277,8 +277,10 @@ GUI's application plans. The initial Load menu can open a project, enter the mai
 inputs, or quit. Open project matches the GUI flow: existing projects open directly, while ordinary
 directories use discovered input candidates to create a project. Analysis-dependent actions retain
 their input guards, while independent main-menu actions remain available without loaded inputs.
-Input files, Project, and Species roles are direct main-menu actions rather than an extra Workspace
-submenu. Integrations and Templates remain separate Tools states. EDR selection
+System and project is one direct main-menu action for input loading, inspection, project binding,
+and session reset. Its shared load action treats a directory as a project and a file as topology,
+then requests the remaining trajectory inputs. Species roles remains a separate direct action.
+Integrations and Templates remain separate Tools states. EDR selection
 invokes shared term discovery and presents an ordered marked multi-select. It does not call CLI
 parsing or GUI widgets. `tui/controller.py` owns only top-level navigation and error handling;
 focused controllers under `tui/controllers/` own workspace, analysis setup, execution, results, and

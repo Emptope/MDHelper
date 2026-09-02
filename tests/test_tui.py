@@ -26,23 +26,22 @@ def test_tui_main_menu_keeps_independent_actions_available_without_inputs(
 ) -> None:
     tui = Tui(
         ApplicationService(UserConfig()),
-        Terminal(StringIO("2\n1\n3\n4\n6\nq\n"), StringIO()),
+        Terminal(StringIO("2\n1\n3\n4\n5\nq\n"), StringIO()),
     )
     calls: list[str] = []
     monkeypatch.setattr(tui, "_analysis_setup", lambda _draft: calls.append("analysis"))
-    monkeypatch.setattr(tui, "_inputs", lambda: calls.append("inputs"))
-    monkeypatch.setattr(tui, "_projects", lambda: calls.append("projects"))
+    monkeypatch.setattr(tui, "_workspace", lambda: calls.append("workspace"))
     monkeypatch.setattr(tui, "_tools", lambda: calls.append("tools"))
 
     assert tui.run() == 0
 
-    assert calls == ["inputs", "projects", "tools"]
+    assert calls == ["workspace", "tools"]
 
 
 def test_tui_open_project_from_load_page_enters_main_menu(monkeypatch) -> None:
     tui = Tui(
         ApplicationService(UserConfig()),
-        Terminal(StringIO("1\n6\nq\n"), StringIO()),
+        Terminal(StringIO("1\n5\nq\n"), StringIO()),
     )
     calls: list[str] = []
 
@@ -134,31 +133,51 @@ def test_tools_separates_integrations_templates_and_configuration(monkeypatch) -
     assert calls == ["integrations", "templates", "configuration"]
 
 
-def test_opening_project_returns_to_main_menu(monkeypatch) -> None:
+def test_workspace_load_returns_after_project_directory(tmp_path: Path, monkeypatch) -> None:
     application = ApplicationService(UserConfig())
-    tui = Tui(application, Terminal(StringIO("1\n"), StringIO()))
+    tui = Tui(application, Terminal(StringIO(f"1\n{tmp_path}\n"), StringIO()))
     calls: list[str] = []
-    monkeypatch.setattr(tui, "_open_project", lambda: calls.append("open"))
+    monkeypatch.setattr(tui, "_open_project", lambda root=None: calls.append(str(root)))
 
     try:
-        tui._projects()
+        tui._workspace()
     finally:
         tui.job_runner.shutdown()
 
-    assert calls == ["open"]
+    assert calls == [str(tmp_path)]
 
 
-def test_inputs_shows_cached_summary_without_reinspection(monkeypatch) -> None:
+def test_workspace_load_returns_after_topology_path(
+    tmp_path: Path, monkeypatch
+) -> None:
+    topology = tmp_path / "topology.gro"
+    topology.write_text("topology\n", encoding="ascii")
     tui = Tui(
         ApplicationService(UserConfig()),
-        Terminal(StringIO("2\n0\n"), StringIO()),
+        Terminal(StringIO(f"1\n{topology}\n"), StringIO()),
+    )
+    calls: list[str | None] = []
+    monkeypatch.setattr(tui, "_load_inputs", lambda source=None: calls.append(source))
+
+    try:
+        tui._workspace()
+    finally:
+        tui.job_runner.shutdown()
+
+    assert calls == [str(topology)]
+
+
+def test_workspace_shows_cached_summary_without_reinspection(monkeypatch) -> None:
+    tui = Tui(
+        ApplicationService(UserConfig()),
+        Terminal(StringIO("3\n0\n"), StringIO()),
     )
     calls: list[str] = []
     monkeypatch.setattr(tui, "_inspect", lambda: calls.append("inspect"))
     monkeypatch.setattr(tui, "_show_summary", lambda: calls.append("summary"))
 
     try:
-        tui._inputs()
+        tui._workspace()
     finally:
         tui.job_runner.shutdown()
 
