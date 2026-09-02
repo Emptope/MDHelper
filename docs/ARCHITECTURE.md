@@ -273,11 +273,16 @@ typed selection and radial-parameter snapshots. The RDF + CN workflow owns a sep
 and creates exactly one request per explicit RDF or CN task. It exports each result and standalone
 plot to a readable directory and writes a shared dual-axis model as `rdf-cn` when both types are
 present. Save Plot uses the same model in the flat project-figure layout, and both paths use the
-GUI's application plans. Before inputs are loaded, the state machine shows the current project and
-a Load-only menu. After loading, Input files, Project, and Species roles are direct main-menu actions
-rather than an extra Workspace submenu. Integrations and Templates remain separate Tools states. EDR selection
+GUI's application plans. The initial Load menu can open a project, enter the main menu without
+inputs, or quit. Open project matches the GUI flow: existing projects open directly, while ordinary
+directories use discovered input candidates to create a project. Analysis-dependent actions retain
+their input guards, while independent main-menu actions remain available without loaded inputs.
+Input files, Project, and Species roles are direct main-menu actions rather than an extra Workspace
+submenu. Integrations and Templates remain separate Tools states. EDR selection
 invokes shared term discovery and presents an ordered marked multi-select. It does not call CLI
-parsing or GUI widgets.
+parsing or GUI widgets. `tui/controller.py` owns only top-level navigation and error handling;
+focused controllers under `tui/controllers/` own workspace, analysis setup, execution, results, and
+tools workflows.
 
 GUI separates widgets, application calls, and result formatting. `gui/window.py` coordinates use
 cases and composes four focused subpackages: `components` owns reusable widgets, `pages` owns the
@@ -302,7 +307,7 @@ progress state rather than representing distinct log events.
 
 Menu ordering is controlled by insertion order in `gui/menu.py`; analysis combo ordering is
 controlled by `addItem` order in `gui/components/parameters.py`; TUI menu ordering is controlled by
-option tuple order in `tui/controller.py`. Table sizing is controlled by `QHeaderView` resize modes and explicit
+option tuple order in each owning controller. Table sizing is controlled by `QHeaderView` resize modes and explicit
 `resizeSection(column, pixels)` calls in the owning widget.
 
 ## 12. Testing and extension rules

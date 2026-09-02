@@ -21,6 +21,101 @@ from mdhelper.tui.terminal import Terminal
 from mdhelper.version import DEVELOPER, __version__
 
 
+def test_tui_main_menu_keeps_independent_actions_available_without_inputs(
+    monkeypatch,
+) -> None:
+    tui = Tui(
+        ApplicationService(UserConfig()),
+        Terminal(StringIO("2\n1\n3\n4\n6\nq\n"), StringIO()),
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(tui, "_analysis_setup", lambda _draft: calls.append("analysis"))
+    monkeypatch.setattr(tui, "_inputs", lambda: calls.append("inputs"))
+    monkeypatch.setattr(tui, "_projects", lambda: calls.append("projects"))
+    monkeypatch.setattr(tui, "_tools", lambda: calls.append("tools"))
+
+    assert tui.run() == 0
+
+    assert calls == ["inputs", "projects", "tools"]
+
+
+def test_tui_open_project_from_load_page_enters_main_menu(monkeypatch) -> None:
+    tui = Tui(
+        ApplicationService(UserConfig()),
+        Terminal(StringIO("1\n6\nq\n"), StringIO()),
+    )
+    calls: list[str] = []
+
+    def open_project() -> None:
+        calls.append("project")
+        tui.workspace.topology = "topology.gro"
+        tui.workspace.trajectory = "trajectory.xtc"
+
+    monkeypatch.setattr(tui, "_open_project", open_project)
+    monkeypatch.setattr(tui, "_tools", lambda: calls.append("tools"))
+
+    assert tui.run() == 0
+
+    assert calls == ["project", "tools"]
+
+
+def test_tui_open_project_creates_a_project_from_discovered_inputs(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    topology = tmp_path / "system.tpr"
+    trajectory = tmp_path / "run.xtc"
+    index = tmp_path / "groups.ndx"
+    topology.write_text("topology\n", encoding="ascii")
+    trajectory.write_text("trajectory\n", encoding="ascii")
+    index.write_text("[ System ]\n1\n", encoding="ascii")
+    tui = Tui(
+        ApplicationService(UserConfig()),
+        Terminal(StringIO(f"{tmp_path}\n1\n1\n\n"), StringIO()),
+    )
+    inspections: list[None] = []
+    monkeypatch.setattr(tui, "_inspect", lambda: inspections.append(None))
+
+    try:
+        tui._open_project()
+    finally:
+        tui.job_runner.shutdown()
+
+    assert tui.workspace.project is not None
+    assert tui.workspace.project.root == tmp_path.resolve()
+    assert tui.workspace.topology == str(topology.resolve())
+    assert tui.workspace.trajectory == str(trajectory.resolve())
+    assert tui.workspace.index_file == str(index.resolve())
+    assert inspections == [None]
+
+
+def test_tui_open_project_loads_an_existing_project(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    source = tmp_path / "source.gro"
+    source.write_text("source\n", encoding="ascii")
+    application = ApplicationService(UserConfig())
+    project = application.projects.create(tmp_path / "project", source, source)
+    tui = Tui(
+        application,
+        Terminal(StringIO(f"{project.root}\n"), StringIO()),
+    )
+    inspections: list[None] = []
+    monkeypatch.setattr(tui, "_inspect", lambda: inspections.append(None))
+
+    try:
+        tui._open_project()
+    finally:
+        tui.job_runner.shutdown()
+
+    assert tui.workspace.project is not None
+    assert tui.workspace.project.root == project.root
+    assert tui.workspace.topology == str(source.resolve())
+    assert tui.workspace.trajectory == str(source.resolve())
+    assert inspections == [None]
+
+
 def test_tools_separates_integrations_templates_and_configuration(monkeypatch) -> None:
     tui = Tui(
         ApplicationService(UserConfig()),
@@ -525,7 +620,9 @@ def test_tui_analysis_setup_queues_initial_radial_selection(monkeypatch) -> None
         current.selection = "Selection"
 
     monkeypatch.setattr(tui, "_edit_selections", edit_selections)
-    monkeypatch.setattr("mdhelper.tui.controller.draft_issues", lambda *_args: [])
+    monkeypatch.setattr(
+        "mdhelper.tui.controllers.analysis.draft_issues", lambda *_args: []
+    )
 
     try:
         tui._analysis_setup(draft)
@@ -711,7 +808,9 @@ def test_tui_radial_task_queue_adds_updates_and_loads(monkeypatch) -> None:
     )
     tui.workspace.topology = "topology.gro"
     tui.workspace.trajectory = "trajectory.xtc"
-    monkeypatch.setattr("mdhelper.tui.controller.draft_issues", lambda *_args: [])
+    monkeypatch.setattr(
+        "mdhelper.tui.controllers.analysis.draft_issues", lambda *_args: []
+    )
     draft = AnalysisDraft(
         "rdf",
         reference="Reference",
@@ -751,7 +850,9 @@ def test_tui_mixed_queue_keeps_rdf_and_cn_for_same_pair(monkeypatch) -> None:
         selection="Selection",
         output="results",
     )
-    monkeypatch.setattr("mdhelper.tui.controller.draft_issues", lambda *_args: [])
+    monkeypatch.setattr(
+        "mdhelper.tui.controllers.analysis.draft_issues", lambda *_args: []
+    )
 
     try:
         tui._add_task(draft)

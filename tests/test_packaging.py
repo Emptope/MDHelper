@@ -311,7 +311,6 @@ def test_archive_smoke_uses_current_template_command() -> None:
         source = path.read_text(encoding="utf-8")
         assert "cli templates list" in source
     linux_source = (LINUX / "smoke.sh").read_text(encoding="utf-8")
-    assert "Load topology and trajectory" in linux_source
     assert "PYTHONWARNINGS=error" in linux_source
     assert 'QT_QPA_PLATFORM=offscreen "$application" gui --smoke-test' in linux_source
     windows_source = (WINDOWS / "smoke.ps1").read_text(encoding="utf-8")

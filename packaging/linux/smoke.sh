@@ -24,8 +24,7 @@ fi
 
 "$application" --version
 "$application" tui --smoke-test
-menu=$(printf 'q\n' | env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM "$application")
-if [[ "$menu" != *"Load topology and trajectory"* ]]; then
+if ! printf '3\n' | env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM "$application" >/dev/null; then
     echo "Argument-free startup did not fall back to TUI." >&2
     exit 1
 fi

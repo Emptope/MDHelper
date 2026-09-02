@@ -21,6 +21,16 @@ GUI_ROOT_MODULES = {
     "window.py",
 }
 GUI_SUBPACKAGES = {"components", "controllers", "dialogs", "pages"}
+TUI_ROOT_MODULES = {
+    "__init__.py",
+    "__main__.py",
+    "controller.py",
+    "formatting.py",
+    "main.py",
+    "model.py",
+    "terminal.py",
+}
+TUI_SUBPACKAGES = {"controllers"}
 JOB_MODULES = {"__init__.py", "models.py", "runner.py"}
 GUI_FORBIDDEN_IMPORTS = {
     "components": ("controllers", "dialogs", "pages"),
@@ -149,6 +159,17 @@ def test_gui_subpackages_follow_their_dependency_direction() -> None:
         if any(imported.startswith(f"mdhelper.gui.{name}") for name in forbidden)
     }
     assert violations == {}
+
+
+def test_tui_modules_follow_the_presentation_package_layout() -> None:
+    root = SOURCE_ROOT / "tui"
+    assert {path.name for path in root.glob("*.py")} == TUI_ROOT_MODULES
+    packages = {
+        path.name
+        for path in root.iterdir()
+        if path.is_dir() and (path / "__init__.py").is_file()
+    }
+    assert packages == TUI_SUBPACKAGES
 
 
 def test_job_execution_and_workflow_packages_are_separate() -> None:
