@@ -891,9 +891,12 @@ class Tui:
         self.terminal.heading("Analysis completed")
         for result in results:
             self.terminal.write(result_text(result))
+        self.terminal.write()
         self.terminal.write("Exported files:")
         for path in paths:
             self.terminal.write(f"  {path}")
+        if project_paths:
+            self.terminal.write()
         for path in project_paths:
             self.terminal.write(f"Project result: {path}")
 
