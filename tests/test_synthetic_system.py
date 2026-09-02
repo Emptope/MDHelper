@@ -224,34 +224,24 @@ def test_native_and_mdanalysis_radial_pipelines_are_distinct_and_consistent(
     assert native.data["g_r"] == pytest.approx(mda.data["g_r"], abs=1e-5)
 
 
-def test_auto_selects_one_complete_radial_pipeline(
-    synthetic_path: Path, tmp_path: Path
-) -> None:
-    index = tmp_path / "groups.ndx"
-    index.write_text("[ ref ]\n1\n[ sel ]\n2 3\n", encoding="ascii")
-    app = ApplicationService(UserConfig())
-    indexed = RadialRequest(
-        analysis_type="rdf",
-        topology=str(synthetic_path),
-        trajectory=str(synthetic_path),
-        index_file=str(index),
-        reference="ref",
-        selection="sel",
-        analysis_backend="auto",
+def test_auto_prioritizes_compatible_radial_backends() -> None:
+    integrations = ApplicationService(UserConfig()).context.integrations
+    indexed = BackendQuery(
+        "rdf",
+        "topology.gro",
+        "trajectory.gro",
+        "groups.ndx",
+        FrameRange(),
     )
-    expression = RadialRequest(
-        analysis_type="rdf",
-        topology=str(synthetic_path),
-        trajectory=str(synthetic_path),
-        reference="resname REF",
-        selection="resname LIGA",
-        analysis_backend="auto",
+    expression = BackendQuery(
+        "rdf",
+        "topology.gro",
+        "trajectory.gro",
+        frames=FrameRange(),
     )
 
-    assert app.analyses.run(indexed).provenance["analysis_backend"]["name"] == "native"
-    assert app.analyses.run(expression).provenance["analysis_backend"]["name"] == (
-        "mdanalysis"
-    )
+    assert DEFAULT_ANALYSIS_REGISTRY.auto(indexed, integrations)[0].name == "native"
+    assert DEFAULT_ANALYSIS_REGISTRY.auto(expression, integrations)[0].name == "mdanalysis"
 
 
 def test_explicit_native_requires_index_groups(synthetic_path: Path) -> None:

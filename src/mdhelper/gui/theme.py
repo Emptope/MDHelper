@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from weakref import WeakKeyDictionary
 
 from PySide6.QtCore import QObject
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import QApplication
 
 from mdhelper.services.config import ThemeMode
@@ -106,6 +106,7 @@ class ThemeController(QObject):
     def apply(self, mode: ThemeMode) -> None:
         if mode == "system" and self.state.mode == "system":
             return
+        font = QFont(self.application.font())
         self.state.mode = mode
         self.state.changing = True
         try:
@@ -116,6 +117,7 @@ class ThemeController(QObject):
                 self.application.setStyle("Fusion")
                 self.application.setPalette(_palette(mode, self.state.palette))
         finally:
+            self.application.setFont(font)
             self.state.changing = False
 
     def _palette_changed(self, palette: QPalette) -> None:

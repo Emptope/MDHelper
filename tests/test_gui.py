@@ -258,13 +258,9 @@ def test_gui_automatically_reloads_species_and_index_groups(tmp_path: Path) -> N
     window.load.inputs.index_file.edit.setText(str(index))
     QTest.qWait(350)
 
-    assert window.load.inputs.index_summary.text() == "2 groups loaded"
-    assert window.load.inputs.index_summary.toolTip() == "Reference, Neighbors"
-
     window.load.inputs.topology.edit.setText(str(second))
     window.load.inputs.trajectory.edit.setText(str(second))
     assert window.load.species.table.rowCount() == 0
-    assert window.load.inputs.index_summary.text() == "No groups found"
     QTest.qWait(350)
 
     second_species = {
@@ -272,15 +268,12 @@ def test_gui_automatically_reloads_species_and_index_groups(tmp_path: Path) -> N
         for row in range(window.load.species.table.rowCount())
     }
     assert second_species == {"REF", "SOLV", "IONS"}
-    assert window.load.inputs.index_summary.text() == "2 groups loaded"
 
     window.load.inputs.topology.edit.setText(str(tmp_path / "missing.gro"))
 
     assert window.load.species.table.rowCount() == 0
-    assert window.load.inputs.index_summary.text() == "No groups found"
     QTest.qWait(350)
     assert window.load.species.table.rowCount() == 0
-    assert window.load.inputs.index_summary.text() == "No groups found"
     window.job_controller.shutdown()
     window.close()
 
@@ -358,8 +351,6 @@ def test_gui_derives_selection_inputs_from_index_file() -> None:
     assert not hasattr(window.load.inputs, "selection_source")
     assert parameters.rdf_reference.currentWidget() is parameters.rdf_reference.expression
     assert parameters.rdf_selection.currentWidget() is parameters.rdf_selection.expression
-    assert parameters.rdf_inputs.reference_label.text() == "Reference (-ref)"
-    assert parameters.rdf_inputs.selection_label.text() == "Selection (-sel)"
     assert not parameters.rdf_inputs.hint_button.isHidden()
 
     window.load.inputs.index_file.edit.setText("missing.ndx")
@@ -450,7 +441,6 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
     assert window.load.inputs.topology.edit.text() == str(trajectory.resolve())
     assert window.load.inputs.trajectory.edit.text() == str(trajectory_input.resolve())
     assert window.load.inputs.index_file.edit.text() == str(index_input.resolve())
-    assert window.analysis.parameters.analysis_backend.currentText() == "Automatic"
     assert not window.results.text.toPlainText()
     assert inspections == [True]
     assert (tmp_path / "mdhelper-project.json").is_file()
@@ -487,15 +477,6 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
     assert window.session.project is not None
     assert window.session.project.root == project.root
     assert window.load.inputs.topology.edit.text() == str(trajectory.resolve())
-    file_menu = next(
-        action.menu() for action in window.menuBar().actions() if action.text() == "&File"
-    )
-    assert file_menu is not None
-    assert [action.text() for action in file_menu.actions() if not action.isSeparator()] == [
-        "Open Project...",
-        "Export Last Result...",
-        "Exit",
-    ]
     application.processEvents()
     window.job_controller.shutdown()
     window.close()

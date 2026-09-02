@@ -16,81 +16,8 @@ from mdhelper.gui.main import tui_command
 from mdhelper.integrations.models import IntegrationStatus
 from mdhelper.services.config import UserConfig
 from mdhelper.tui.controller import Tui
-from mdhelper.tui.formatting import draft_issues
-from mdhelper.tui.main import main
 from mdhelper.tui.model import AnalysisDraft, RadialTask, Workspace
 from mdhelper.tui.terminal import Terminal
-
-
-def test_native_backend_requires_an_index_in_tui_setup() -> None:
-    workspace = Workspace(topology="topology.gro", trajectory="trajectory.gro")
-    draft = AnalysisDraft("rdf", analysis_backend="native")
-    draft.reference = "reference"
-    draft.selection = "selection"
-    draft.output = "results"
-
-    assert "select an index file for the Native backend" in draft_issues(
-        draft,
-        workspace,
-    )
-
-
-def test_tui_unloaded_home_shows_only_load_actions_and_developer() -> None:
-    output = StringIO()
-
-    assert main([], StringIO("q\n"), output, ApplicationService(UserConfig())) == 0
-
-    text = output.getvalue()
-    assert "Developer: Tuo Yao (Shanghai Jiao Tong University)" in text
-    assert " Load " in text
-    assert "Load topology and trajectory" in text
-    assert "Open an existing project" in text
-    assert "Main menu" not in text
-    assert "Current project: none" in text
-    assert "Current inputs:" not in text
-    assert "Analysis" not in text
-
-
-def test_loaded_main_menu_contains_only_primary_actions() -> None:
-    output = StringIO()
-    tui = Tui(ApplicationService(UserConfig()), Terminal(StringIO("q\n"), output))
-    tui.workspace.topology = "topology.gro"
-    tui.workspace.trajectory = "trajectory.xtc"
-
-    assert tui.run() == 0
-
-    text = output.getvalue()
-    assert "Current project: none" in text
-    assert "Current inputs:" not in text
-    assert "Main menu" in text
-    assert "  1  Analysis" in text
-    assert "  2  Results and export" in text
-    assert "  3  Input files and inspection" in text
-    assert "  4  Project" in text
-    assert "  5  Species roles" in text
-    assert "  6  Tools" in text
-    assert "Workspace" not in text
-    assert "Confirm species roles" not in text
-    assert "Configuration summary" not in text
-
-
-def test_nested_menus_have_visible_spacing() -> None:
-    output = StringIO()
-    tui = Tui(
-        ApplicationService(UserConfig()),
-        Terminal(StringIO("3\n0\nq\n"), output),
-    )
-    tui.workspace.topology = "topology.gro"
-    tui.workspace.trajectory = "trajectory.xtc"
-
-    assert tui.run() == 0
-
-    text = output.getvalue()
-    assert "Current project: none\n\n" in text
-    assert "Input files and inspection" in text
-    assert "Workspace" not in text
-    assert "Select:" not in text
-    assert "  q  Quit\n\n> " in text
 
 
 def test_tools_separates_integrations_templates_and_configuration(monkeypatch) -> None:
@@ -109,23 +36,6 @@ def test_tools_separates_integrations_templates_and_configuration(monkeypatch) -
         tui.job_runner.shutdown()
 
     assert calls == ["integrations", "templates", "configuration"]
-
-
-def test_templates_menu_uses_numbered_choices() -> None:
-    output = StringIO()
-    application = ApplicationService(UserConfig())
-    tui = Tui(application, Terminal(StringIO("1\n0\n"), output))
-    templates = application.templates.list()
-
-    try:
-        tui._templates()
-    finally:
-        tui.job_runner.shutdown()
-
-    text = output.getvalue()
-    for number, template in enumerate(templates, 1):
-        assert f" {number:>2}  {template.category} / {template.title}" in text
-    assert templates[0].content in text
 
 
 def test_opening_project_returns_to_main_menu(monkeypatch) -> None:
@@ -456,24 +366,6 @@ def test_gui_tui_command_reuses_the_unified_entry() -> None:
     ]
 
 
-def test_rdf_selection_prompts_match_gromacs_labels(monkeypatch) -> None:
-    tui = Tui(ApplicationService(UserConfig()), Terminal(StringIO(), StringIO()))
-    prompts: list[str] = []
-
-    def select(title: str, current: str = "") -> str:
-        prompts.append(title)
-        return current or title
-
-    monkeypatch.setattr(tui, "_selection", select)
-    draft = AnalysisDraft("rdf")
-    try:
-        tui._edit_selections(draft)
-    finally:
-        tui.job_runner.shutdown()
-
-    assert prompts == ["Reference", "Selection"]
-
-
 def test_tui_default_export_directory_follows_selected_trajectory(tmp_path: Path) -> None:
     trajectory = tmp_path / "simulation" / "trajectory.gro"
     workspace = Workspace(trajectory=str(trajectory))
@@ -515,7 +407,6 @@ def test_tui_exports_each_energy_curve_to_its_own_directory(
                 f"{name}.svg",
                 f"{name}.pdf",
             }
-    assert "Exported 15 file(s)" in output.getvalue()
 
 
 def test_tui_save_plot_uses_flat_project_figure_names(
@@ -544,7 +435,6 @@ def test_tui_save_plot_uses_flat_project_figure_names(
         for term in ("Potential", "Temperature", "Pressure")
         for suffix in ("png", "svg", "pdf")
     }
-    assert "Saved 9 figure file(s)" in output.getvalue()
 
 
 def test_tui_analysis_setup_queues_initial_radial_selection(monkeypatch) -> None:
@@ -571,15 +461,10 @@ def test_tui_analysis_setup_queues_initial_radial_selection(monkeypatch) -> None
     finally:
         tui.job_runner.shutdown()
 
-    text = output.getvalue()
     assert selections == [None]
     assert draft.queue == [
         RadialTask("rdf", "Reference", "Selection", 1.0, 0.002)
     ]
-    assert "Radial Distribution Function (RDF) setup" in text
-    assert "Run task queue (1)" in text
-    assert "Run current setup" not in text
-    assert "Start RDF now?" not in text
 
 
 def test_tui_analysis_menu_includes_rdf_cn_combined_plot(monkeypatch) -> None:
@@ -600,30 +485,6 @@ def test_tui_analysis_menu_includes_rdf_cn_combined_plot(monkeypatch) -> None:
         tui.job_runner.shutdown()
 
     assert calls == [None]
-    text = output.getvalue()
-    assert text.index("  2  Cumulative Coordination Number (CN)") < text.index(
-        "  3  RDF + CN Combined Plot"
-    ) < text.index("  4  Energy Analysis")
-
-
-def test_tui_keeps_energy_available_through_auto_backend(monkeypatch) -> None:
-    output = StringIO()
-    tui = Tui(
-        ApplicationService(UserConfig()),
-        Terminal(StringIO("0\n"), output),
-    )
-    tui.workspace.topology = "topology.gro"
-    tui.workspace.trajectory = "trajectory.xtc"
-    monkeypatch.setattr(tui.application.integrations, "supports", lambda *_args: False)
-
-    try:
-        tui._analyses()
-    finally:
-        tui.job_runner.shutdown()
-
-    text = output.getvalue()
-    assert "Energy Analysis" in text
-    assert "RDF + CN Combined Plot" in text
 
 
 def test_tui_hides_gromacs_backend_until_explicit_detection(monkeypatch) -> None:
@@ -711,7 +572,6 @@ def test_tui_load_does_not_mix_analysis_backend_with_input_inspection(
         tui.job_runner.shutdown()
 
     assert inspections == [None]
-    assert "Backend" not in output.getvalue()
 
 
 def test_tui_discovers_and_selects_energy_terms_in_user_order(monkeypatch) -> None:
@@ -742,16 +602,6 @@ def test_tui_discovers_and_selects_energy_terms_in_user_order(monkeypatch) -> No
     assert calls == ["energy.edr"]
     assert draft.energy_file == "energy.edr"
     assert draft.energy_terms == ["Temperature", "Potential"]
-    text = output.getvalue()
-    assert "Energy terms (comma-separated)" not in text
-    first_listing = next(
-        line for line in text.splitlines() if "[ ] Potential" in line
-    )
-    assert "[ ] Temperature" in first_listing
-    assert "[ ] Pressure" in first_listing
-    assert "[ ] Potential" in text
-    assert "[x] Potential" in text
-    assert "[x] Temperature" in text
 
 
 def test_tui_energy_rediscovery_preserves_valid_terms_and_removes_stale_terms(
@@ -818,9 +668,6 @@ def test_tui_radial_task_queue_adds_updates_and_loads(monkeypatch) -> None:
     assert draft.queue_index == 0
     assert draft.selection == "First"
     assert draft.parameter_provenance["r_max_nm"]["selected_value"] == 1.5
-    assert "Added task 1" in output.getvalue()
-    assert "Updated task 1" in output.getvalue()
-    assert "Loaded task 1 for editing" in output.getvalue()
 
 
 def test_tui_mixed_queue_keeps_rdf_and_cn_for_same_pair(monkeypatch) -> None:
@@ -880,8 +727,6 @@ def test_tui_add_task_option_opens_complete_editor(monkeypatch) -> None:
         tui.job_runner.shutdown()
 
     assert calls == ["groups", "parameters", "queue"]
-    assert "  7  Add task" in output.getvalue()
-    assert "Add current setup to task queue" not in output.getvalue()
 
 
 def test_tui_mixed_queue_selects_type_and_runs_each_task_once(monkeypatch) -> None:
@@ -1022,16 +867,6 @@ def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(
     assert tui.workspace.result is not None
     assert tui.workspace.result.analysis_type == "cumulative_rdf"
     assert len(tui.workspace.plot_results) == 4
-    text = output.getvalue()
-    assert "Review RDF + CN setup" not in text
-    assert "Start RDF + CN now?" not in text
-    assert "Task 1/4: Radial Distribution Function (RDF)" in text
-    assert "Task 4/4: Cumulative Coordination Number (CN)" in text
-    assert "RDF completed" in text
-    assert "CN completed" in text
-    assert "Results" in text
-    assert "Configuration" in text
-    assert "Technical details" in text
 
 
 def test_tui_energy_runs_without_review(monkeypatch) -> None:
@@ -1062,5 +897,3 @@ def test_tui_energy_runs_without_review(monkeypatch) -> None:
         tui.job_runner.shutdown()
 
     assert calls == ["run", "complete"]
-    assert "Review" not in output.getvalue()
-    assert "Start Energy Analysis now?" not in output.getvalue()

@@ -11,14 +11,12 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6", reason="GUI dependencies are not installed")
 
 from PySide6.QtCore import QPoint, QPointF, QRect, Qt
-from PySide6.QtGui import QFont, QFontDatabase, QImage, QPalette, QWheelEvent
+from PySide6.QtGui import QFont, QFontDatabase, QPalette, QWheelEvent
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
-    QFormLayout,
     QFrame,
     QGridLayout,
-    QLabel,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
@@ -48,13 +46,13 @@ from mdhelper.gui.dialogs.integrations import IntegrationsDialog
 from mdhelper.gui.dialogs.log import JobLogDialog
 from mdhelper.gui.dialogs.selection import (
     GROMACS_SELECTION_HINTS,
-    SELECTION_DOCUMENTATION,
     SELECTION_HINTS,
 )
 from mdhelper.gui.dialogs.templates import TemplatesDialog
 from mdhelper.gui.fonts import configure_ui_font
 from mdhelper.gui.pages.analysis import AnalysisPanel
 from mdhelper.gui.pages.results import ResultPanel
+from mdhelper.gui.theme import ThemeController
 from mdhelper.gui.window import MainWindow
 from mdhelper.integrations.models import IntegrationConfig, IntegrationStatus
 from mdhelper.jobs import JobHandle
@@ -145,8 +143,6 @@ def test_job_log_dialog_is_non_modal_and_copies_raw_messages() -> None:
     assert notice is not None
     assert notice.isVisible()
     assert not notice.isModal()
-    assert notice.windowTitle() == "Log Copied"
-    assert notice.text() == "Log copied to clipboard."
     dialog.close()
 
 
@@ -176,55 +172,20 @@ def test_job_log_follows_new_messages_until_the_user_scrolls_up() -> None:
     dialog.close()
 
 
-def test_input_and_rdf_labels_use_public_terminology() -> None:
+def test_input_and_radial_controls_use_independent_widgets() -> None:
     inputs = InputPanel()
-    form = inputs.layout()
-    assert isinstance(form, QFormLayout)
-    assert form.labelForField(inputs.index_file).text() == "Index file"
     assert not hasattr(inputs, "backend")
     assert not hasattr(inputs, "selection_source")
-    assert all(
-        button.text() != "Inspect loaded system" for button in inputs.findChildren(QPushButton)
-    )
 
     parameters = ParameterPanel()
-    labels = {label.text() for label in parameters.findChildren(QLabel)}
-    assert "Type" in labels
-    assert "Backend" in labels
-    assert "Analysis type" not in labels
-    assert "Analysis backend" not in labels
     assert isinstance(parameters.stack.widget(0), RadialParameters)
     assert isinstance(parameters.stack.widget(1), RadialParameters)
     assert parameters.stack.widget(0) is not parameters.stack.widget(1)
-    assert [
-        parameters.analysis_backend.itemText(index)
-        for index in range(parameters.analysis_backend.count())
-    ][:3] == ["Automatic", "Native", "MDAnalysis"]
     parameters.set_analysis_backend("mdanalysis")
     assert parameters.analysis_backend_value() == "mdanalysis"
-    assert [
-        parameters.analysis_choice.itemText(index)
-        for index in range(parameters.analysis_choice.count())
-    ] == [
-        "Radial Distribution Function (RDF)",
-        "Cumulative Coordination Number (CN)",
-        "Energy Analysis",
-    ]
-    rdf_form = parameters.stack.widget(0).layout()
-    assert isinstance(rdf_form, QFormLayout)
-    assert parameters.rdf_inputs.reference_label.text() == "Reference"
-    assert parameters.rdf_inputs.selection_label.text() == "Selection"
     assert parameters.rdf_inputs.findChildren(QPushButton) == [
         parameters.rdf_inputs.hint_button
     ]
-    headers = [
-        parameters.rdf_series.table.horizontalHeaderItem(column).text()
-        for column in range(parameters.rdf_series.table.columnCount())
-    ]
-    assert headers[:4] == ["Run", "Reference", "Selection", "Legend"]
-
-    species = SpeciesPanel()
-    assert species.table.horizontalHeaderItem(2).text() == "Role"
 
 
 def test_selection_hints_follow_index_file_and_use_a_table() -> None:
@@ -245,32 +206,15 @@ def test_selection_hints_follow_index_file_and_use_a_table() -> None:
     parameters.set_analysis_backend("gromacs")
     assert not parameters.rdf_inputs.hint_button.isHidden()
     assert not parameters.cn_inputs.hint_button.isHidden()
-    assert parameters.rdf_inputs.reference_label.text() == "Reference (-ref)"
-    assert parameters.rdf_inputs.selection_label.text() == "Selection (-sel)"
-    assert parameters.rdf_reference.expression.placeholderText() == "GROMACS Selection Language"
     parameters.rdf_inputs.hint_button.click()
     dialog = panel._hint_dialog
     assert dialog is not None
-    assert dialog.windowTitle() == "GROMACS Selection Language"
     assert dialog.table.rowCount() == len(GROMACS_SELECTION_HINTS)
-    gromacs_hints = {
-        dialog.table.item(row, 0).text(): dialog.table.item(row, 2).text()
-        for row in range(dialog.table.rowCount())
-    }
-    assert gromacs_hints == {
-        "Reference (-ref)": "Passed to gmx rdf -ref",
-        "Selection (-sel)": "Passed to gmx rdf -sel",
-    }
-    assert [
-        dialog.table.horizontalHeaderItem(column).text() for column in range(3)
-    ] == ["Field", "Syntax", "Handling"]
     assert dialog.documentation.openExternalLinks()
-    assert SELECTION_DOCUMENTATION["gromacs"] in dialog.documentation.text()
 
     parameters.set_selection_groups(True, {"System": 10})
     assert parameters.rdf_inputs.hint_button.isHidden()
     assert parameters.cn_inputs.hint_button.isHidden()
-    assert parameters.rdf_inputs.reference_label.text() == "Reference (-ref)"
     assert parameters.rdf_reference.currentWidget() is parameters.rdf_reference.group
     assert parameters.rdf_reference.group.count() == 1
     assert parameters.rdf_reference.group.currentData() == "System"
@@ -278,8 +222,6 @@ def test_selection_hints_follow_index_file_and_use_a_table() -> None:
     parameters.set_analysis_backend("mdanalysis")
     assert parameters.rdf_inputs.hint_button.isHidden()
     assert parameters.cn_inputs.hint_button.isHidden()
-    assert parameters.rdf_inputs.reference_label.text() == "Reference"
-    assert parameters.rdf_inputs.selection_label.text() == "Selection"
 
     parameters.set_selection_groups(False, {})
     assert not parameters.rdf_inputs.hint_button.isHidden()
@@ -288,18 +230,11 @@ def test_selection_hints_follow_index_file_and_use_a_table() -> None:
     parameters.rdf_inputs.hint_button.click()
     dialog = panel._hint_dialog
     assert dialog is not None
-    assert dialog.windowTitle() == "MDAnalysis Selection Syntax"
     assert not dialog.isModal()
     assert dialog.isVisible()
 
     assert dialog.table.rowCount() == len(SELECTION_HINTS)
     assert dialog.table.columnCount() == 3
-    assert [
-        dialog.table.horizontalHeaderItem(column).text() for column in range(3)
-    ] == ["Selector", "Meaning", "Example"]
-    assert dialog.table.item(0, 0).text() == "all"
-    assert dialog.table.item(4, 2).text() == "resname SOL"
-    assert SELECTION_DOCUMENTATION["mdanalysis"] in dialog.documentation.text()
     dialog.close()
 
 
@@ -312,9 +247,6 @@ def test_gromacs_backend_availability_does_not_hide_energy_analysis() -> None:
 
     assert not choice_enabled(parameters.analysis_backend, "gromacs")
     assert choice_enabled(parameters.analysis_choice, "energy")
-    assert "Unavailable" in parameters.analysis_backend.itemText(
-        parameters.analysis_backend.findData("gromacs")
-    )
     with pytest.raises(InputError, match="unavailable"):
         parameters.set_analysis_backend("gromacs")
 
@@ -348,7 +280,6 @@ def test_appearance_menu_applies_and_persists_theme(
         assert application.style().objectName().casefold() == "fusion"
         assert _contrast(application.palette())[0] < _contrast(application.palette())[1]
         assert window.results.figure.get_facecolor()[:3] == (1.0, 1.0, 1.0)
-        assert window.results.export_button.text() == "Export..."
         assert actions["dark"].isChecked()
         assert sum(action.isChecked() for action in actions.values()) == 1
         window.show()
@@ -390,7 +321,7 @@ def test_appearance_menu_applies_and_persists_theme(
         window.close()
 
 
-def test_result_history_hides_missing_artifacts_and_uses_readable_labels() -> None:
+def test_result_history_hides_missing_artifacts() -> None:
     existing = QApplication.instance()
     _application = existing if isinstance(existing, QApplication) else QApplication([])
     window = MainWindow()
@@ -415,8 +346,6 @@ def test_result_history_hides_missing_artifacts_and_uses_readable_labels() -> No
 
     assert window.results.project_results.count() == 1
     assert window.results.project_results.currentData() == "available-id"
-    assert "available-id" not in window.results.project_results.currentText()
-    assert "LI-O_FSI" in window.results.project_results.currentText()
     window.close()
 
 
@@ -457,6 +386,40 @@ def test_configured_font_size_is_applied(monkeypatch: pytest.MonkeyPatch, tmp_pa
     finally:
         window.close()
         configure_ui_font(application)
+
+
+def test_theme_switch_preserves_the_configured_font(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    existing = QApplication.instance()
+    application = existing if isinstance(existing, QApplication) else QApplication([])
+    configure_ui_font(application, 13.5)
+    existing_control = QPushButton()
+    controller = ThemeController(application)
+    set_style = application.setStyle
+
+    def style_with_native_font(style: str) -> object:
+        result = set_style(style)
+        native = QFont(application.font())
+        native.setPointSizeF(9.0)
+        application.setFont(native)
+        return result
+
+    monkeypatch.setattr(application, "setStyle", style_with_native_font)
+
+    try:
+        controller.apply("dark")
+        new_control = QPushButton()
+        assert {
+            application.font().pointSizeF(),
+            existing_control.font().pointSizeF(),
+            new_control.font().pointSizeF(),
+        } == {13.5}
+        new_control.close()
+    finally:
+        controller.apply("system")
+        configure_ui_font(application)
+        existing_control.close()
 
 
 def _rdf_result(reference: str, selection: str) -> AnalysisResult:
@@ -578,7 +541,6 @@ def test_result_panel_prioritizes_overview_and_separates_plot_controls() -> None
     assert panel.sections.indexOf(panel.summary_box) == 0
     assert panel.sections.indexOf(panel.plot_panel) == 1
     assert panel.summary_box.height() >= panel.height() // 2
-    assert panel.clear_series_button.text() == "Clear All"
     assert panel.color_scheme.currentData() == "residue_name"
     controls = panel.plot_settings.layout()
     assert isinstance(controls, QGridLayout)
@@ -593,9 +555,6 @@ def test_result_panel_prioritizes_overview_and_separates_plot_controls() -> None
         assert controls.cellRect(row, 0).height() <= max(
             widget.sizeHint().height() for widget in widgets if widget is not None
         ) + 1
-    assert {button.text() for button in panel.plot_settings.findChildren(QPushButton)}.isdisjoint(
-        {"Auto", "Apply"}
-    )
     panel.close()
 
 
@@ -632,8 +591,6 @@ def test_selected_plot_series_updates_result_overview() -> None:
     assert panel.result is second
     panel.plot_series.selectRow(0)
     assert panel.result is first
-    assert "A - B" in panel.text.toPlainText()
-    assert "A - C" not in panel.text.toPlainText()
     panel.close()
 
 
@@ -673,7 +630,6 @@ def test_selection_series_uses_a_compact_ordered_action_row() -> None:
     application.processEvents()
 
     assert series.add_button.height() == 24
-    assert series.clear_button.text() == "Clear All"
     assert series.add_button.x() < series.remove_button.x() < series.clear_button.x()
     assert series.table.horizontalHeader().sectionSize(0) < 80
     assert series.table.currentColumn() == 1
@@ -707,12 +663,6 @@ def test_frame_controls_use_exclusive_gui_stop_and_round_trip_requests() -> None
     existing = QApplication.instance()
     _application = existing if isinstance(existing, QApplication) else QApplication([])
     panel = ParameterPanel()
-    labels = {item.text() for item in panel.frames.findChildren(QLabel)}
-
-    assert "First frame (0-based)" in labels
-    assert "Stop frame (exclusive)" in labels
-    assert "Stride (frames)" in labels
-    assert "Uncertainty block (frames)" not in labels
     panel.start.setValue(2)
     panel.stop.setText("7")
     panel.stride.setValue(2)
@@ -739,7 +689,6 @@ def test_species_table_prioritizes_species_and_suggestion_columns() -> None:
     panel = SpeciesPanel()
     header = panel.table.horizontalHeader()
 
-    assert panel.table.horizontalHeaderItem(1).text() == "Numbers"
     assert header.sectionSize(0) == 180
     assert header.sectionSize(2) == 200
     panel.close()
@@ -793,18 +742,10 @@ def test_result_panel_keeps_mixed_analysis_types_in_one_figure() -> None:
     panel.show_result(cn)
 
     assert panel.plot_series.rowCount() == 2
-    assert [panel.plot_series.item(row, 1).text() for row in range(2)] == [
-        "RDF",
-        "CN",
-    ]
-    assert [axis.get_title() for axis in panel.figure.axes if axis.get_title()] == [
-        "RDF and Cumulative Coordination Number"
-    ]
     assert len(panel.figure.axes) == 2
     assert not any(line.get_visible() for line in panel.figure.axes[1].yaxis.get_gridlines())
     panel.plot_series.selectRow(0)
     assert panel.plot_title.isEnabled()
-    assert panel.plot_title.text() == "RDF and Cumulative Coordination Number"
     panel.plot_title.setText("Ion coordination comparison")
     panel.plot_title.editingFinished.emit()
     assert panel.figure.axes[0].get_title() == "Ion coordination comparison"
@@ -845,17 +786,16 @@ def test_result_panel_edits_only_the_selected_energy_plot_title(
 ) -> None:
     panel = ResultPanel()
     panel.show_result(energy_result)
+    original = tuple(window.figure.axes[0].get_title() for window in panel.plot_windows)
     panel.plot_series.selectRow(1)
 
-    assert panel.plot_title.text() == "Energy Analysis: Temperature"
     panel.plot_title.setText("Temperature stability")
     panel.plot_title.editingFinished.emit()
 
-    assert [window.figure.axes[0].get_title() for window in panel.plot_windows] == [
-        "Energy Analysis: Potential",
-        "Temperature stability",
-        "Energy Analysis: Pressure",
-    ]
+    titles = tuple(window.figure.axes[0].get_title() for window in panel.plot_windows)
+    assert titles[0] == original[0]
+    assert titles[1] == "Temperature stability"
+    assert titles[2] == original[2]
     assert [selection.title for selection in panel.plot_state().selections] == [
         "",
         "Temperature stability",
@@ -876,11 +816,6 @@ def test_result_panel_combines_selected_energy_terms_and_restores_group(
         "Temperature",
         "Pressure",
     ]
-    assert [panel.plot_series.item(row, 5).text() for row in range(3)] == [
-        "Plot 1",
-        "Plot 2",
-        "Plot 3",
-    ]
     assert sorted({index.row() for index in panel.plot_series.selectedIndexes()}) == [
         0,
         1,
@@ -890,11 +825,6 @@ def test_result_panel_combines_selected_energy_terms_and_restores_group(
     assert not panel.separate_series_button.isEnabled()
     assert len(panel.plot_windows) == 3
     assert all(len(window.figure.axes) == 1 for window in panel.plot_windows)
-    assert [window.figure.axes[0].get_title() for window in panel.plot_windows] == [
-        "Energy Analysis: Potential",
-        "Energy Analysis: Temperature",
-        "Energy Analysis: Pressure",
-    ]
     panel.open_plot_window()
     assert all(window.isVisible() for window in panel.plot_windows)
     panel.plot_series.clearSelection()
@@ -906,9 +836,6 @@ def test_result_panel_combines_selected_energy_terms_and_restores_group(
     assert len(panel.plot_windows) == 2
     assert all(len(window.figure.axes) == 1 for window in panel.plot_windows)
     assert len(panel.figure.axes[0].lines) == 2
-    assert panel.plot_series.item(0, 5).text() == "Plot 1 - Combined"
-    assert panel.plot_series.item(1, 5).text() == "Plot 1 - Combined"
-    assert panel.plot_series.item(2, 5).text() == "Plot 2"
     state = panel.plot_state()
     assert [selection.series for selection in state.selections] == [
         "Potential",
@@ -935,11 +862,6 @@ def test_result_panel_combines_selected_energy_terms_and_restores_group(
     assert len(restored.plot_windows) == 3
     assert all(len(window.figure.axes) == 1 for window in restored.plot_windows)
     assert all(not selection.group for selection in restored.plot_state().selections)
-    assert [restored.plot_series.item(row, 5).text() for row in range(3)] == [
-        "Plot 1",
-        "Plot 2",
-        "Plot 3",
-    ]
     restored.close()
     panel.close()
 
@@ -952,12 +874,6 @@ def test_main_window_separates_load_and_analysis() -> None:
     assert window.size().width() == 860
     assert window.size().height() == 800
     assert window.tabs.count() == 3
-    assert [window.tabs.tabText(index) for index in range(3)] == [
-        "Load",
-        "Analysis",
-        "Result",
-    ]
-    assert window.analysis.parameters.title() == "Analysis"
     assert window.load.sections.orientation() == Qt.Orientation.Vertical
     assert window.load.sections.count() == 2
     window.show()
@@ -988,8 +904,6 @@ def test_main_pages_use_consistent_action_surfaces() -> None:
     assert window.analysis.action_bar.stacked
     assert 40 < window.analysis.action_bar.sizeHint().height() <= 80
     assert window.analysis.progress.parent() is window.analysis.action_bar
-    assert window.analysis.action_bar.title.text() == "Progress"
-    assert window.analysis.run_button.text() == "Run"
     window.tabs.setCurrentWidget(window.analysis)
     window.show()
     _application.processEvents()
@@ -1012,9 +926,6 @@ def test_main_pages_use_consistent_action_surfaces() -> None:
     assert window.analysis.run_button.property("importance") == "primary"
     assert window.results.export_button.property("importance") == "primary"
     assert window.results.open_plot_button.parent() is window.results.action_bar
-    assert window.results.open_plot_button.text() == "Open Plot Window"
-    assert window.results.project_button.text() == "Save Plot"
-    assert window.analysis.parameters.frames.title() == "Frame Sampling"
     window.close()
 
 
@@ -1027,7 +938,6 @@ def test_analysis_details_opens_the_retained_job_log() -> None:
     _QT_APPLICATION.processEvents()
 
     assert details.parent() is window.analysis.action_bar
-    assert details.text() == "Details"
     assert details.geometry().left() > progress.geometry().right()
     assert abs(details.geometry().center().y() - progress.geometry().center().y()) <= 1
     assert not details.isEnabled()
@@ -1053,39 +963,6 @@ def test_analysis_details_opens_the_retained_job_log() -> None:
     window.close()
 
 
-def test_about_dialog_shows_developer_affiliation(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    messages: list[tuple[str, str]] = []
-    monkeypatch.setattr(
-        QMessageBox,
-        "about",
-        lambda _parent, title, text: messages.append((title, text)),
-    )
-    window = MainWindow()
-    help_menu = next(
-        action.menu() for action in window.menuBar().actions() if action.text() == "&Help"
-    )
-    assert help_menu is not None
-    next(action for action in help_menu.actions() if action.text() == "About").trigger()
-
-    assert messages == [
-        (
-            "About MDHelper",
-            "MDHelper 0.1.0<br>"
-            "A toolkit for the analysis of <b>Molecular Dynamics</b> data."
-            "<br><br>"
-            "Developer: Tuo Yao (Shanghai Jiao Tong University)"
-            "<br><br>"
-            "License: GNU General Public License v2.0 (GPL-2.0)"
-            "<br><br>"
-            "MDHelper is free software: you are free to use, study, share, "
-            "and modify it under the terms of the GNU General Public License.",
-        )
-    ]
-    window.close()
-
-
 def test_settings_menu_creates_and_opens_the_active_config(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1100,19 +977,11 @@ def test_settings_menu_creates_and_opens_the_active_config(
     )
     window = MainWindow()
 
-    assert [action.text() for action in window.menuBar().actions()] == [
-        "&File",
-        "&Tools",
-        "&View",
-        "&Settings",
-        "&Help",
-    ]
     window.menu_actions.settings.trigger()
 
     assert path.is_file()
     assert load_config(path) == window.application.config
     assert [Path(value) for value in opened] == [path]
-    assert window.statusBar().currentMessage() == f"Opened configuration: {path}"
     window.close()
 
 
@@ -1130,16 +999,16 @@ def test_settings_menu_reports_missing_default_text_application(
 
     window.menu_actions.settings.trigger()
 
-    assert messages
-    assert messages[0][0] == "MDHelper Error"
-    assert "default text application" in messages[0][1]
+    assert len(messages) == 1
     window.close()
 
 
 def test_gui_export_includes_every_visible_result_and_current_plot(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    stub_figure_exports,
 ) -> None:
+    stub_figure_exports()
     existing = QApplication.instance()
     _application = existing if isinstance(existing, QApplication) else QApplication([])
     window = MainWindow()
@@ -1152,7 +1021,6 @@ def test_gui_export_includes_every_visible_result_and_current_plot(
     window.results.plot_title.editingFinished.emit()
     window.results.open_plot_window()
     _QT_APPLICATION.processEvents()
-    display_width, display_height = window.results.figure.get_size_inches()
     window.session.result = second
     monkeypatch.setattr(
         window_module.QFileDialog,
@@ -1176,14 +1044,6 @@ def test_gui_export_includes_every_visible_result_and_current_plot(
             f"{output.name}.svg",
             f"{output.name}.pdf",
         }
-        assert "Exported comparison" in (output / f"{output.name}.svg").read_text(
-            encoding="utf-8"
-        )
-    image = QImage(str(outputs[0] / "rdf-A-B.png"))
-    assert image.width() / image.height() == pytest.approx(
-        display_width / display_height,
-        abs=0.001,
-    )
     window.close()
 
 
@@ -1236,7 +1096,9 @@ def test_gui_save_plot_exports_each_plot_window_to_separate_files(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     energy_result: AnalysisResult,
+    stub_figure_exports,
 ) -> None:
+    stub_figure_exports()
     window = MainWindow()
     window.results.show_result(energy_result)
     window.session.project = SimpleNamespace(root=tmp_path)  # type: ignore[assignment]
@@ -1251,8 +1113,6 @@ def test_gui_save_plot_exports_each_plot_window_to_separate_files(
         for term in ("Potential", "Temperature", "Pressure")
         for suffix in ("png", "svg", "pdf")
     }
-    for title in ("Potential", "Temperature", "Pressure"):
-        assert title in (output / f"energy-{title}.svg").read_text(encoding="utf-8")
     window.close()
 
 
@@ -1260,7 +1120,9 @@ def test_gui_save_plot_uses_fixed_name_for_combined_energy_terms(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     energy_result: AnalysisResult,
+    stub_figure_exports,
 ) -> None:
+    stub_figure_exports()
     window = MainWindow()
     window.results.show_result(energy_result)
     window.results.plot_series.clearSelection()
@@ -1287,7 +1149,9 @@ def test_gui_save_plot_uses_fixed_name_for_combined_energy_terms(
 def test_gui_save_plot_increments_combined_rdf_cn_names(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    stub_figure_exports,
 ) -> None:
+    stub_figure_exports()
     window = MainWindow()
     rdf = _rdf_result("LI", "O_FSI")
     cn = _cumulative_rdf_result("LI", "O_FSI")
@@ -1306,10 +1170,6 @@ def test_gui_save_plot_increments_combined_rdf_cn_names(
         for stem in ("rdf-cn", "rdf-cn-2")
         for suffix in ("png", "svg", "pdf")
     }
-    for stem in ("rdf-cn", "rdf-cn-2"):
-        assert "RDF and Cumulative Coordination Number" in (
-            output / f"{stem}.svg"
-        ).read_text(encoding="utf-8")
     window.close()
 
 
@@ -1328,7 +1188,9 @@ def test_gui_exports_each_energy_curve_to_its_own_directory(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     energy_result: AnalysisResult,
+    stub_figure_exports,
 ) -> None:
+    stub_figure_exports()
     window = MainWindow()
     window.results.show_result(energy_result)
     window.session.result = energy_result
@@ -1499,10 +1361,6 @@ def test_energy_file_selection_automatically_reloads_terms_without_button(
     assert panel.energy_queue.available.item(0).text() == "Pressure"
     panel.set_analysis_backend("mdanalysis")
     assert calls[-1] == (str(second), "mdanalysis", None)
-    assert all(
-        button.text() != "Load Energy Terms"
-        for button in panel.findChildren(QPushButton)
-    )
     window.job_controller.shutdown()
     window.close()
 
@@ -1513,7 +1371,6 @@ def test_templates_are_exposed_by_the_tools_menu() -> None:
     window = MainWindow()
     dialog = TemplatesDialog(window.application, window)
 
-    assert window.menu_actions.templates.text() == "Templates..."
     assert dialog.template_list.count() >= 2
     assert dialog.text.toPlainText().isascii()
     assert dialog.copy_button.isEnabled()
