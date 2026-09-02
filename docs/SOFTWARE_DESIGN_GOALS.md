@@ -107,7 +107,7 @@ loadable, with no false manifest entry.
 Trajectory frames stream, pair matrices are chunked, and file hashing is chunked. MDAnalysis XDR
 frame offsets are stored as rebuildable, locked, atomically replaced entries in a dedicated cache
 directory instead of sidecars beside the trajectory, and are invalidated by source metadata.
-Background tasks have explicit state and cooperative cancellation. No analysis may materialize
+Background jobs have explicit state and cooperative cancellation. No analysis may materialize
 every frame or an unbounded
 `N_reference x N_selection` matrix.
 

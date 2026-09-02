@@ -11,6 +11,23 @@ PRESENTATION_PACKAGES = ("cli", "gui", "tui")
 PRESENTATION_PREFIXES = tuple(f"mdhelper.{name}" for name in PRESENTATION_PACKAGES)
 ENGINE_PREFIXES = ("mdhelper.analysis", "mdhelper.backends")
 ROOT_MODULES = {"__init__.py", "__main__.py", "version.py"}
+GUI_ROOT_MODULES = {
+    "__init__.py",
+    "fonts.py",
+    "formatting.py",
+    "main.py",
+    "menu.py",
+    "theme.py",
+    "window.py",
+}
+GUI_SUBPACKAGES = {"components", "controllers", "dialogs", "pages"}
+JOB_MODULES = {"__init__.py", "models.py", "runner.py"}
+GUI_FORBIDDEN_IMPORTS = {
+    "components": ("controllers", "dialogs", "pages"),
+    "controllers": ("components", "dialogs", "pages"),
+    "dialogs": ("controllers", "pages"),
+    "pages": ("controllers",),
+}
 CODE_SUFFIXES = {".py", ".pyi", ".ps1", ".sh", ".spec", ".toml", ".yaml", ".yml"}
 
 
@@ -110,6 +127,37 @@ def test_qt_is_confined_to_the_gui_package() -> None:
 def test_package_root_contains_only_entrypoints_and_version() -> None:
     actual = {path.name for path in SOURCE_ROOT.glob("*.py")}
     assert actual == ROOT_MODULES
+
+
+def test_gui_modules_follow_the_presentation_package_layout() -> None:
+    root = SOURCE_ROOT / "gui"
+    assert {path.name for path in root.glob("*.py")} == GUI_ROOT_MODULES
+    packages = {
+        path.name
+        for path in root.iterdir()
+        if path.is_dir() and (path / "__init__.py").is_file()
+    }
+    assert packages == GUI_SUBPACKAGES
+
+
+def test_gui_subpackages_follow_their_dependency_direction() -> None:
+    violations = {
+        str(path.relative_to(SOURCE_ROOT)): imported
+        for package, forbidden in GUI_FORBIDDEN_IMPORTS.items()
+        for path in _files(f"gui/{package}")
+        for imported in _imports(path)
+        if any(imported.startswith(f"mdhelper.gui.{name}") for name in forbidden)
+    }
+    assert violations == {}
+
+
+def test_job_execution_and_workflow_packages_are_separate() -> None:
+    jobs = SOURCE_ROOT / "jobs"
+    workflow = SOURCE_ROOT / "workflow"
+
+    assert {path.name for path in jobs.glob("*.py")} == JOB_MODULES
+    assert {path.name for path in workflow.glob("*.py")} == {"__init__.py"}
+    assert _imports(workflow / "__init__.py") == ()
 
 
 def test_source_uses_detection_terminology() -> None:

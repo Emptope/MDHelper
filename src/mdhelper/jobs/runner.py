@@ -1,81 +1,59 @@
-"""Shared task lifecycle, progress, cancellation, and worker execution."""
+"""Shared synchronous and asynchronous analysis job execution."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from concurrent.futures import Future, ThreadPoolExecutor
-from dataclasses import dataclass, field
-from enum import StrEnum
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event, Lock
-from uuid import uuid4
 
 from mdhelper.app import ApplicationService
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
+from mdhelper.jobs.models import JobHandle, JobStatus
 
 
-class TaskStatus(StrEnum):
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-@dataclass
-class TaskHandle:
-    task_id: str = field(default_factory=lambda: str(uuid4()))
-    status: TaskStatus = TaskStatus.PENDING
-    current: int = 0
-    total: int | None = None
-    message: str = ""
-    result: AnalysisResult | None = None
-    error: BaseException | None = None
-    cancel_event: Event = field(default_factory=Event)
-    future: Future[AnalysisResult] | None = None
-
-    def cancel(self) -> None:
-        self.cancel_event.set()
-
-
-class TaskService:
+class JobRunner:
     def __init__(self, application: ApplicationService, max_workers: int = 1):
         self.application = application
-        self.executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="mdhelper")
+        self.executor = ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix="mdhelper-job",
+        )
         self._lock = Lock()
-        self._tasks: dict[str, TaskHandle] = {}
+        self._jobs: dict[str, JobHandle] = {}
 
     def submit(
         self,
         request: AnalysisRequest,
         cache_dir: str | Path | None = None,
-        on_progress: Callable[[TaskHandle], None] | None = None,
-        on_finished: Callable[[TaskHandle], None] | None = None,
-    ) -> TaskHandle:
-        handle = TaskHandle()
+        on_progress: Callable[[JobHandle], None] | None = None,
+        on_finished: Callable[[JobHandle], None] | None = None,
+        name: str = "Analysis",
+    ) -> JobHandle:
+        handle = JobHandle(name=name.strip() or "Analysis")
         with self._lock:
-            self._tasks[handle.task_id] = handle
+            self._jobs[handle.job_id] = handle
 
         def progress(current: int, total: int | None, message: str) -> None:
-            handle.current = current
-            handle.total = total
-            handle.message = message
+            handle.update_progress(current, total, message)
             if on_progress:
                 on_progress(handle)
 
         def work() -> AnalysisResult:
-            handle.status = TaskStatus.RUNNING
+            handle.status = JobStatus.RUNNING
             try:
                 result = self.application.analyses.run(
                     request, progress, handle.cancel_event, cache_dir
                 )
                 handle.result = result
-                handle.status = TaskStatus.COMPLETED
+                handle.status = JobStatus.COMPLETED
                 return result
             except BaseException as exc:
                 handle.error = exc
                 handle.status = (
-                    TaskStatus.CANCELLED if handle.cancel_event.is_set() else TaskStatus.FAILED
+                    JobStatus.CANCELLED
+                    if handle.cancel_event.is_set()
+                    else JobStatus.FAILED
                 )
                 raise
             finally:
@@ -92,13 +70,13 @@ class TaskService:
         cancel_event: Event | None = None,
         cache_dir: str | Path | None = None,
     ) -> AnalysisResult:
-        """Run through the same task boundary for synchronous presentation adapters."""
+        """Run through the same job boundary for synchronous adapters."""
 
         return self.application.analyses.run(request, progress, cancel_event, cache_dir)
 
-    def get(self, task_id: str) -> TaskHandle | None:
+    def get(self, job_id: str) -> JobHandle | None:
         with self._lock:
-            return self._tasks.get(task_id)
+            return self._jobs.get(job_id)
 
     def shutdown(self, wait: bool = True) -> None:
         self.executor.shutdown(wait=wait, cancel_futures=False)

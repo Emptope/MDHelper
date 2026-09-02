@@ -5,10 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, cast
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
-    QDoubleSpinBox,
     QFormLayout,
     QGridLayout,
     QGroupBox,
@@ -32,47 +31,55 @@ from mdhelper.core.analysis import (
 )
 from mdhelper.core.errors import InputError
 from mdhelper.core.system import FrameRange
-from mdhelper.gui.choices import choice_enabled, set_choice_enabled
-from mdhelper.gui.dialogs import PathRow
-from mdhelper.gui.queues import ItemQueue
-from mdhelper.gui.selections import (
-    SelectionField,
-    SelectionHintDialog,
-    SelectionInput,
-    SelectionPair,
-    SelectionPairEditor,
-    SelectionSeries,
-)
+from mdhelper.gui.components.choices import choice_enabled, set_choice_enabled
+from mdhelper.gui.components.layout import configure_form
+from mdhelper.gui.components.paths import PathRow
+from mdhelper.gui.components.queues import ItemQueue
+from mdhelper.gui.components.radial import RadialParameters
 
 
 class ParameterPanel(QGroupBox):
     energy_terms_requested = Signal(str)
+    selection_hint_requested = Signal(str)
     analysis_backend_changed = Signal()
     backend_requirements_changed = Signal()
 
     def __init__(self, parent: QWidget | None = None):
-        super().__init__("Analysis Settings", parent)
+        super().__init__("Analysis", parent)
         self._energy_source = ""
-        self._hint_dialog: SelectionHintDialog | None = None
         self._gromacs_configured = False
         self._gromacs_available = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(12)
         choice = QHBoxLayout()
-        choice.addWidget(QLabel("Analysis type"))
+        choice.addWidget(QLabel("Type"))
         self.analysis_choice = QComboBox()
         for analysis_type in ("rdf", "cumulative_rdf", "energy"):
             self.analysis_choice.addItem(analysis_label(analysis_type), analysis_type)
         choice.addWidget(self.analysis_choice, 1)
-        choice.addWidget(QLabel("Analysis backend"))
+        choice.addWidget(QLabel("Backend"))
         self.analysis_backend = QComboBox()
         self.analysis_backend.setMinimumWidth(180)
         choice.addWidget(self.analysis_backend)
         layout.addLayout(choice)
+        self.rdf = RadialParameters(self._request_selection_hint)
+        self.cn = RadialParameters(self._request_selection_hint)
+        self.rdf_reference = self.rdf.reference
+        self.rdf_selection = self.rdf.selection
+        self.rdf_max = self.rdf.r_max
+        self.rdf_bin_width = self.rdf.bin_width
+        self.rdf_series = self.rdf.series
+        self.rdf_inputs = self.rdf.inputs
+        self.cn_reference = self.cn.reference
+        self.cn_selection = self.cn.selection
+        self.cn_max = self.cn.r_max
+        self.cn_bin_width = self.cn.bin_width
+        self.cn_series = self.cn.series
+        self.cn_inputs = self.cn.inputs
         self.stack = QStackedWidget()
-        self.stack.addWidget(self._rdf_page())
-        self.stack.addWidget(self._coordination_page())
+        self.stack.addWidget(self.rdf)
+        self.stack.addWidget(self.cn)
         self.stack.addWidget(self._energy_page())
         self.analysis_choice.currentIndexChanged.connect(self._analysis_changed)
         self.analysis_backend.currentIndexChanged.connect(self._backend_changed)
@@ -174,98 +181,10 @@ class ParameterPanel(QGroupBox):
             )
         self.analysis_backend.setCurrentIndex(index)
 
-    def _rdf_page(self) -> QWidget:
-        page = QWidget()
-        form = QFormLayout(page)
-        self._compact_form(form)
-        self.rdf_reference = SelectionInput()
-        self.rdf_reference.setPlaceholderText("selection")
-        self.rdf_selection = SelectionInput()
-        self.rdf_selection.setPlaceholderText("selection")
-        self.rdf_max = QDoubleSpinBox()
-        self.rdf_max.setRange(0.001, 100.0)
-        self.rdf_max.setDecimals(4)
-        self.rdf_max.setValue(1.0)
-        self.rdf_bin_width = QDoubleSpinBox()
-        self.rdf_bin_width.setRange(0.000001, 100.0)
-        self.rdf_bin_width.setDecimals(6)
-        self.rdf_bin_width.setValue(0.002)
-        self.rdf_series = SelectionSeries(
-            self.rdf_reference,
-            self.rdf_selection,
-            (
-                SelectionField("r_max_nm", "R max (nm)", "float"),
-                SelectionField("bin_width_nm", "Bin width (nm)", "float"),
-            ),
-            labels=("Reference", "Selection"),
-        )
-        self._set_rdf_defaults()
-        self.rdf_series.row_loaded.connect(self._load_rdf_pair)
-        self.rdf_max.valueChanged.connect(
-            lambda value: self.rdf_series.set_current_parameter("r_max_nm", value)
-        )
-        self.rdf_bin_width.valueChanged.connect(
-            lambda value: self.rdf_series.set_current_parameter("bin_width_nm", value)
-        )
-        self.rdf_inputs = SelectionPairEditor(
-            self.rdf_reference,
-            self.rdf_selection,
-            self._show_selection_hint,
-        )
-        form.addRow(self.rdf_inputs)
-        form.addRow("Plot series", self.rdf_series)
-        form.addRow("Maximum radius (nm)", self.rdf_max)
-        form.addRow("Bin width (nm)", self.rdf_bin_width)
-        return page
-
-    def _coordination_page(self) -> QWidget:
-        page = QWidget()
-        form = QFormLayout(page)
-        self._compact_form(form)
-        self.cn_reference = SelectionInput()
-        self.cn_reference.setPlaceholderText("selection")
-        self.cn_selection = SelectionInput()
-        self.cn_selection.setPlaceholderText("selection")
-        self.cn_max = QDoubleSpinBox()
-        self.cn_max.setRange(0.001, 100.0)
-        self.cn_max.setDecimals(4)
-        self.cn_max.setValue(1.0)
-        self.cn_bin_width = QDoubleSpinBox()
-        self.cn_bin_width.setRange(0.000001, 100.0)
-        self.cn_bin_width.setDecimals(6)
-        self.cn_bin_width.setValue(0.002)
-        self.cn_series = SelectionSeries(
-            self.cn_reference,
-            self.cn_selection,
-            (
-                SelectionField("r_max_nm", "R max (nm)", "float"),
-                SelectionField("bin_width_nm", "Bin width (nm)", "float"),
-            ),
-            labels=("Reference", "Selection"),
-        )
-        self._set_cn_defaults()
-        self.cn_series.row_loaded.connect(self._load_cn_pair)
-        self.cn_max.valueChanged.connect(
-            lambda value: self.cn_series.set_current_parameter("r_max_nm", value)
-        )
-        self.cn_bin_width.valueChanged.connect(
-            lambda value: self.cn_series.set_current_parameter("bin_width_nm", value)
-        )
-        self.cn_inputs = SelectionPairEditor(
-            self.cn_reference,
-            self.cn_selection,
-            self._show_selection_hint,
-        )
-        form.addRow(self.cn_inputs)
-        form.addRow("Plot series", self.cn_series)
-        form.addRow("Maximum radius (nm)", self.cn_max)
-        form.addRow("Bin width (nm)", self.cn_bin_width)
-        return page
-
     def _energy_page(self) -> QWidget:
         page = QWidget()
         form = QFormLayout(page)
-        self._compact_form(form)
+        configure_form(form)
         self.energy_file = PathRow("Select GROMACS energy file", "GROMACS energy (*.edr)")
         self.energy_file.path_selected.connect(self._request_energy_terms)
         self.energy_file.edit.editingFinished.connect(self._request_energy_terms)
@@ -323,12 +242,6 @@ class ParameterPanel(QGroupBox):
         grid.setColumnStretch(3, 1)
         return grid
 
-    @staticmethod
-    def _compact_form(form: QFormLayout) -> None:
-        form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
-        form.setHorizontalSpacing(14)
-        form.setVerticalSpacing(10)
-
     def frame_range(self) -> FrameRange:
         stop_text = self.stop.text().strip()
         return FrameRange(
@@ -336,44 +249,6 @@ class ParameterPanel(QGroupBox):
             stop=None if not stop_text else int(stop_text),
             stride=self.stride.value(),
         )
-
-    def _set_rdf_defaults(self, _value: object = None) -> None:
-        self.rdf_series.set_defaults(
-            {
-                "r_max_nm": self.rdf_max.value(),
-                "bin_width_nm": self.rdf_bin_width.value(),
-            }
-        )
-
-    def _set_cn_defaults(self, _value: object = None) -> None:
-        self.cn_series.set_defaults(
-            {
-                "r_max_nm": self.cn_max.value(),
-                "bin_width_nm": self.cn_bin_width.value(),
-            }
-        )
-
-    def _load_rdf_pair(self, pair: SelectionPair) -> None:
-        values = pair.parameters
-        self.rdf_max.blockSignals(True)
-        self.rdf_bin_width.blockSignals(True)
-        try:
-            self.rdf_max.setValue(float(values["r_max_nm"]))
-            self.rdf_bin_width.setValue(float(values["bin_width_nm"]))
-        finally:
-            self.rdf_max.blockSignals(False)
-            self.rdf_bin_width.blockSignals(False)
-
-    def _load_cn_pair(self, pair: SelectionPair) -> None:
-        values = pair.parameters
-        self.cn_max.blockSignals(True)
-        self.cn_bin_width.blockSignals(True)
-        try:
-            self.cn_max.setValue(float(values["r_max_nm"]))
-            self.cn_bin_width.setValue(float(values["bin_width_nm"]))
-        finally:
-            self.cn_max.blockSignals(False)
-            self.cn_bin_width.blockSignals(False)
 
     def set_selection_groups(self, use_index: bool, groups: dict[str, int]) -> None:
         source = "index" if use_index else "expression"
@@ -412,18 +287,8 @@ class ParameterPanel(QGroupBox):
         ):
             reference.setPlaceholderText(placeholders[0])
             selection.setPlaceholderText(placeholders[1])
-        if self._hint_dialog is not None:
-            self._hint_dialog.set_backend(backend)
-
-    def _show_selection_hint(self) -> None:
-        backend = self.analysis_backend_value()
-        if self._hint_dialog is None:
-            self._hint_dialog = SelectionHintDialog(backend, self)
-        else:
-            self._hint_dialog.set_backend(backend)
-        self._hint_dialog.show()
-        self._hint_dialog.raise_()
-        self._hint_dialog.activateWindow()
+    def _request_selection_hint(self) -> None:
+        self.selection_hint_requested.emit(self.analysis_backend_value())
 
     def request(self, common: dict[str, Any]) -> AnalysisRequest:
         choice = self._analysis_type()
@@ -518,15 +383,9 @@ class ParameterPanel(QGroupBox):
             self.stride.setValue(request.frames.stride)
             self._set_analysis(request.analysis_type)
         if isinstance(request, RadialRequest) and request.analysis_type == "rdf":
-            self.rdf_reference.setText(request.reference)
-            self.rdf_selection.setText(request.selection)
-            self.rdf_max.setValue(request.r_max_nm)
-            self.rdf_bin_width.setValue(request.bin_width_nm)
+            self.rdf.apply_request(request)
         elif isinstance(request, RadialRequest):
-            self.cn_reference.setText(request.reference)
-            self.cn_selection.setText(request.selection)
-            self.cn_max.setValue(request.r_max_nm)
-            self.cn_bin_width.setValue(request.bin_width_nm)
+            self.cn.apply_request(request)
         elif isinstance(request, EnergyRequest):
             self._set_analysis("energy")
             self.energy_file.edit.setText(request.energy_file)
@@ -539,22 +398,11 @@ class ParameterPanel(QGroupBox):
 
     def reset(self) -> None:
         self._set_analysis("rdf")
-        for control in (
-            self.rdf_reference,
-            self.rdf_selection,
-            self.cn_reference,
-            self.cn_selection,
-        ):
-            control.setText("")
-        self.rdf_series.clear()
-        self.cn_series.clear()
+        self.rdf.reset()
+        self.cn.reset()
         self.energy_file.edit.clear()
         self.energy_queue.clear_all()
         self._energy_source = ""
-        self.rdf_max.setValue(1.0)
-        self.rdf_bin_width.setValue(0.002)
-        self.cn_max.setValue(1.0)
-        self.cn_bin_width.setValue(0.002)
         self.start.setValue(0)
         self.stop.clear()
         self.stride.setValue(1)

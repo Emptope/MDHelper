@@ -12,7 +12,7 @@ from pathlib import Path
 from threading import Event
 from typing import Any
 
-from mdhelper.core.errors import InputFileError, TaskCancelled
+from mdhelper.core.errors import InputFileError, JobCancelled
 from mdhelper.version import __version__
 
 
@@ -38,17 +38,17 @@ def sha256_file(
     processed = 0
     try:
         if cancel_event is not None and cancel_event.is_set():
-            raise TaskCancelled("Input fingerprinting was cancelled.")
+            raise JobCancelled("Input fingerprinting was cancelled.")
         total = target.stat().st_size
         with target.open("rb") as handle:
             for chunk in iter(lambda: handle.read(4 * 1024 * 1024), b""):
                 if cancel_event is not None and cancel_event.is_set():
-                    raise TaskCancelled("Input fingerprinting was cancelled.")
+                    raise JobCancelled("Input fingerprinting was cancelled.")
                 digest.update(chunk)
                 processed += len(chunk)
                 if progress:
                     progress(processed, total, f"Fingerprinting {target.name}")
-    except TaskCancelled:
+    except JobCancelled:
         raise
     except OSError as exc:
         raise InputFileError(

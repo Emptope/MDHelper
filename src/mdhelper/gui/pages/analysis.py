@@ -10,34 +10,53 @@ from PySide6.QtWidgets import (
 )
 
 from mdhelper.core.analysis import AnalysisRequest
-from mdhelper.gui.layout import ActionBar, page_layout
-from mdhelper.gui.parameters import ParameterPanel
+from mdhelper.gui.components.layout import ActionBar, configure_button, page_layout
+from mdhelper.gui.components.parameters import ParameterPanel
+from mdhelper.gui.dialogs.selection import SelectionHintDialog
 
 
 class AnalysisPanel(QWidget):
     run_requested = Signal()
     cancel_requested = Signal()
+    details_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
+        self._hint_dialog: SelectionHintDialog | None = None
         self.parameters = ParameterPanel()
+        self.parameters.selection_hint_requested.connect(self._show_selection_hint)
         layout = page_layout(self)
         layout.addWidget(self.parameters, 1)
-        action_bar = ActionBar("Analysis progress", stacked=True)
+        action_bar = ActionBar("Progress", stacked=True)
         self.progress = QProgressBar()
         self.progress.setTextVisible(True)
+        self.progress.setMinimumHeight(28)
         action_bar.add_widget(self.progress, 1)
-        self.run_button = QPushButton("Run Analysis")
-        self.run_button.setMinimumWidth(130)
+        self.details_button = QPushButton("Details")
+        configure_button(self.details_button)
+        self.details_button.setEnabled(False)
+        self.details_button.clicked.connect(self.details_requested)
+        action_bar.add_widget(self.details_button)
+        self.run_button = QPushButton("Run")
+        self.run_button.setMinimumWidth(90)
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.setMinimumWidth(90)
         self.cancel_button.setEnabled(False)
         self.run_button.clicked.connect(self.run_requested)
         self.cancel_button.clicked.connect(self.cancel_requested)
-        action_bar.add_button(self.cancel_button)
         action_bar.add_button(self.run_button, primary=True)
+        action_bar.add_button(self.cancel_button)
         layout.addWidget(action_bar)
         self.action_bar = action_bar
+
+    def _show_selection_hint(self, backend: str) -> None:
+        if self._hint_dialog is None:
+            self._hint_dialog = SelectionHintDialog(backend, self)
+        else:
+            self._hint_dialog.set_backend(backend)
+        self._hint_dialog.show()
+        self._hint_dialog.raise_()
+        self._hint_dialog.activateWindow()
 
     def request_series(
         self,
@@ -63,6 +82,9 @@ class AnalysisPanel(QWidget):
             self.progress.setValue(current)
         else:
             self.progress.setRange(0, 0)
+
+    def set_details_available(self, available: bool) -> None:
+        self.details_button.setEnabled(available)
 
     def reset(self) -> None:
         self.parameters.reset()

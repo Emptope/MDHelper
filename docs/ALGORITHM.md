@@ -303,7 +303,7 @@ contains neither integration preferences nor integration run history; standalone
 under `results/runs`.
 JSON and TOML atomic writes use a same-directory temporary file and `os.replace`.
 
-## 12. External tools, configuration, and tasks
+## 12. External tools, configuration, and jobs
 
 External executable candidates are ordered by per-run override, configured executable, configured
 search paths, adapter environment candidates, `PATH`, then adapter candidate paths. Identity and
@@ -317,7 +317,7 @@ Configuration selection honors an explicit `MDHELPER_CONFIG` and otherwise uses 
 next to the executable. Saved TOML is validated before atomic replacement. Templates are discovered in stable
 path order, decoded as non-empty ASCII, and rejected on duplicate case-insensitive keys.
 
-Background tasks move through pending, running, and a terminal state. Cancellation is cooperative
+Background jobs move through pending, running, and a terminal state. Cancellation is cooperative
 at file-hash chunks, analysis-frame boundaries, and external-process polling. Pair chunking bounds
 memory but does not itself guarantee cancellation latency within a very large frame.
 

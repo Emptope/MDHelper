@@ -27,8 +27,8 @@ import mdhelper.gui.window as window_module
 from mdhelper.app import InputCandidates
 from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError
-from mdhelper.gui.choices import choice_enabled
-from mdhelper.gui.projects import NewProjectDialog
+from mdhelper.gui.components.choices import choice_enabled
+from mdhelper.gui.dialogs.projects import NewProjectDialog
 from mdhelper.gui.window import MainWindow
 from mdhelper.integrations.models import IntegrationConfig, IntegrationStatus
 from mdhelper.services.config import UserConfig, config_path, save_config
@@ -185,7 +185,7 @@ def test_gui_menu_opens_tui_through_the_unified_process(monkeypatch) -> None:
 
     assert calls == [True]
     assert window.statusBar().currentMessage() == "Terminal interface opened"
-    window.task_controller.shutdown()
+    window.job_controller.shutdown()
     window.close()
 
 
@@ -211,11 +211,14 @@ def test_gui_completes_coordination_on_generic_system(tmp_path: Path) -> None:
     window.analysis.parameters.cn_bin_width.setValue(0.05)
     window._run()
     deadline = time.monotonic() + 10
-    while window.task_controller.current is not None and time.monotonic() < deadline:
+    while window.job_controller.current is not None and time.monotonic() < deadline:
         application.processEvents()
-        window.task_controller.poll()
+        window.job_controller.poll()
         time.sleep(0.01)
     assert window.session.result is not None
+    assert window.job_controller.latest is not None
+    assert window.job_controller.latest.log_snapshot()
+    assert window.analysis.details_button.isEnabled()
     assert window.session.result.data["cumulative_number"][-1] == pytest.approx(2.0)
     assert window.session.project is not None
     assert window.session.project.root == tmp_path.resolve()
@@ -226,7 +229,7 @@ def test_gui_completes_coordination_on_generic_system(tmp_path: Path) -> None:
     assert {item["analysis_type"] for item in window.session.project.list_results()} == {
         "cumulative_rdf"
     }
-    window.task_controller.shutdown()
+    window.job_controller.shutdown()
     window.close()
 
 
@@ -278,7 +281,7 @@ def test_gui_automatically_reloads_species_and_index_groups(tmp_path: Path) -> N
     QTest.qWait(350)
     assert window.load.species.table.rowCount() == 0
     assert window.load.inputs.index_summary.text() == "No groups found"
-    window.task_controller.shutdown()
+    window.job_controller.shutdown()
     window.close()
 
 
@@ -339,7 +342,7 @@ def test_gui_backend_does_not_reload_system_or_control_species_detection(
         window.load.species.table.item(row, 0).text()
         for row in range(window.load.species.table.rowCount())
     } == {"REF", "SOLV", "LIGB"}
-    window.task_controller.shutdown()
+    window.job_controller.shutdown()
     window.close()
 
 
@@ -371,7 +374,7 @@ def test_gui_derives_selection_inputs_from_index_file() -> None:
     assert window.load.common({}, object(), require_selections=False)["index_file"] is None
     assert parameters.rdf_reference.currentWidget() is parameters.rdf_reference.expression
     assert not parameters.rdf_inputs.hint_button.isHidden()
-    window.task_controller.shutdown()
+    window.job_controller.shutdown()
     window.close()
 
 
@@ -494,7 +497,7 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
         "Exit",
     ]
     application.processEvents()
-    window.task_controller.shutdown()
+    window.job_controller.shutdown()
     window.close()
 
 

@@ -13,7 +13,7 @@ import pytest
 
 import mdhelper.integrations.manager as manager_module
 from mdhelper.app import ApplicationService
-from mdhelper.core.errors import BackendError, ConfigurationError, TaskCancelled
+from mdhelper.core.errors import BackendError, ConfigurationError, JobCancelled
 from mdhelper.integrations import DEFAULT_INTEGRATION_REGISTRY
 from mdhelper.integrations.gromacs import GromacsAdapter
 from mdhelper.integrations.gromacs import error_message as gromacs_error_message
@@ -298,7 +298,7 @@ def test_generic_detection_status_and_safe_argv(
 
     cancel = Event()
     cancel.set()
-    with pytest.raises(TaskCancelled) as cancelled:
+    with pytest.raises(JobCancelled) as cancelled:
         manager.run("fake", ["wait"], tmp_path, cancel_event=cancel)
     assert cancelled.value.details is not None
     assert cancelled.value.details["integration_run"]["status"] == "cancelled"  # type: ignore[index]
@@ -342,7 +342,7 @@ def test_running_integration_cancels_process_tree_promptly(tmp_path: Path) -> No
     timer.start()
     started = time.monotonic()
     try:
-        with pytest.raises(TaskCancelled):
+        with pytest.raises(JobCancelled):
             manager.run("fake", ["tree"], tmp_path, cancel_event=cancel)
     finally:
         timer.cancel()

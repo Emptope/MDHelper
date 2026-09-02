@@ -1,4 +1,4 @@
-"""Multi-level interactive terminal workflow built on application services."""
+"""Multi-level interactive terminal controller built on application services."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from mdhelper.core.errors import InputError, MDHelperError
 from mdhelper.core.species import SPECIES_ROLES, role_decision
 from mdhelper.core.system import FrameRange
 from mdhelper.core.trajectory import TOPOLOGY_SUFFIXES, TRAJECTORY_SUFFIXES
+from mdhelper.jobs import JobRunner
 from mdhelper.runtime.logging import record_error
 from mdhelper.tui.formatting import (
     draft_issues,
@@ -33,7 +34,6 @@ from mdhelper.tui.formatting import (
 from mdhelper.tui.model import AnalysisDraft, RadialTask, Workspace
 from mdhelper.tui.terminal import EndOfInput, Terminal
 from mdhelper.version import DEVELOPER, __version__
-from mdhelper.workflow.tasks import TaskService
 
 
 class Tui:
@@ -43,7 +43,7 @@ class Tui:
         self.application = application
         self.terminal = terminal
         self.workspace = Workspace()
-        self.tasks = TaskService(application)
+        self.job_runner = JobRunner(application)
 
     def run(self) -> int:
         self._banner()
@@ -63,7 +63,7 @@ class Tui:
             self.terminal.write("\nOperation interrupted; incomplete results were not committed.")
             return 7
         finally:
-            self.tasks.shutdown()
+            self.job_runner.shutdown()
 
     def _banner(self) -> None:
         self.terminal.rule()
@@ -851,7 +851,7 @@ class Tui:
             self.terminal.rule(
                 f"Task {number}/{len(requests)}: {analysis_label(request.analysis_type)}"
             )
-            result = self.tasks.run_sync(
+            result = self.job_runner.run_sync(
                 request,
                 self.terminal.progress,
                 cache_dir=cache_dir,

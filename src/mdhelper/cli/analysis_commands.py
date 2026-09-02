@@ -18,8 +18,8 @@ from mdhelper.core.analysis import AnalysisRequest, EnergyRequest, RadialRequest
 from mdhelper.core.errors import ConfigurationError, InputError
 from mdhelper.core.species import validate_species_roles
 from mdhelper.core.system import FrameRange
+from mdhelper.jobs import JobRunner
 from mdhelper.project import Project
-from mdhelper.workflow.tasks import TaskService
 
 
 def _frame_range(args: Namespace) -> FrameRange:
@@ -121,14 +121,14 @@ def _run(
 
     signal.signal(signal.SIGINT, request_cancel)
     try:
-        tasks = TaskService(app)
+        runner = JobRunner(app)
         try:
             cache_dir = None if project is None else project.cache_dir
-            result = tasks.run_sync(
+            result = runner.run_sync(
                 request, _progress(json_progress), cancel_event, cache_dir
             )
         finally:
-            tasks.shutdown()
+            runner.shutdown()
     finally:
         signal.signal(signal.SIGINT, previous_handler)
     if sys.stderr.isatty() and not json_progress:

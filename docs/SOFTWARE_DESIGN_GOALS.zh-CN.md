@@ -61,7 +61,7 @@ GROMACS 都是显式、可审计且互不混用的完整分析流水线；reques
 - `ApplicationService` 是表现层唯一业务门面；
 - `AnalysisRegistry` 把分析名绑定到实现；
 - `AnalysisResult` 是项目、导出和绘图的共同输入；
-- CLI/TUI 使用同步任务语义，GUI 通过 `TaskService` 后台执行同一用例。
+- CLI/TUI 使用同步 job 语义，GUI 通过 `JobRunner` 后台执行同一用例。
 
 ### 验收标准
 
@@ -254,15 +254,15 @@ GROMACS 都是显式、可审计且互不混用的完整分析流水线；reques
 - 文件 hash 以 4 MiB 块读取；
 - XDR 帧偏移 cache 按源文件元数据失效，使用文件锁和原子替换，不在 trajectory 旁生成
   sidecar；
-- `TaskService` 默认单工作线程；
+- `JobRunner` 默认单工作线程；
 - 帧边界、hash chunk 和外部进程轮询都有取消检查；pair chunk 内当前没有独立取消点；
-- GUI 用 `QTimer` 轮询 task handle 状态，不从工作线程直接操作控件。
+- GUI 用 `QTimer` 轮询 job handle 状态，不从工作线程直接操作控件。
 
 ### 验收标准
 
 - 配置上限决定峰值 pair 内存，原子对总数不改变该上限；
 - 删除或失效的 XDR 帧偏移只触发重扫，不改变分析结果；
-- 取消后 task 状态明确，不写结果、不提交项目；
+- 取消后 job 状态明确，不写结果、不提交项目；
 - 进度单调且能区分运行、成功、失败、取消；
 - 外部进程取消时先 terminate、等待后再 kill；超时时直接 kill；
 - 新的长循环必须增加取消点和进度测试。
@@ -301,7 +301,7 @@ CLI、TUI 和 GUI 可以有适合媒介的交互，但不能拥有不同的分�
 
 - CLI 将最终 JSON 写 stdout，进度/诊断写 stderr；
 - TUI 用会话状态和各分析独立 draft 构造 request；
-- GUI 用 session 保存输入/草稿，以后台 task 调用相同门面；
+- GUI 用 session 保存输入/草稿，以后台 job 调用相同门面；
 - 三者的结果展示和导出都来自 `AnalysisResult`/`PlotModel`；
 - Qt 在 GUI 包内惰性导入，Linux headless 路径不依赖 Qt。
 

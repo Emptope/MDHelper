@@ -8,9 +8,9 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QSplitter, QWidget
 
 from mdhelper.core.analysis import AnalysisRequest, RadialRequest
-from mdhelper.gui.inputs import InputPanel
-from mdhelper.gui.layout import page_layout
-from mdhelper.gui.species import SpeciesPanel
+from mdhelper.gui.components.inputs import InputPanel
+from mdhelper.gui.components.layout import page_layout
+from mdhelper.gui.components.species import SpeciesPanel
 
 
 class LoadPanel(QWidget):

@@ -106,7 +106,7 @@ def test_tools_separates_integrations_templates_and_configuration(monkeypatch) -
     try:
         tui._tools()
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert calls == ["integrations", "templates", "configuration"]
 
@@ -120,7 +120,7 @@ def test_templates_menu_uses_numbered_choices() -> None:
     try:
         tui._templates()
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     text = output.getvalue()
     for number, template in enumerate(templates, 1):
@@ -137,7 +137,7 @@ def test_opening_project_returns_to_main_menu(monkeypatch) -> None:
     try:
         tui._projects()
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert calls == ["open"]
 
@@ -469,7 +469,7 @@ def test_rdf_selection_prompts_match_gromacs_labels(monkeypatch) -> None:
     try:
         tui._edit_selections(draft)
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert prompts == ["Reference", "Selection"]
 
@@ -502,7 +502,7 @@ def test_tui_exports_each_energy_curve_to_its_own_directory(
         tui._export_result()
         tui._export_result()
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     for term in ("Potential", "Temperature", "Pressure"):
         for suffix in ("", "-2"):
@@ -537,7 +537,7 @@ def test_tui_save_plot_uses_flat_project_figure_names(
     try:
         tui._save_project_figures()
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert {path.name for path in (project.root / "figures").iterdir()} == {
         f"energy-{term}.{suffix}"
@@ -569,7 +569,7 @@ def test_tui_analysis_setup_queues_initial_radial_selection(monkeypatch) -> None
     try:
         tui._analysis_setup(draft)
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     text = output.getvalue()
     assert selections == [None]
@@ -597,7 +597,7 @@ def test_tui_analysis_menu_includes_rdf_cn_combined_plot(monkeypatch) -> None:
     try:
         tui._analyses()
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert calls == [None]
     text = output.getvalue()
@@ -619,7 +619,7 @@ def test_tui_keeps_energy_available_through_auto_backend(monkeypatch) -> None:
     try:
         tui._analyses()
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     text = output.getvalue()
     assert "Energy Analysis" in text
@@ -652,7 +652,7 @@ def test_tui_hides_gromacs_backend_until_explicit_detection(monkeypatch) -> None
         tui.application.integrations.detect("gromacs")
         tui._edit_backend(draft)
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert all(value != "gromacs" for _label, value in choices[0])
     assert any(value == "gromacs" for _label, value in choices[1])
@@ -687,7 +687,7 @@ def test_tui_requires_check_for_sampled_gromacs_rdf(monkeypatch) -> None:
         tui._edit_backend(AnalysisDraft("rdf"))
         tui._edit_backend(AnalysisDraft("rdf", frames=FrameRange(stride=2)))
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert any(value == "gromacs" for _label, value in choices[0])
     assert all(value != "gromacs" for _label, value in choices[1])
@@ -708,7 +708,7 @@ def test_tui_load_does_not_mix_analysis_backend_with_input_inspection(
     try:
         tui._load_inputs()
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert inspections == [None]
     assert "Backend" not in output.getvalue()
@@ -737,7 +737,7 @@ def test_tui_discovers_and_selects_energy_terms_in_user_order(monkeypatch) -> No
     try:
         tui._edit_parameters(draft)
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert calls == ["energy.edr"]
     assert draft.energy_file == "energy.edr"
@@ -776,7 +776,7 @@ def test_tui_energy_rediscovery_preserves_valid_terms_and_removes_stale_terms(
     try:
         tui._edit_parameters(draft)
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert draft.energy_file == "new.edr"
     assert draft.energy_terms == ["Pressure", "Potential"]
@@ -809,7 +809,7 @@ def test_tui_radial_task_queue_adds_updates_and_loads(monkeypatch) -> None:
         tui._add_task(draft)
         tui._manage_tasks(draft)
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert draft.queue == [
         RadialTask("rdf", "Reference", "First", 1.5, 0.002),
@@ -840,7 +840,7 @@ def test_tui_mixed_queue_keeps_rdf_and_cn_for_same_pair(monkeypatch) -> None:
         draft.analysis_type = "cumulative_rdf"
         tui._add_task(draft)
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert [task.analysis_type for task in draft.queue] == [
         "rdf",
@@ -877,7 +877,7 @@ def test_tui_add_task_option_opens_complete_editor(monkeypatch) -> None:
     try:
         tui._analysis_setup(draft)
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert calls == ["groups", "parameters", "queue"]
     assert "  7  Add task" in output.getvalue()
@@ -908,7 +908,7 @@ def test_tui_mixed_queue_selects_type_and_runs_each_task_once(monkeypatch) -> No
         runs = tui._radial_runs(draft)
         tui._edit_task(draft, mixed=True)
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert [(run.analysis_type, run.selection) for run in runs] == [
         ("rdf", "First"),
@@ -976,7 +976,7 @@ def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(
         tui._save_project_figures()
         tui._save_project_figures()
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     export = tmp_path / "rdf-cn-output"
     assert {path.name for path in export.iterdir()} == {
@@ -1059,7 +1059,7 @@ def test_tui_energy_runs_without_review(monkeypatch) -> None:
     try:
         assert tui._run_analysis(draft)
     finally:
-        tui.tasks.shutdown()
+        tui.job_runner.shutdown()
 
     assert calls == ["run", "complete"]
     assert "Review" not in output.getvalue()

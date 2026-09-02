@@ -3,7 +3,7 @@ from threading import Event
 
 import pytest
 
-from mdhelper.core.errors import TaskCancelled
+from mdhelper.core.errors import JobCancelled
 from mdhelper.services.provenance import sha256_file, unique_records
 
 
@@ -26,5 +26,5 @@ def test_fingerprinting_reports_progress_and_honors_cancellation(
 
     cancel = Event()
     cancel.set()
-    with pytest.raises(TaskCancelled, match="fingerprinting was cancelled"):
+    with pytest.raises(JobCancelled, match="fingerprinting was cancelled"):
         sha256_file(source, cancel_event=cancel)

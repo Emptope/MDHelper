@@ -15,7 +15,7 @@ from pathlib import Path
 from threading import Event, Thread
 from typing import Any, Literal, Protocol, TextIO
 
-from mdhelper.core.errors import BackendError, TaskCancelled
+from mdhelper.core.errors import BackendError, JobCancelled
 from mdhelper.runtime.environment import child_environment
 from mdhelper.runtime.logging import record_command
 from mdhelper.runtime.process import hidden_window_flags
@@ -269,7 +269,7 @@ def run_integration(
                 stdout, stderr, output_files, started, started_at, "cancelled",
                 record_factory,
             )
-            raise TaskCancelled(
+            raise JobCancelled(
                 f"{adapter.name} execution was cancelled.",
                 {"integration_run": record.to_dict()},
             )

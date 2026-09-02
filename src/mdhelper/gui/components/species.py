@@ -26,7 +26,7 @@ from mdhelper.core.species import (
     role_description,
 )
 from mdhelper.core.system import SystemSummary
-from mdhelper.gui.layout import ActionBar
+from mdhelper.gui.components.layout import ActionBar
 
 
 class SpeciesPanel(QGroupBox):

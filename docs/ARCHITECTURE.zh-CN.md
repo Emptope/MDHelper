@@ -32,7 +32,7 @@ CLI / TUI / GUI
 ApplicationService facade
         |
         v
-app use cases -----------------------> workflow
+app use cases --------------------------> jobs
         |                                  |
         +--> analysis --> plugins          |
         +--> services --> backends         |
@@ -56,7 +56,8 @@ app use cases -----------------------> workflow
 - `services` 组合后端和基础设施，提供系统、选择、配置和 provenance 等能力；
 - `app` 编排一次用户用例，是所有表现层进入业务系统的边界；
 - `project` 负责可恢复、可校验的磁盘状态；
-- `workflow` 负责后台任务生命周期，不改变分析语义。
+- `jobs` 负责后台 job 生命周期，不改变分析语义。
+- `workflow` 保留给未来的用户编排功能，当前不包含实现。
 
 ## 3. 包布局
 
@@ -71,7 +72,8 @@ src/mdhelper/
   backends/        GRO、MDAnalysis 和 GROMACS 轨迹及选择适配器
   io/              NDX 读取与结果/图像导出
   project/         项目清单、结果仓库和原子存储
-  workflow/        同步/异步任务执行
+  jobs/            同步/异步 job 执行
+  workflow/        预留的用户编排边界
   integrations/    外部程序的领域适配
   runtime/         子进程、检测、环境和日志基础设施
   cli/             无交互命令行表现层
@@ -394,12 +396,12 @@ integration preference，也不重复保存 request、method、流正文、恒�
 `schemas/` 中的 JSON Schema 面向发布、测试和外部工具；运行时以 `project/schema.py`
 的严格校验为准，二者变更必须同步。
 
-## 12. `workflow`：任务状态与取消
+## 12. `jobs`：job 状态与取消
 
-`workflow/tasks.py` 提供 `TaskService` 和 `TaskHandle`。默认使用单工作线程的
+`jobs/runner.py` 和 `jobs/models.py` 提供 `JobRunner` 与 `JobHandle`。默认使用单工作线程的
 `ThreadPoolExecutor`，保证 GUI 不阻塞且同一会话不会无界并发占用内存。
 
-handle 保存待运行、运行中、成功、失败或取消状态，以及进度、结果、结构化错误、取消
+handle 保存待运行、运行中、成功、失败或取消状态，以及进度、raw message、结果、结构化错误、取消
 事件和 future。GUI 提交后台任务后用 `QTimer` 轮询 handle 状态；CLI 和 TUI 调用同步包装，但
 仍使用同一任务语义。
 
@@ -460,26 +462,36 @@ GUI 采用薄视图加会话控制器分工，Qt 只在 GUI 包内惰性导入�
 | 文件 | 职责 |
 | --- | --- |
 | `main.py` | GUI 入口、Qt 应用创建和顶层异常边界。 |
-| `window.py` | 主窗口编排器，连接 load、analysis、task、result 和 menu 子模块。 |
-| `session.py` | 保存当前输入、系统摘要、项目、分析草稿和展示状态。 |
-| `load.py` | 轨迹/拓扑/index 加载流程和加载后状态更新。 |
-| `inputs.py` | 输入控件构造、路径读取和启用状态。 |
-| `species.py` | 角色建议、确认和用户选择界面。 |
-| `analysis.py` | 分析类型切换、请求构造和运行编排。 |
-| `parameters.py` | `r_max`、bin width、cutoff 和帧采样等显式参数控件。 |
-| `selections.py` | 参考、目标、配体选择及批量 plot series 编辑。 |
-| `tasks.py` | 将后台 `TaskHandle` 映射为进度条、取消按钮和完成回调。 |
-| `results.py` | 结果页、表格/摘要和项目结果加载。 |
-| `plot_window.py` | 渲染 core 绘图模型；配色和坐标选择后立即应用。 |
+| `window.py` | 主窗口编排器，连接 load、analysis、job、result 和 menu 子模块。 |
+| `controllers/session.py` | 保存当前输入、系统摘要、项目、分析草稿和展示状态。 |
+| `controllers/analysis_jobs.py` | 将后台 `JobHandle` 映射为进度条、取消按钮和完成回调。 |
+| `controllers/integration_detection.py` | 在非 GUI 线程执行外部工具检测。 |
+| `pages/workspace.py` | 固定主工作区页面的构造和标签顺序。 |
+| `pages/load.py` | 轨迹/拓扑/index 加载流程和加载后状态更新。 |
+| `pages/analysis.py` | 分析类型切换、请求构造和运行编排。 |
+| `pages/results.py` | 结果页、表格/摘要和项目结果加载。 |
+| `components/inputs.py` | 输入控件构造、路径读取和启用状态。 |
+| `components/species.py` | 角色建议、确认和用户选择界面。 |
+| `components/parameters.py` | `r_max`、bin width、cutoff 和帧采样等显式参数控件。 |
+| `components/radial.py` | RDF/CN 共用的选择、半径和 bin width 控件。 |
+| `components/selections.py` | 参考、目标、配体选择及批量 plot series 编辑。 |
+| `components/plot_controls.py` | plot series、配色、标题和坐标范围控件。 |
+| `dialogs/plot.py` | 渲染 core 绘图模型；配色和坐标选择后立即应用。 |
+| `dialogs/log.py` | 在带完整窗口控制的非模态窗口显示并复制最新 job 的 raw message。 |
 | `formatting.py` | 把共享结果报告渲染为 GUI HTML，并格式化 GUI 错误和选择摘要。 |
-| `dialogs.py` | 统一错误、确认和文件对话框。 |
-| `projects.py` | 显示 App 层发现的拓扑和轨迹候选，并要求用户分别确认。 |
-| `templates.py` | 模板选择、加载和保存交互。 |
+| `dialogs/integrations.py` | 外部程序集成配置和检测对话框。 |
+| `dialogs/projects.py` | 显示 App 层发现的拓扑和轨迹候选，并要求用户分别确认。 |
+| `dialogs/selection.py` | 非模态选择语法参考窗口。 |
+| `dialogs/templates.py` | 模板选择、加载和保存交互。 |
 | `theme.py` | 平面化主题、调色板和样式表。 |
 | `fonts.py` | 字体选择和配置应用。 |
-| `layout.py` | 尺寸、间距和布局辅助。 |
+| `components/layout.py` | 尺寸、间距和布局辅助。 |
 | `menu.py` | 顶部菜单和动作连接。 |
 | `__init__.py` | 保持轻量，避免导入即启动 Qt。 |
+
+Analysis 页使用 Type、Backend 和 Progress 标签，Progress 区域按 Run、Cancel 顺序排列，进度条右侧放置 Details。Log 视图在底部时自动跟随新 message，
+用户向上滚动后保留位置；复制完成提示不阻塞主窗口。连续相同的进度文本只作为一条
+日志保留，每次 callback 仍正常更新进度状态。
 
 批量 plot series 按配置逐项执行，以 `PlotModel` 合并展示。首次运行若尚无项目，GUI 在
 轨迹目录创建/选择项目，再通过项目用例提交结果。恢复结果时，数值数据来自结果文件，
@@ -491,7 +503,7 @@ GUI 的 New Project 先选择目录，由 App 层非递归发现受支持的拓�
 `mdhelper-project.json` manifest，成功校验 manifest 和输入后才替换当前会话。自动打开轨迹
 目录中的既有项目时会先比较输入指纹，禁止把另一套体系的结果提交到该项目。
 
-GUI 与 TUI 在 Analysis Settings 使用同一个 Backend 选择器；Load 不显示 Backend。
+GUI 与 TUI 在 Analysis 使用同一个 Backend 选择器；Load 不显示 Backend。
 Energy 始终可通过 MDAnalysis 使用；GROMACS RDF/CN 需要 `rdf` capability，帧子集额外需要
 `trjconv` 和 `check`，GROMACS Energy 需要 `energy`。Backend 选择不参与体系检查；切换 Backend
 不触发 Species 或 Index groups 刷新。仅在当前会话显式执行过 Integrations 检测，或保存的
@@ -590,7 +602,7 @@ GUI 在主线程显示对话框并保留会话；日志记录技术细节，但�
 - 哈希按固定块读取；
 - 绘图只消费结果数组，不保留完整轨迹。
 
-不得在表现层额外启动不受 `TaskService` 管理的分析线程。若未来增加并行帧计算，必须保持
+不得在表现层额外启动不受 `JobRunner` 管理的分析线程。若未来增加并行帧计算，必须保持
 直方图归并顺序、进度、取消、内存上限和结果可复现性，并增加跨线程数数值测试。
 
 ## 19. 测试架构

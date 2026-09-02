@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | 数值算法 | PBC、pair 距离、RDF、累计 RDF、第一壳层、energy 提取 | `analysis/common.py`、`analysis/radial.py`、`analysis/rdf.py`、`analysis/cumulative_rdf.py`、`analysis/native.py`、`analysis/mdanalysis.py`、`analysis/gromacs.py`、`analysis/energy.py` |
 | 输入解释算法 | reader 分派、轨迹适配、选择解析、物种角色建议 | `backends/`、`io/ndx.py`、`services/selection.py`、`services/system.py` |
-| 工程确定性算法 | 绘图分组/配色/范围、hash、项目提交、外部软件检测、任务取消 | `core/plotting.py`、`services/provenance.py`、`project/`、`integrations/`、`runtime/`、`workflow/tasks.py` |
+| 工程确定性算法 | 绘图分组/配色/范围、hash、项目提交、外部软件检测、job 取消 | `core/plotting.py`、`services/provenance.py`、`project/`、`integrations/`、`runtime/`、`jobs/` |
 
 若本文与代码或版本化方法文档不一致，发布前必须消除差异；不能把“代码就是事实”作为
 长期保留文档漂移的理由。
@@ -639,7 +639,7 @@ Windows 的 `gmx.exe`/`gmx_mpi.exe` 或其他平台的 `gmx`/`gmx_mpi`。
 输出和耗时，并检查进程状态：
 
 - cancel event 被设置：终止完整进程组并进行有界等待；构造 cancelled run record 后抛
-  `TaskCancelled`；
+  `JobCancelled`；
 - 总 timeout 到达：强制终止完整进程组，构造 timed_out record 后抛 backend error；
 - 自然结束：exit code 0 标为 completed，否则标为 failed，并返回 record。
 
@@ -675,7 +675,7 @@ stem 的 `_`/`-` 替换为空格后 title case 形成 title。重复 key 失败�
 
 ## 16. 任务状态、进度和取消
 
-`TaskService.submit()` 建立 pending handle 和 cancel event，将 work 放入默认单 worker
+`JobRunner.submit()` 建立 pending handle 和 cancel event，将 work 放入默认单 worker
 executor。worker 开始时设 running，应用服务返回时设 completed；异常时，如果 cancel event
 已设置则设 cancelled，否则设 failed，同时保存异常。
 

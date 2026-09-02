@@ -32,7 +32,7 @@ CLI / TUI / GUI
 ApplicationService facade
         |
         v
-app use cases -----------------------> workflow
+app use cases --------------------------> jobs
         |                                  |
         +--> analysis --> plugins          |
         +--> services --> backends         |
@@ -64,7 +64,8 @@ packages, and keep compatibility shells out of the package root.
 | `backends` | native GRO, MDAnalysis, and GROMACS trajectory/selection adapters |
 | `io` | NDX parsing and data/figure export |
 | `project` | strict manifest, input identity, results, and atomic storage |
-| `workflow` | task state, background execution, progress, and cancellation |
+| `jobs` | job state, background execution, progress, and cancellation |
+| `workflow` | reserved boundary for future user-authored workflows |
 | `integrations` | domain adapters for optional external executables |
 | `runtime` | subprocess, detection, environment, and logging infrastructure |
 | `cli`, `tui`, `gui` | presentation-only adapters |
@@ -241,12 +242,14 @@ compact manifest index. Result loading verifies and hydrates referenced logs. De
 paths are checked for containment, and fingerprints are rechecked on load.
 Relocation changes a path only when content identity is unchanged.
 
-## 10. Workflow and external tools
+## 10. Jobs and external tools
 
-`workflow` owns pending/running/completed/failed/cancelled state and progress messages. GUI polls
-task state on the Qt thread; TUI and CLI can use the same use case synchronously. Cancellation is
+`jobs` owns pending/running/completed/failed/cancelled state and retained raw progress messages. GUI
+polls job state on the Qt thread; TUI and CLI can use the same use case synchronously. Cancellation is
 cooperative at frame, hash-chunk, and process-poll points. External-process polling streams output
 to the active stage progress callback and terminates the complete process group on cancellation.
+The `workflow` package is reserved for future user-authored orchestration and currently has no
+implementation.
 
 External tool adapters define executable candidates, identity checks, and capability detection.
 Runtime code invokes an argument vector with `shell=False`, a restricted environment, timeout and
@@ -276,9 +279,12 @@ rather than an extra Workspace submenu. Integrations and Templates remain separa
 invokes shared term discovery and presents an ordered marked multi-select. It does not call CLI
 parsing or GUI widgets.
 
-GUI separates widgets, application calls, and result formatting. `window.py` coordinates use cases;
-`parameters.py` builds requests; `results.py` renders result text and core plot models; `species.py`
-handles role confirmation. Both interactive frontends expose Backend under Analysis Settings, not
+GUI separates widgets, application calls, and result formatting. `gui/window.py` coordinates use
+cases and composes four focused subpackages: `components` owns reusable widgets, `pages` owns the
+workspace views, `dialogs` owns floating windows, and `controllers` owns session and background-job
+coordination. `components/parameters.py` builds requests; `pages/results.py` renders result text and
+core plot models; `components/species.py` handles role confirmation. Both interactive frontends
+expose Backend under Analysis, not
 Load. Energy remains available through MDAnalysis; GROMACS RDF/CN requires `rdf`, frame subsets
 additionally require `trjconv` and `check`, and GROMACS Energy requires
 `energy`. Backend selection is
@@ -287,9 +293,16 @@ Project non-recursively discovers `.tpr`/`.gro` topology,
 `.xtc`/`.trr`/`.gro` trajectory, and optional `.ndx` candidates. Background workers never mutate Qt
 widgets.
 
+The Analysis action bar keeps its Progress title and Run/Cancel controls on one row in that order, with progress and its
+Details action below. Details opens `dialogs/log.py` as a non-modal raw-message window, so menus and
+the main workspace remain interactive. The viewer follows new messages while it is at the bottom,
+preserves position when the user scrolls up, and confirms clipboard copies without blocking.
+Consecutive identical progress text is retained once because repeated callback values update
+progress state rather than representing distinct log events.
+
 Menu ordering is controlled by insertion order in `gui/menu.py`; analysis combo ordering is
-controlled by `addItem` order in `gui/parameters.py`; TUI menu ordering is controlled by option tuple
-order in `tui/controller.py`. Table sizing is controlled by `QHeaderView` resize modes and explicit
+controlled by `addItem` order in `gui/components/parameters.py`; TUI menu ordering is controlled by
+option tuple order in `tui/controller.py`. Table sizing is controlled by `QHeaderView` resize modes and explicit
 `resizeSection(column, pixels)` calls in the owning widget.
 
 ## 12. Testing and extension rules

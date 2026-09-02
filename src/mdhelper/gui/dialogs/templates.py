@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from mdhelper.app import ApplicationService
-from mdhelper.gui.layout import ActionBar
+from mdhelper.gui.components.layout import ActionBar
 
 
 class TemplatesDialog(QDialog):

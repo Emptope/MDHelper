@@ -36,25 +36,28 @@ from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import InputError
 from mdhelper.core.plotting import PlotLimits
 from mdhelper.core.system import FrameRange
-from mdhelper.gui.analysis import AnalysisPanel
-from mdhelper.gui.choices import choice_enabled
-from mdhelper.gui.dialogs import IntegrationsDialog
-from mdhelper.gui.fonts import configure_ui_font
-from mdhelper.gui.inputs import InputPanel
-from mdhelper.gui.layout import PAGE_MARGIN, PAGE_SPACING, ActionBar
-from mdhelper.gui.parameters import ParameterPanel
-from mdhelper.gui.results import ResultPanel
-from mdhelper.gui.selections import (
+from mdhelper.gui.components.choices import choice_enabled
+from mdhelper.gui.components.inputs import InputPanel
+from mdhelper.gui.components.layout import PAGE_MARGIN, PAGE_SPACING, ActionBar
+from mdhelper.gui.components.parameters import ParameterPanel
+from mdhelper.gui.components.plot_controls import PlotControls
+from mdhelper.gui.components.radial import RadialParameters
+from mdhelper.gui.components.selections import SelectionInput, SelectionSeries
+from mdhelper.gui.components.species import SpeciesPanel
+from mdhelper.gui.dialogs.integrations import IntegrationsDialog
+from mdhelper.gui.dialogs.log import JobLogDialog
+from mdhelper.gui.dialogs.selection import (
     GROMACS_SELECTION_HINTS,
     SELECTION_DOCUMENTATION,
     SELECTION_HINTS,
-    SelectionInput,
-    SelectionSeries,
 )
-from mdhelper.gui.species import SpeciesPanel
-from mdhelper.gui.templates import TemplatesDialog
+from mdhelper.gui.dialogs.templates import TemplatesDialog
+from mdhelper.gui.fonts import configure_ui_font
+from mdhelper.gui.pages.analysis import AnalysisPanel
+from mdhelper.gui.pages.results import ResultPanel
 from mdhelper.gui.window import MainWindow
 from mdhelper.integrations.models import IntegrationConfig, IntegrationStatus
+from mdhelper.jobs import JobHandle
 from mdhelper.services.config import UserConfig, load_config
 
 _QT_APPLICATION = QApplication.instance() or QApplication([])
@@ -101,7 +104,7 @@ def _tone_pixels(widget: QWidget, light: bool) -> int:
     return sum(value > 200 if light else value < 80 for value in values)
 
 
-def test_analysis_progress_leaves_busy_state_when_a_task_stops() -> None:
+def test_analysis_progress_leaves_busy_state_when_a_job_stops() -> None:
     panel = AnalysisPanel()
 
     panel.set_running(True)
@@ -117,6 +120,62 @@ def test_analysis_progress_leaves_busy_state_when_a_task_stops() -> None:
     panel.close()
 
 
+def test_job_log_dialog_is_non_modal_and_copies_raw_messages() -> None:
+    job = JobHandle(name="Cumulative Coordination Number (CN): Li - O")
+    job.update_progress(1, 2, "Reading frame 0")
+    job.update_progress(2, 2, "Reading frame 1")
+    dialog = JobLogDialog()
+
+    dialog.set_content(job.job_id, job.name, job.log_snapshot())
+    dialog.show()
+    _QT_APPLICATION.processEvents()
+
+    assert not dialog.isModal()
+    assert dialog.windowModality() == Qt.WindowModality.NonModal
+    flags = dialog.windowFlags()
+    assert flags & Qt.WindowType.WindowMinimizeButtonHint
+    assert flags & Qt.WindowType.WindowMaximizeButtonHint
+    assert flags & Qt.WindowType.WindowCloseButtonHint
+    assert dialog.heading.text() == job.name
+    assert dialog.log.isReadOnly()
+    assert dialog.log.toPlainText() == "Reading frame 0\nReading frame 1"
+    dialog.copy_button.click()
+    assert _QT_APPLICATION.clipboard().text() == dialog.log.toPlainText()
+    notice = dialog.copy_notice
+    assert notice is not None
+    assert notice.isVisible()
+    assert not notice.isModal()
+    assert notice.windowTitle() == "Log Copied"
+    assert notice.text() == "Log copied to clipboard."
+    dialog.close()
+
+
+def test_job_log_follows_new_messages_until_the_user_scrolls_up() -> None:
+    dialog = JobLogDialog()
+    messages = tuple(f"message {number}" for number in range(200))
+    dialog.show()
+    dialog.set_content("job-1", "Analysis", messages)
+    _QT_APPLICATION.processEvents()
+    scroll = dialog.log.verticalScrollBar()
+
+    assert scroll.maximum() > 0
+    assert scroll.value() == scroll.maximum()
+
+    scroll.setValue(0)
+    dialog.set_content("job-1", "Analysis", (*messages, "latest message"))
+    assert scroll.value() == 0
+
+    scroll.setValue(scroll.maximum())
+    dialog.set_content(
+        "job-1",
+        "Analysis",
+        (*messages, "latest message", "newest message"),
+    )
+    assert scroll.value() == scroll.maximum()
+    assert dialog.log.toPlainText().endswith("latest message\nnewest message")
+    dialog.close()
+
+
 def test_input_and_rdf_labels_use_public_terminology() -> None:
     inputs = InputPanel()
     form = inputs.layout()
@@ -129,6 +188,14 @@ def test_input_and_rdf_labels_use_public_terminology() -> None:
     )
 
     parameters = ParameterPanel()
+    labels = {label.text() for label in parameters.findChildren(QLabel)}
+    assert "Type" in labels
+    assert "Backend" in labels
+    assert "Analysis type" not in labels
+    assert "Analysis backend" not in labels
+    assert isinstance(parameters.stack.widget(0), RadialParameters)
+    assert isinstance(parameters.stack.widget(1), RadialParameters)
+    assert parameters.stack.widget(0) is not parameters.stack.widget(1)
     assert [
         parameters.analysis_backend.itemText(index)
         for index in range(parameters.analysis_backend.count())
@@ -161,7 +228,8 @@ def test_input_and_rdf_labels_use_public_terminology() -> None:
 
 
 def test_selection_hints_follow_index_file_and_use_a_table() -> None:
-    parameters = ParameterPanel()
+    panel = AnalysisPanel()
+    parameters = panel.parameters
 
     assert not parameters.rdf_inputs.hint_button.isHidden()
     assert not parameters.cn_inputs.hint_button.isHidden()
@@ -181,7 +249,7 @@ def test_selection_hints_follow_index_file_and_use_a_table() -> None:
     assert parameters.rdf_inputs.selection_label.text() == "Selection (-sel)"
     assert parameters.rdf_reference.expression.placeholderText() == "GROMACS Selection Language"
     parameters.rdf_inputs.hint_button.click()
-    dialog = parameters._hint_dialog
+    dialog = panel._hint_dialog
     assert dialog is not None
     assert dialog.windowTitle() == "GROMACS Selection Language"
     assert dialog.table.rowCount() == len(GROMACS_SELECTION_HINTS)
@@ -218,7 +286,7 @@ def test_selection_hints_follow_index_file_and_use_a_table() -> None:
     assert not parameters.cn_inputs.hint_button.isHidden()
 
     parameters.rdf_inputs.hint_button.click()
-    dialog = parameters._hint_dialog
+    dialog = panel._hint_dialog
     assert dialog is not None
     assert dialog.windowTitle() == "MDAnalysis Selection Syntax"
     assert not dialog.isModal()
@@ -439,6 +507,7 @@ def test_plot_representations_colors_and_axis_ranges_are_editable() -> None:
     existing = QApplication.instance()
     _application = existing if isinstance(existing, QApplication) else QApplication([])
     panel = ResultPanel()
+    assert isinstance(panel.plot_panel, PlotControls)
     panel.show_result(_rdf_result("A", "B"), "first")
     panel.show_result(_rdf_result("A", "C"), "second")
 
@@ -875,7 +944,7 @@ def test_result_panel_combines_selected_energy_terms_and_restores_group(
     panel.close()
 
 
-def test_main_window_separates_load_and_analysis_settings() -> None:
+def test_main_window_separates_load_and_analysis() -> None:
     existing = QApplication.instance()
     _application = existing if isinstance(existing, QApplication) else QApplication([])
     window = MainWindow()
@@ -885,9 +954,10 @@ def test_main_window_separates_load_and_analysis_settings() -> None:
     assert window.tabs.count() == 3
     assert [window.tabs.tabText(index) for index in range(3)] == [
         "Load",
-        "Analysis Settings",
+        "Analysis",
         "Result",
     ]
+    assert window.analysis.parameters.title() == "Analysis"
     assert window.load.sections.orientation() == Qt.Orientation.Vertical
     assert window.load.sections.count() == 2
     window.show()
@@ -895,7 +965,7 @@ def test_main_window_separates_load_and_analysis_settings() -> None:
     assert window.load.inputs.height() <= window.load.inputs.sizeHint().height() + 1
     opened: list[bool] = []
     window.results.open_plot_window = lambda: opened.append(True)
-    window._task_completed(_rdf_result("A", "B"))
+    window._job_completed(_rdf_result("A", "B"))
     assert opened == [True]
     assert window.tabs.currentWidget() is window.results
     window.close()
@@ -918,6 +988,25 @@ def test_main_pages_use_consistent_action_surfaces() -> None:
     assert window.analysis.action_bar.stacked
     assert 40 < window.analysis.action_bar.sizeHint().height() <= 80
     assert window.analysis.progress.parent() is window.analysis.action_bar
+    assert window.analysis.action_bar.title.text() == "Progress"
+    assert window.analysis.run_button.text() == "Run"
+    window.tabs.setCurrentWidget(window.analysis)
+    window.show()
+    _application.processEvents()
+    controls = (
+        window.analysis.action_bar.title,
+        window.analysis.cancel_button,
+        window.analysis.run_button,
+    )
+    centers = [widget.geometry().center().y() for widget in controls]
+    assert max(centers) - min(centers) <= 1
+    assert (
+        window.analysis.run_button.geometry().left()
+        < window.analysis.cancel_button.geometry().left()
+    )
+    assert window.analysis.progress.geometry().top() > max(
+        widget.geometry().bottom() for widget in controls
+    )
     assert window.load.layout().contentsMargins().left() == PAGE_MARGIN
     assert window.load.layout().spacing() == PAGE_SPACING
     assert window.analysis.run_button.property("importance") == "primary"
@@ -926,6 +1015,41 @@ def test_main_pages_use_consistent_action_surfaces() -> None:
     assert window.results.open_plot_button.text() == "Open Plot Window"
     assert window.results.project_button.text() == "Save Plot"
     assert window.analysis.parameters.frames.title() == "Frame Sampling"
+    window.close()
+
+
+def test_analysis_details_opens_the_retained_job_log() -> None:
+    window = MainWindow()
+    details = window.analysis.details_button
+    progress = window.analysis.progress
+    window.tabs.setCurrentWidget(window.analysis)
+    window.show()
+    _QT_APPLICATION.processEvents()
+
+    assert details.parent() is window.analysis.action_bar
+    assert details.text() == "Details"
+    assert details.geometry().left() > progress.geometry().right()
+    assert abs(details.geometry().center().y() - progress.geometry().center().y()) <= 1
+    assert not details.isEnabled()
+
+    job = JobHandle(name="Radial Distribution Function (RDF): Water - Ion")
+    job.update_progress(1, 1, "Analyzed RDF frame 0")
+    window.job_controller.latest = job
+    window._job_changed(job)
+    details.click()
+    _QT_APPLICATION.processEvents()
+
+    dialog = window._job_log_dialog
+    assert dialog is not None
+    assert dialog.isVisible()
+    assert not dialog.isModal()
+    assert dialog.heading.text() == job.name
+    assert dialog.log.toPlainText() == "Analyzed RDF frame 0"
+    assert window.menuBar().isEnabled()
+
+    window.job_controller.current = None
+    details.click()
+    assert dialog.log.toPlainText() == "Analyzed RDF frame 0"
     window.close()
 
 
@@ -1379,7 +1503,7 @@ def test_energy_file_selection_automatically_reloads_terms_without_button(
         button.text() != "Load Energy Terms"
         for button in panel.findChildren(QPushButton)
     )
-    window.task_controller.shutdown()
+    window.job_controller.shutdown()
     window.close()
 
 
@@ -1430,7 +1554,7 @@ def test_window_manager_close_requires_confirmation(
 
     assert calls == [("Really Quit?", "Quit MDHelper?")]
     assert event.ignored and not event.accepted
-    window.task_controller.shutdown()
+    window.job_controller.shutdown()
 
 
 def test_gui_analysis_initializes_project_in_trajectory_directory(
@@ -1468,4 +1592,4 @@ def test_gui_analysis_initializes_project_in_trajectory_directory(
     assert (tmp_path / "mdhelper-project.json").is_file()
     assert (tmp_path / "results").is_dir()
     assert (tmp_path / "figures").is_dir()
-    window.task_controller.shutdown()
+    window.job_controller.shutdown()

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QFormLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -23,6 +25,14 @@ def page_layout(parent: QWidget) -> QVBoxLayout:
     layout.setContentsMargins(PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN)
     layout.setSpacing(PAGE_SPACING)
     return layout
+
+
+def configure_form(form: QFormLayout) -> None:
+    """Apply the compact spacing shared by parameter forms."""
+
+    form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
+    form.setHorizontalSpacing(14)
+    form.setVerticalSpacing(10)
 
 
 def configure_button(
@@ -63,16 +73,17 @@ class ActionBar(QFrame):
             stacked_layout = QVBoxLayout(self)
             stacked_layout.setContentsMargins(0, 2, 0, 2)
             stacked_layout.setSpacing(8)
-            self.widget_layout = QHBoxLayout()
-            self.widget_layout.setContentsMargins(0, 0, 0, 0)
-            self.widget_layout.setSpacing(8)
-            self.widget_layout.addWidget(self.title)
-            stacked_layout.addLayout(self.widget_layout)
             controls = QHBoxLayout()
             controls.setContentsMargins(0, 0, 0, 0)
+            controls.setSpacing(8)
+            controls.addWidget(self.title)
             controls.addStretch(1)
             controls.addLayout(self.action_layout)
             stacked_layout.addLayout(controls)
+            self.widget_layout = QHBoxLayout()
+            self.widget_layout.setContentsMargins(0, 0, 0, 0)
+            self.widget_layout.setSpacing(8)
+            stacked_layout.addLayout(self.widget_layout)
         else:
             row_layout = QHBoxLayout(self)
             row_layout.setContentsMargins(0, 2, 0, 2)

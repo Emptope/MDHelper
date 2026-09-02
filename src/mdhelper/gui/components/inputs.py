@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QFormLayout, QGroupBox, QLabel, QWidget
 
 from mdhelper.core.analysis import AnalysisRequest, RadialRequest
 from mdhelper.core.trajectory import TOPOLOGY_SUFFIXES, TRAJECTORY_SUFFIXES
-from mdhelper.gui.dialogs import PathRow
+from mdhelper.gui.components.paths import PathRow
 
 
 def _filter(label: str, suffixes: tuple[str, ...]) -> str:

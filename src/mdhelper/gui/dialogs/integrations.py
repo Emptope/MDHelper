@@ -1,21 +1,17 @@
-"""Reusable GUI dialogs and file-input controls."""
+"""External integration settings for the desktop GUI."""
 
 from __future__ import annotations
 
 from copy import deepcopy
 
-from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
-    QFileDialog,
     QFormLayout,
     QGroupBox,
-    QHBoxLayout,
     QLabel,
-    QLineEdit,
     QListWidget,
     QMessageBox,
     QPushButton,
@@ -24,35 +20,10 @@ from PySide6.QtWidgets import (
 )
 
 from mdhelper.app import ApplicationService
+from mdhelper.gui.components.paths import PathRow
 from mdhelper.gui.formatting import error_text
 from mdhelper.integrations.models import IntegrationConfig, IntegrationStatus
 from mdhelper.services.config import save_config
-
-
-class PathRow(QWidget):
-    """Line edit with a platform-native file picker."""
-
-    path_selected = Signal(str)
-
-    def __init__(self, caption: str, file_filter: str, parent: QWidget | None = None):
-        super().__init__(parent)
-        self.caption = caption
-        self.file_filter = file_filter
-        self.edit = QLineEdit()
-        self.button = QPushButton("Browse...")
-        self.button.clicked.connect(self._browse)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.edit, 1)
-        layout.addWidget(self.button)
-
-    def _browse(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self, self.caption, self.edit.text(), self.file_filter
-        )
-        if path:
-            self.edit.setText(path)
-            self.path_selected.emit(path)
 
 
 class IntegrationsDialog(QDialog):

@@ -24,8 +24,8 @@ from mdhelper.core.errors import (
     ConfigurationError,
     FormatError,
     InputError,
+    JobCancelled,
     MDHelperError,
-    TaskCancelled,
 )
 from mdhelper.core.plotting import DEFAULT_PLOT_SCHEME, PlotLimits, PlotModel, PlotSize
 from mdhelper.core.progress import ProgressCallback
@@ -412,7 +412,7 @@ class AnalysisUseCases:
                     cancel_event,
                     progress,
                 )
-            except TaskCancelled:
+            except JobCancelled:
                 raise
             except MDHelperError as exc:
                 attempts.append(

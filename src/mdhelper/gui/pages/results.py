@@ -6,18 +6,14 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QCloseEvent, QDoubleValidator
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QComboBox,
-    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QPushButton,
     QSplitter,
-    QTableWidget,
     QTableWidgetItem,
     QTableWidgetSelectionRange,
     QTextBrowser,
@@ -33,32 +29,28 @@ from mdhelper.core.analysis import (
 )
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.plotting import (
-    DEFAULT_PLOT_SCHEME,
-    MAX_PLOT_TITLE_LENGTH,
     PLOT_COLORS,
-    PLOT_SCHEMES,
     PlotLimits,
     PlotModel,
     PlotSelection,
     PlotSize,
     PlotState,
-    draw_plot,
     results_plots,
 )
-from mdhelper.core.units import ANGSTROM_SYMBOL
-from mdhelper.gui.choices import NoWheelComboBox
+from mdhelper.gui.components.choices import NoWheelComboBox
+from mdhelper.gui.components.layout import ActionBar, page_layout
+from mdhelper.gui.components.plot_controls import PlotControls
 from mdhelper.gui.formatting import (
     result_analysis_label,
     result_label,
     result_summary_html,
 )
-from mdhelper.gui.layout import ActionBar, page_layout
 
 if TYPE_CHECKING:
     from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
     from matplotlib.figure import Figure
 
-    from mdhelper.gui.plot_window import PlotWindow
+    from mdhelper.gui.dialogs.plot import PlotWindow
 
 _RESULT_ROLE = int(Qt.ItemDataRole.UserRole)
 _SERIES_ROLE = _RESULT_ROLE + 1
@@ -102,106 +94,44 @@ class ResultPanel(QWidget):
         summary_layout.setContentsMargins(12, 12, 12, 12)
         summary_layout.setSpacing(8)
         summary_layout.addWidget(self.text)
-        plot_panel = QWidget()
-        plot_layout = QVBoxLayout(plot_panel)
-        plot_layout.setContentsMargins(0, 0, 0, 0)
-        plot_layout.setSpacing(layout.spacing())
-        series_controls = QHBoxLayout()
-        series_controls.addWidget(QLabel("Plot series"))
-        self.combine_series_button = QPushButton("Combine")
-        self.combine_series_button.setEnabled(False)
+        controls = PlotControls()
+        self.combine_series_button = controls.combine_button
         self.combine_series_button.clicked.connect(self.combine_selected_series)
-        self.separate_series_button = QPushButton("Separate")
-        self.separate_series_button.setEnabled(False)
+        self.separate_series_button = controls.separate_button
         self.separate_series_button.clicked.connect(self.separate_selected_series)
-        self.remove_series_button = QPushButton("Remove")
+        self.remove_series_button = controls.remove_button
         self.remove_series_button.clicked.connect(self.remove_selected_series)
-        self.clear_series_button = QPushButton("Clear All")
+        self.clear_series_button = controls.clear_button
         self.clear_series_button.clicked.connect(self.clear_series)
-        series_controls.addWidget(self.combine_series_button)
-        series_controls.addWidget(self.separate_series_button)
-        series_controls.addStretch(1)
-        series_controls.addWidget(self.remove_series_button)
-        series_controls.addWidget(self.clear_series_button)
-        plot_layout.addLayout(series_controls)
-        self.plot_series = QTableWidget(0, 6)
-        self.plot_series.setHorizontalHeaderLabels(
-            ("Show", "Analysis", "Legend", "Color", "Selection", "Plot")
-        )
-        self.plot_series.horizontalHeader().setStretchLastSection(True)
-        self.plot_series.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.plot_series.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.plot_series.setMinimumHeight(100)
-        self.plot_series.setMaximumHeight(180)
+        self.plot_series = controls.series
         self.plot_series.itemChanged.connect(self._plot_changed)
         self.plot_series.itemSelectionChanged.connect(self._plot_selection_changed)
-        plot_layout.addWidget(self.plot_series)
-        settings = QGroupBox("Plot Settings")
-        plot_controls = QGridLayout(settings)
-        plot_controls.setContentsMargins(12, 10, 12, 10)
-        plot_controls.setHorizontalSpacing(10)
-        plot_controls.setVerticalSpacing(8)
-        plot_controls.addWidget(QLabel("Title"), 0, 0)
-        self.plot_title = QLineEdit()
-        self.plot_title.setMaxLength(MAX_PLOT_TITLE_LENGTH)
-        self.plot_title.setEnabled(False)
+        self.plot_title = controls.title
         self.plot_title.editingFinished.connect(self._apply_title)
-        plot_controls.addWidget(self.plot_title, 0, 1, 1, 2)
-        plot_controls.addWidget(QLabel("Color by"), 1, 0)
-        self.color_scheme = QComboBox()
-        for scheme in PLOT_SCHEMES:
-            self.color_scheme.addItem(scheme.label, scheme.key)
-        default_scheme = self.color_scheme.findData(DEFAULT_PLOT_SCHEME)
-        self.color_scheme.setCurrentIndex(default_scheme)
+        self.color_scheme = controls.scheme
         self.color_scheme.currentIndexChanged.connect(self._coloring_changed)
-        plot_controls.addWidget(self.color_scheme, 1, 1)
-        self.x_min = _limit_edit("Min")
-        self.x_max = _limit_edit("Max")
-        self.y_min = _limit_edit("Min")
-        self.y_max = _limit_edit("Max")
-        self.y2_min = _limit_edit("Min")
-        self.y2_max = _limit_edit("Max")
-        for edit in (
-            self.x_min,
-            self.x_max,
-            self.y_min,
-            self.y_max,
-            self.y2_min,
-            self.y2_max,
-        ):
+        self.x_min = controls.x_min
+        self.x_max = controls.x_max
+        self.y_min = controls.y_min
+        self.y_max = controls.y_max
+        self.y2_min = controls.y2_min
+        self.y2_max = controls.y2_max
+        for edit in controls.limit_edits():
             edit.editingFinished.connect(self._apply_limits)
-        plot_controls.addWidget(QLabel("Range"), 2, 0)
-        plot_controls.addWidget(QLabel("Minimum"), 2, 1)
-        plot_controls.addWidget(QLabel("Maximum"), 2, 2)
-        for row, (label, minimum, maximum) in enumerate(
-            (
-                (f"Distance X ({ANGSTROM_SYMBOL})", self.x_min, self.x_max),
-                ("Primary Y", self.y_min, self.y_max),
-                ("Secondary Y", self.y2_min, self.y2_max),
-            ),
-            start=3,
-        ):
-            plot_controls.addWidget(QLabel(label), row, 0)
-            plot_controls.addWidget(minimum, row, 1)
-            plot_controls.addWidget(maximum, row, 2)
-        self.open_plot_button = QPushButton("Open Plot Window")
-        self.open_plot_button.setEnabled(False)
+        self.open_plot_button = controls.open_button
         self.open_plot_button.clicked.connect(self.open_plot_window)
-        for column in range(3):
-            plot_controls.setColumnStretch(column, 1)
-        plot_controls.setRowStretch(plot_controls.rowCount(), 1)
-        plot_layout.addWidget(settings)
-        self.plot_settings = settings
+        self.plot_settings = controls.settings
         sections = QSplitter(Qt.Orientation.Horizontal)
         sections.setChildrenCollapsible(False)
         sections.addWidget(self.summary_box)
-        sections.addWidget(plot_panel)
+        sections.addWidget(controls)
         sections.setStretchFactor(0, 2)
         sections.setStretchFactor(1, 3)
         sections.setSizes((320, 480))
         layout.addWidget(sections, 1)
         self.sections = sections
-        self.plot_panel = plot_panel
+        self.plot_panel = controls
+        self.plot_controls = controls
         self.project_button = QPushButton("Save Plot")
         self.project_button.setEnabled(False)
         self.project_button.clicked.connect(self.save_project_requested)
@@ -421,9 +351,7 @@ class ResultPanel(QWidget):
         self.close_plot_windows()
         if self._plot_windows:
             self._resize_plot_windows(1)
-            self.figure.clear()
-            self.figure.set_facecolor("white")
-            self.canvas.draw_idle()
+            self.plot_window.clear_plot()
         self.export_button.setEnabled(False)
         self.project_button.setEnabled(False)
         self.open_plot_button.setEnabled(False)
@@ -492,9 +420,7 @@ class ResultPanel(QWidget):
         self.close_plot_windows()
         if self._plot_windows:
             self._resize_plot_windows(1)
-            self.figure.clear()
-            self.figure.set_facecolor("white")
-            self.canvas.draw_idle()
+            self.plot_window.clear_plot()
         self.open_plot_button.setEnabled(False)
         self._plot_rows = ()
         self._plot_titles = ()
@@ -752,14 +678,7 @@ class ResultPanel(QWidget):
 
     def _apply_limits(self) -> None:
         try:
-            limits = PlotLimits(
-                _limit_value(self.x_min),
-                _limit_value(self.x_max),
-                _limit_value(self.y_min),
-                _limit_value(self.y_max),
-                _limit_value(self.y2_min),
-                _limit_value(self.y2_max),
-            )
+            limits = self.plot_controls.limits()
             limits.validate()
         except (ConfigurationError, ValueError, TypeError) as exc:
             self.show_message(f"Invalid plot range: {exc}")
@@ -769,16 +688,7 @@ class ResultPanel(QWidget):
         self.state_changed.emit()
 
     def _show_limits(self, limits: PlotLimits) -> None:
-        values = (
-            (self.x_min, limits.x_min),
-            (self.x_max, limits.x_max),
-            (self.y_min, limits.y_min),
-            (self.y_max, limits.y_max),
-            (self.y2_min, limits.y2_min),
-            (self.y2_max, limits.y2_max),
-        )
-        for edit, value in values:
-            edit.setText("" if value is None else f"{value:g}")
+        self.plot_controls.set_limits(limits)
 
     def _current_plot_index(self) -> int | None:
         row = self.plot_series.currentRow()
@@ -845,18 +755,10 @@ class ResultPanel(QWidget):
         if models or self._plot_windows:
             self._resize_plot_windows(max(1, len(models)))
         for index, window in enumerate(self._plot_windows):
-            figure = window.figure
-            figure.clear()
-            figure.set_facecolor("white")
             if index < len(models):
-                model = models[index]
-                axis = figure.add_subplot(1, 1, 1)
-                draw_plot(axis, model, self.plot_scheme(), self._limits)
-                window.setWindowTitle(f"MDHelper Plot - {model.title}")
-                _style_plot(figure)
+                window.draw(models[index], self.plot_scheme(), self._limits)
             else:
-                window.setWindowTitle("MDHelper Plot")
-            window.canvas.draw_idle()
+                window.clear_plot()
         self._update_title_control()
         if windows_open:
             for window in self._plot_windows:
@@ -865,42 +767,9 @@ class ResultPanel(QWidget):
 
     def _resize_plot_windows(self, count: int) -> None:
         if len(self._plot_windows) < count:
-            from mdhelper.gui.plot_window import PlotWindow
+            from mdhelper.gui.dialogs.plot import PlotWindow
 
         while len(self._plot_windows) < count:
             self._plot_windows.append(PlotWindow())
         while len(self._plot_windows) > count:
             self._plot_windows.pop().close()
-
-
-def _style_plot(figure: Figure) -> None:
-    """Keep plots in a consistent light publication style."""
-
-    figure.set_facecolor("white")
-    for axis in figure.axes:
-        axis.set_facecolor("white")
-        axis.title.set_color("#202020")
-        axis.xaxis.label.set_color("#202020")
-        axis.yaxis.label.set_color("#202020")
-        axis.tick_params(colors="#202020")
-        for spine in axis.spines.values():
-            spine.set_color("#707070")
-        if axis.patch.get_visible():
-            axis.grid(color="#b0b0b0", alpha=0.35)
-        else:
-            axis.grid(False)
-
-
-def _limit_edit(placeholder: str) -> QLineEdit:
-    edit = QLineEdit()
-    validator = QDoubleValidator(edit)
-    validator.setNotation(QDoubleValidator.Notation.ScientificNotation)
-    edit.setValidator(validator)
-    edit.setPlaceholderText(placeholder)
-    edit.setMaximumWidth(76)
-    return edit
-
-
-def _limit_value(edit: QLineEdit) -> float | None:
-    text = edit.text().strip()
-    return None if not text else float(text)

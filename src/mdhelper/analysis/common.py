@@ -12,7 +12,7 @@ from threading import Event
 import numpy as np
 from numpy.typing import NDArray
 
-from mdhelper.core.errors import BackendError, InputError, TaskCancelled
+from mdhelper.core.errors import BackendError, InputError, JobCancelled
 from mdhelper.core.progress import ProgressCallback
 from mdhelper.core.system import Box, Coordinates, Frame, FrameRange
 
@@ -133,7 +133,7 @@ def report_progress(
 
 def check_cancel(cancel_event: Event | None) -> None:
     if cancel_event is not None and cancel_event.is_set():
-        raise TaskCancelled()
+        raise JobCancelled()
 
 
 def _matrix(box: Box) -> NDArray[np.float64]:

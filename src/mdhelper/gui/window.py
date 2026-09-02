@@ -13,30 +13,35 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QMainWindow,
     QMessageBox,
-    QTabWidget,
 )
 
 from mdhelper.app import ApplicationService
 from mdhelper.app.exports import PlotExport, plot_exports, result_exports
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
+from mdhelper.core.analysis import (
+    AnalysisRequest,
+    AnalysisResult,
+    RadialRequest,
+    analysis_label,
+)
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.plotting import PlotSize
 from mdhelper.core.species import SpeciesRoleSuggestion, role_decision
-from mdhelper.gui.analysis import AnalysisPanel
-from mdhelper.gui.dialogs import IntegrationsDialog
+from mdhelper.gui.controllers.analysis_jobs import AnalysisJobController
+from mdhelper.gui.controllers.integration_detection import IntegrationDetectionController
+from mdhelper.gui.controllers.session import ProjectSession
+from mdhelper.gui.dialogs.integrations import IntegrationsDialog
+from mdhelper.gui.dialogs.log import JobLogDialog
+from mdhelper.gui.dialogs.projects import NewProjectDialog
+from mdhelper.gui.dialogs.templates import TemplatesDialog
 from mdhelper.gui.fonts import configure_ui_font
 from mdhelper.gui.formatting import (
     error_text,
     role_suggestions_text,
 )
-from mdhelper.gui.load import LoadPanel
 from mdhelper.gui.menu import install_menu
-from mdhelper.gui.projects import NewProjectDialog
-from mdhelper.gui.results import ResultPanel
-from mdhelper.gui.session import ProjectSession
-from mdhelper.gui.tasks import AnalysisTasks, DetectionTasks
-from mdhelper.gui.templates import TemplatesDialog
+from mdhelper.gui.pages.workspace import WorkspaceTabs
 from mdhelper.gui.theme import theme_controller
+from mdhelper.jobs import JobHandle
 from mdhelper.runtime.logging import configure_logging, record_error
 from mdhelper.services.config import ThemeMode, save_config
 from mdhelper.version import __version__
@@ -59,12 +64,13 @@ class MainWindow(QMainWindow):
         self.theme = theme_controller()
         self.theme.apply(self.application.config.gui.theme)
         self.session = ProjectSession(self.application)
-        self.task_controller = AnalysisTasks(self.application, self)
-        self.detection_tasks = DetectionTasks(self.application, self)
+        self.job_controller = AnalysisJobController(self.application, self)
+        self.integration_detection = IntegrationDetectionController(self.application, self)
+        self._job_log_dialog: JobLogDialog | None = None
         self.role_suggestions: dict[str, SpeciesRoleSuggestion] = {}
         self.role_provenance: dict[str, Any] = {}
         self._applying_roles = False
-        self._pending_runs: list[tuple[AnalysisRequest, str]] = []
+        self._pending_jobs: list[tuple[AnalysisRequest, str]] = []
         self._active_label = ""
         self._batch_total = 0
         self._pending_roles: dict[str, str] = {}
@@ -79,9 +85,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"MDHelper {__version__}")
         self.setMinimumSize(760, 680)
         self.resize(860, 800)
-        self.load = LoadPanel()
-        self.analysis = AnalysisPanel()
-        self.results = ResultPanel()
+        tabs = WorkspaceTabs()
+        self.load = tabs.load
+        self.analysis = tabs.analysis
+        self.results = tabs.results
         self.analysis.parameters.set_gromacs_configured(
             self.application.integrations.is_configured("gromacs")
         )
@@ -97,12 +104,6 @@ class MainWindow(QMainWindow):
             self.application.config.gui.theme,
             self._set_theme,
         )
-        tabs = QTabWidget()
-        tabs.setDocumentMode(True)
-        tabs.setMovable(False)
-        tabs.addTab(self.load, "Load")
-        tabs.addTab(self.analysis, "Analysis Settings")
-        tabs.addTab(self.results, "Result")
         self.tabs = tabs
         self.setCentralWidget(tabs)
         status = self.statusBar()
@@ -130,6 +131,7 @@ class MainWindow(QMainWindow):
         self.load.selection_inputs_changed.connect(self.analysis.parameters.set_selection_groups)
         self.analysis.run_requested.connect(self._run)
         self.analysis.cancel_requested.connect(self._cancel)
+        self.analysis.details_requested.connect(self._show_job_log)
         self.analysis.parameters.energy_terms_requested.connect(self._load_energy_terms)
         self.analysis.parameters.analysis_backend_changed.connect(self._backend_changed)
         self.analysis.parameters.backend_requirements_changed.connect(
@@ -140,12 +142,13 @@ class MainWindow(QMainWindow):
         self.results.save_project_requested.connect(self._save_project_figures)
         self.results.export_requested.connect(self._export_result)
         self.results.state_changed.connect(self._save_plot_state)
-        self.task_controller.progress.connect(self._task_progress)
-        self.task_controller.completed.connect(self._task_completed)
-        self.task_controller.failed.connect(self._task_failed)
-        self.task_controller.running_changed.connect(self.analysis.set_running)
-        self.detection_tasks.completed.connect(self._integration_detected)
-        self.detection_tasks.failed.connect(self._integration_detection_failed)
+        self.job_controller.progress.connect(self._job_progress)
+        self.job_controller.completed.connect(self._job_completed)
+        self.job_controller.failed.connect(self._job_failed)
+        self.job_controller.running_changed.connect(self.analysis.set_running)
+        self.job_controller.job_changed.connect(self._job_changed)
+        self.integration_detection.completed.connect(self._integration_detected)
+        self.integration_detection.failed.connect(self._integration_detection_failed)
 
     def _load_energy_terms(self, path: str) -> None:
         backend = self.analysis.parameters.analysis_backend_value()
@@ -185,7 +188,7 @@ class MainWindow(QMainWindow):
             self.analysis.parameters.set_gromacs_available(False)
             return
         self.analysis.parameters.set_gromacs_pending()
-        self.detection_tasks.submit("gromacs")
+        self.integration_detection.submit("gromacs")
 
     def _integration_detected(self, name: str, status: object) -> None:
         if name == "gromacs":
@@ -390,53 +393,76 @@ class MainWindow(QMainWindow):
                     return
                 action = "created automatically" if created else "opened automatically"
                 self._project_ready(action, restore=False)
-        self._pending_runs = runs
+        self._pending_jobs = runs
         self._batch_total = len(runs)
         self.results.begin_batch(runs[0][0].analysis_type)
         self._submit_next()
 
     def _submit_next(self) -> None:
-        if not self._pending_runs:
+        if not self._pending_jobs:
             return
-        request, self._active_label = self._pending_runs.pop(0)
+        request, self._active_label = self._pending_jobs.pop(0)
         self.session.start(request)
         cache_dir = None if self.session.project is None else self.session.project.cache_dir
-        self.task_controller.submit(request, cache_dir)
-        current = self._batch_total - len(self._pending_runs)
+        name = analysis_label(request.analysis_type)
+        if self._active_label:
+            name = f"{name}: {self._active_label}"
+        self.job_controller.submit(request, cache_dir, name=name)
+        current = self._batch_total - len(self._pending_jobs)
         self.statusBar().showMessage(f"Running plot series {current} of {self._batch_total}...")
 
-    def _task_progress(self, current: int, total: object, message: str) -> None:
+    def _job_progress(self, current: int, total: object, message: str) -> None:
         self.analysis.set_progress(current, total if isinstance(total, int) else None)
         self.statusBar().showMessage(message)
 
-    def _task_completed(self, result: AnalysisResult) -> None:
+    def _job_changed(self, job: JobHandle) -> None:
+        self.analysis.set_details_available(True)
+        if self._job_log_dialog is not None:
+            self._job_log_dialog.set_content(
+                job.job_id,
+                job.name,
+                job.log_snapshot(),
+            )
+
+    def _show_job_log(self) -> None:
+        job = self.job_controller.latest
+        if job is None:
+            return
+        if self._job_log_dialog is None:
+            self._job_log_dialog = JobLogDialog(self)
+        self._job_log_dialog.set_content(job.job_id, job.name, job.log_snapshot())
+        self._job_log_dialog.show()
+        self._job_log_dialog.raise_()
+        self._job_log_dialog.activateWindow()
+
+    def _job_completed(self, result: AnalysisResult) -> None:
         try:
             if self.session.complete(result) is not None:
                 self._refresh_project_results(result.analysis_id)
         except Exception as exc:
-            self._pending_runs.clear()
+            self._pending_jobs.clear()
             self._show_error(exc)
             return
         self.results.show_result(result, self._active_label or None)
-        if self._pending_runs:
+        if self._pending_jobs:
             self._submit_next()
             return
         self.tabs.setCurrentWidget(self.results)
         self.results.open_plot_window()
         self.statusBar().showMessage("Analysis completed", 10000)
 
-    def _task_failed(self, error: BaseException) -> None:
-        self._pending_runs.clear()
+    def _job_failed(self, error: BaseException) -> None:
+        self._pending_jobs.clear()
         self._show_error(error)
 
     def _cancel(self) -> None:
-        if self.task_controller.running:
-            self._pending_runs.clear()
-            self.task_controller.cancel()
+        if self.job_controller.running:
+            self._pending_jobs.clear()
+            self.job_controller.cancel()
             self.statusBar().showMessage("Cancellation requested...")
 
     def _open_project(self) -> None:
-        if self.task_controller.running:
+        if self.job_controller.running:
             QMessageBox.information(
                 self,
                 "Open Project",
@@ -489,7 +515,7 @@ class MainWindow(QMainWindow):
         self.session.reset()
         self.role_suggestions.clear()
         self.role_provenance.clear()
-        self._pending_runs.clear()
+        self._pending_jobs.clear()
         self.load.inputs.clear()
         self.load.species.clear()
         self.load.set_index_groups({})
@@ -681,16 +707,16 @@ class MainWindow(QMainWindow):
         if event.spontaneous():
             message = (
                 "Cancel the running analysis and quit MDHelper?"
-                if self.task_controller.running
+                if self.job_controller.running
                 else "Quit MDHelper?"
             )
             answer = QMessageBox.question(self, "Really Quit?", message)
             if answer != QMessageBox.StandardButton.Yes:
                 event.ignore()
                 return
-        if self.task_controller.running:
-            self.task_controller.cancel()
-        self.task_controller.shutdown()
-        self.detection_tasks.shutdown()
+        if self.job_controller.running:
+            self.job_controller.cancel()
+        self.job_controller.shutdown()
+        self.integration_detection.shutdown()
         self.results.close_plot_windows()
         event.accept()

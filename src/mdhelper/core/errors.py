@@ -67,7 +67,7 @@ class BackendError(MDHelperError):
         super().__init__(message, hint, "backend_error", 6, details)
 
 
-class TaskCancelled(MDHelperError):
+class JobCancelled(MDHelperError):
     def __init__(
         self,
         message: str = "Analysis was cancelled.",
@@ -76,7 +76,7 @@ class TaskCancelled(MDHelperError):
         super().__init__(
             message,
             "Incomplete results were not committed.",
-            "task_cancelled",
+            "job_cancelled",
             7,
             details,
         )
