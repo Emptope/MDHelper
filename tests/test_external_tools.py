@@ -26,11 +26,14 @@ from mdhelper.integrations.models import (
     IntegrationAdapter,
     IntegrationConfig,
     IntegrationRegistry,
+    IntegrationStatus,
 )
 from mdhelper.integrations.vmd import VmdAdapter
 from mdhelper.project import Project
 from mdhelper.runtime.process import hidden_window_flags
 from mdhelper.services.config import UserConfig
+
+_PROGRESS_READY = "progress-ready"
 
 
 class FakeAdapter(IntegrationAdapter):
@@ -65,6 +68,7 @@ class FakeAdapter(IntegrationAdapter):
 
 def _fake_program(path: Path) -> Path:
     path.write_text(
+        "from pathlib import Path\n"
         "import sys\n"
         "import time\n"
         "command = sys.argv[1] if len(sys.argv) > 1 else ''\n"
@@ -74,9 +78,13 @@ def _fake_program(path: Path) -> Path:
         "raise SystemExit(9)\n"
         "if command == 'wait': time.sleep(5); raise SystemExit(0)\n"
         "if command == 'progress':\n"
-        "    for frame in range(3):\n"
+        "    print('Reading frame 0 time 0.000', flush=True)\n"
+        f"    marker = Path({_PROGRESS_READY!r})\n"
+        "    deadline = time.monotonic() + 2\n"
+        "    while not marker.is_file() and time.monotonic() < deadline:\n"
+        "        time.sleep(0.01)\n"
+        "    for frame in range(1, 3):\n"
         "        print(f'Reading frame {frame} time {frame * 2.0:.3f}', flush=True)\n"
-        "        time.sleep(0.3)\n"
         "    raise SystemExit(0)\n"
         "if command == 'tree':\n"
         "    import subprocess\n"
@@ -138,6 +146,8 @@ def _stub_gromacs_detection(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _fake_integration(
     tmp_path: Path,
+    *,
+    validated: bool = False,
 ) -> tuple[IntegrationManager, Path, IntegrationRegistry]:
     program = _fake_program(tmp_path / "fake tool.py")
     registry = IntegrationRegistry()
@@ -147,6 +157,15 @@ def _fake_integration(
     manager = IntegrationManager(
         {"fake": IntegrationConfig()}, registry, environment
     )
+    if validated:
+        manager._statuses["fake"] = IntegrationStatus(
+            "fake",
+            True,
+            str(Path(sys.executable).resolve()),
+            "1.2.3",
+            ("echo",),
+            "test",
+        )
     return manager, program, registry
 
 
@@ -315,17 +334,20 @@ def test_generic_detection_status_and_safe_argv(
 
 
 def test_running_integration_reports_output_before_completion(tmp_path: Path) -> None:
-    manager, _program_path, _ = _fake_integration(tmp_path)
+    manager, _program_path, _ = _fake_integration(tmp_path, validated=True)
     updates: list[tuple[float, str, str]] = []
     started = time.monotonic()
+
+    def progress(elapsed: float, stdout: str, stderr: str) -> None:
+        updates.append((elapsed, stdout, stderr))
+        if stdout:
+            (tmp_path / _PROGRESS_READY).touch()
 
     record = manager.run(
         "fake",
         ["progress"],
         tmp_path,
-        process_progress=lambda elapsed, stdout, stderr: updates.append(
-            (elapsed, stdout, stderr)
-        ),
+        process_progress=progress,
     )
 
     assert record.status == "completed"
@@ -336,7 +358,7 @@ def test_running_integration_reports_output_before_completion(tmp_path: Path) ->
 
 
 def test_running_integration_cancels_process_tree_promptly(tmp_path: Path) -> None:
-    manager, _program_path, _ = _fake_integration(tmp_path)
+    manager, _program_path, _ = _fake_integration(tmp_path, validated=True)
     cancel = Event()
     timer = Timer(0.2, cancel.set)
     timer.start()
@@ -351,7 +373,7 @@ def test_running_integration_cancels_process_tree_promptly(tmp_path: Path) -> No
 
 
 def test_running_integration_returns_after_parent_process_exits(tmp_path: Path) -> None:
-    manager, _program_path, _ = _fake_integration(tmp_path)
+    manager, _program_path, _ = _fake_integration(tmp_path, validated=True)
     started = time.monotonic()
 
     record = manager.run("fake", ["exit-with-child"], tmp_path)
@@ -447,7 +469,7 @@ def test_disabled_detection_allows_only_explicit_override(
 
 
 def test_project_archives_integration_run_outside_manifest(tmp_path: Path) -> None:
-    manager, _program_path, registry = _fake_integration(tmp_path)
+    manager, _program_path, registry = _fake_integration(tmp_path, validated=True)
     topology = tmp_path / "topology"
     trajectory = tmp_path / "trajectory"
     topology.write_text("topology", encoding="utf-8")
@@ -460,6 +482,7 @@ def test_project_archives_integration_run_outside_manifest(tmp_path: Path) -> No
         integration_registry=registry,
     )
     application.context.integrations.environment = manager.environment
+    application.context.integrations._statuses["fake"] = manager._statuses["fake"]
 
     record = application.integrations.run(
         "fake", ["echo"], tmp_path, project=project, required_capabilities=("echo",)

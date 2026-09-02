@@ -264,8 +264,7 @@ def test_appearance_menu_applies_and_persists_theme(
 ) -> None:
     path = tmp_path / "config.toml"
     monkeypatch.setenv("MDHELPER_CONFIG", str(path))
-    existing = QApplication.instance()
-    application = existing if isinstance(existing, QApplication) else QApplication([])
+    application = _QT_APPLICATION
     window = MainWindow()
     native_style = application.style().objectName()
     native_palette = QPalette(application.palette())
@@ -322,8 +321,6 @@ def test_appearance_menu_applies_and_persists_theme(
 
 
 def test_result_history_hides_missing_artifacts() -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     window = MainWindow()
     entries = (
         {
@@ -350,8 +347,7 @@ def test_result_history_hides_missing_artifacts() -> None:
 
 
 def test_ui_font_retains_the_native_family(monkeypatch: pytest.MonkeyPatch) -> None:
-    existing = QApplication.instance()
-    application = existing if isinstance(existing, QApplication) else QApplication([])
+    application = _QT_APPLICATION
     native = QFont("Native UI")
     native.setPointSizeF(9.0)
     monkeypatch.setattr(
@@ -376,8 +372,7 @@ def test_configured_font_size_is_applied(monkeypatch: pytest.MonkeyPatch, tmp_pa
         encoding="utf-8",
     )
     monkeypatch.setenv("MDHELPER_CONFIG", str(path))
-    existing = QApplication.instance()
-    application = existing if isinstance(existing, QApplication) else QApplication([])
+    application = _QT_APPLICATION
 
     window = MainWindow()
     try:
@@ -391,8 +386,7 @@ def test_configured_font_size_is_applied(monkeypatch: pytest.MonkeyPatch, tmp_pa
 def test_theme_switch_preserves_the_configured_font(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    existing = QApplication.instance()
-    application = existing if isinstance(existing, QApplication) else QApplication([])
+    application = _QT_APPLICATION
     configure_ui_font(application, 13.5)
     existing_control = QPushButton()
     controller = ThemeController(application)
@@ -467,8 +461,6 @@ def _cumulative_rdf_result(reference: str, selection: str) -> AnalysisResult:
 
 
 def test_plot_representations_colors_and_axis_ranges_are_editable() -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     panel = ResultPanel()
     assert isinstance(panel.plot_panel, PlotControls)
     panel.show_result(_rdf_result("A", "B"), "first")
@@ -528,8 +520,7 @@ def test_plot_color_does_not_change_from_wheel_input() -> None:
 
 
 def test_result_panel_prioritizes_overview_and_separates_plot_controls() -> None:
-    existing = QApplication.instance()
-    application = existing if isinstance(existing, QApplication) else QApplication([])
+    application = _QT_APPLICATION
     panel = ResultPanel()
     panel.resize(1100, 900)
     panel.show()
@@ -580,8 +571,6 @@ def test_result_overview_stays_inside_its_scrollable_area(
 
 
 def test_selected_plot_series_updates_result_overview() -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     panel = ResultPanel()
     first = _rdf_result("A", "B")
     second = _rdf_result("A", "C")
@@ -595,8 +584,6 @@ def test_selected_plot_series_updates_result_overview() -> None:
 
 
 def test_selection_series_stores_enabled_pairs_and_editable_legends() -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     reference = SelectionInput()
     selection = SelectionInput()
     series = SelectionSeries(reference, selection)
@@ -617,8 +604,7 @@ def test_selection_series_stores_enabled_pairs_and_editable_legends() -> None:
 
 
 def test_selection_series_uses_a_compact_ordered_action_row() -> None:
-    existing = QApplication.instance()
-    application = existing if isinstance(existing, QApplication) else QApplication([])
+    application = _QT_APPLICATION
     reference = SelectionInput()
     selection = SelectionInput()
     reference.setText("A")
@@ -639,8 +625,7 @@ def test_selection_series_uses_a_compact_ordered_action_row() -> None:
 
 
 def test_configured_series_table_absorbs_vertical_window_growth() -> None:
-    existing = QApplication.instance()
-    application = existing if isinstance(existing, QApplication) else QApplication([])
+    application = _QT_APPLICATION
     panel = ParameterPanel()
     panel.resize(900, 700)
     panel.show()
@@ -660,8 +645,6 @@ def test_configured_series_table_absorbs_vertical_window_growth() -> None:
 
 
 def test_frame_controls_use_exclusive_gui_stop_and_round_trip_requests() -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     panel = ParameterPanel()
     panel.start.setValue(2)
     panel.stop.setText("7")
@@ -684,8 +667,6 @@ def test_frame_controls_use_exclusive_gui_stop_and_round_trip_requests() -> None
 
 
 def test_species_table_prioritizes_species_and_suggestion_columns() -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     panel = SpeciesPanel()
     header = panel.table.horizontalHeader()
 
@@ -695,8 +676,6 @@ def test_species_table_prioritizes_species_and_suggestion_columns() -> None:
 
 
 def test_selection_series_builds_requests_with_independent_parameters() -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     panel = ParameterPanel()
     panel.analysis_choice.setCurrentText("Radial Distribution Function (RDF)")
     panel.rdf_reference.setText("A")
@@ -733,8 +712,6 @@ def test_selection_series_builds_requests_with_independent_parameters() -> None:
 
 
 def test_result_panel_keeps_mixed_analysis_types_in_one_figure() -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     panel = ResultPanel()
     rdf = _rdf_result("A", "B")
     cn = _cumulative_rdf_result("A", "B")
@@ -867,8 +844,6 @@ def test_result_panel_combines_selected_energy_terms_and_restores_group(
 
 
 def test_main_window_separates_load_and_analysis() -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     window = MainWindow()
 
     assert window.size().width() == 860
@@ -877,7 +852,7 @@ def test_main_window_separates_load_and_analysis() -> None:
     assert window.load.sections.orientation() == Qt.Orientation.Vertical
     assert window.load.sections.count() == 2
     window.show()
-    _application.processEvents()
+    _QT_APPLICATION.processEvents()
     assert window.load.inputs.height() <= window.load.inputs.sizeHint().height() + 1
     opened: list[bool] = []
     window.results.open_plot_window = lambda: opened.append(True)
@@ -888,8 +863,6 @@ def test_main_window_separates_load_and_analysis() -> None:
 
 
 def test_main_pages_use_consistent_action_surfaces() -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     window = MainWindow()
 
     bars = (
@@ -906,7 +879,7 @@ def test_main_pages_use_consistent_action_surfaces() -> None:
     assert window.analysis.progress.parent() is window.analysis.action_bar
     window.tabs.setCurrentWidget(window.analysis)
     window.show()
-    _application.processEvents()
+    _QT_APPLICATION.processEvents()
     controls = (
         window.analysis.action_bar.title,
         window.analysis.cancel_button,
@@ -1009,8 +982,6 @@ def test_gui_export_includes_every_visible_result_and_current_plot(
     stub_figure_exports,
 ) -> None:
     stub_figure_exports()
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     window = MainWindow()
     first = _rdf_result("A", "B")
     second = _rdf_result("A", "C")
@@ -1221,8 +1192,6 @@ def test_gui_exports_each_energy_curve_to_its_own_directory(
 def test_integration_dialog_reports_detection_without_command_runner(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     window = MainWindow()
     dialog = IntegrationsDialog(window.application, window)
     status = IntegrationStatus(
@@ -1270,8 +1239,6 @@ def test_integration_dialog_reports_detection_without_command_runner(
 
 
 def test_integration_dialog_saves_configured_executable(tmp_path: Path) -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     config_path = tmp_path / "config.toml"
     application = ApplicationService(UserConfig(), user_config_path=config_path)
     dialog = IntegrationsDialog(application)
@@ -1286,8 +1253,6 @@ def test_integration_dialog_saves_configured_executable(tmp_path: Path) -> None:
 
 
 def test_energy_terms_are_selected_through_an_ordered_queue() -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     panel = ParameterPanel()
     panel.analysis_choice.setCurrentText("Energy Analysis")
     panel.energy_file.edit.setText("sample.edr")
@@ -1366,8 +1331,6 @@ def test_energy_file_selection_automatically_reloads_terms_without_button(
 
 
 def test_templates_are_exposed_by_the_tools_menu() -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     window = MainWindow()
     dialog = TemplatesDialog(window.application, window)
 
@@ -1382,8 +1345,6 @@ def test_templates_are_exposed_by_the_tools_menu() -> None:
 def test_window_manager_close_requires_confirmation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     window = MainWindow()
     calls: list[tuple[str, str]] = []
 
@@ -1418,8 +1379,6 @@ def test_gui_analysis_initializes_project_in_trajectory_directory(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    existing = QApplication.instance()
-    _application = existing if isinstance(existing, QApplication) else QApplication([])
     window = MainWindow()
     topology = tmp_path / "topology.dat"
     trajectory = tmp_path / "trajectory.dat"

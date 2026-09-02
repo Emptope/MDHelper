@@ -18,6 +18,7 @@ from mdhelper.integrations.models import (
     IntegrationAdapter,
     IntegrationConfig,
     IntegrationRegistry,
+    IntegrationStatus,
 )
 from mdhelper.plugins.analysis import BackendQuery
 from mdhelper.services.config import UserConfig
@@ -56,7 +57,6 @@ def _program(path: Path) -> Path:
         "from pathlib import Path\n"
         "import shutil\n"
         "import sys\n"
-        "import time\n"
         "command = sys.argv[1]\n"
         "if command == '--version':\n"
         "    print('GROMACS version: test')\n"
@@ -79,7 +79,6 @@ def _program(path: Path) -> Path:
         "        raise SystemExit(1)\n"
         "    else:\n"
         "        print('Energy output written', flush=True)\n"
-        "        time.sleep(0.3)\n"
         '        output.write_text(\'@ yaxis label "Energy (kJ/mol)"\\n\' '
         "+ '0 1 10\\n1 2 20\\n', encoding='utf-8')\n"
         "elif command == 'trjconv':\n"
@@ -87,7 +86,6 @@ def _program(path: Path) -> Path:
         "    output = Path(sys.argv[sys.argv.index('-o') + 1])\n"
         "    for frame in range(3):\n"
         "        print(f'Reading frame {frame} time {frame:.3f}', flush=True)\n"
-        "        time.sleep(0.2)\n"
         "    if '-fr' in sys.argv:\n"
         "        frames = Path(sys.argv[sys.argv.index('-fr') + 1])\n"
         "        print(frames.read_text(encoding='ascii'), end='')\n"
@@ -105,7 +103,6 @@ def _program(path: Path) -> Path:
         "    rdf = Path(sys.argv[sys.argv.index('-o') + 1])\n"
         "    for frame in range(3):\n"
         "        print(f'Reading frame {frame} time {frame:.3f}', flush=True)\n"
-        "        time.sleep(0.2)\n"
         "    rdf.write_text('0.00 0.0\\n0.05 2.0\\n0.10 1.0\\n', encoding='utf-8')\n"
         "    if '-cn' in sys.argv:\n"
         "        cn = Path(sys.argv[sys.argv.index('-cn') + 1])\n"
@@ -124,7 +121,7 @@ def _application(
 ) -> ApplicationService:
     registry = IntegrationRegistry()
     registry.register(_GromacsAdapter(_program(tmp_path / "gmx.py"), capabilities))
-    return ApplicationService(
+    application = ApplicationService(
         UserConfig(
             integrations={
                 "gromacs": IntegrationConfig(path=str(Path(sys.executable)))
@@ -133,6 +130,15 @@ def _application(
         trajectory_loader=trajectory_loader,
         integration_registry=registry,
     )
+    application.context.integrations._statuses["gromacs"] = IntegrationStatus(
+        "gromacs",
+        True,
+        str(Path(sys.executable).resolve()),
+        "test",
+        capabilities,
+        "test",
+    )
+    return application
 
 
 def test_gromacs_energy_backend_standardizes_exports_and_project_data(

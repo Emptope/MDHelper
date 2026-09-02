@@ -7,12 +7,14 @@
 
 ## 紧急任务（重要性由高到低）
 
+- [ ] [Fix] 修改 TUI "Input files and inspection" 标题，目前这个标题太含糊；这个模块下的 2 和 3 子功能重叠了，保留 "Show current system summary"。
+- [ ] [Fix] 清理 TUI 中的 "="，统一替换成 "\*\*\*标题\*\*\*"，运行分析时，不要出现装饰。
+
 ## 待实现功能（重要性由高到低）
 
 ## 已完成
 
-- [x] [Maintenance] 清理 tests 代码，降低测试耗时，删除冗余的 "assert xx in xx" "assert xx not in xx" 测试，目前是快速开发阶段，UI 变动频繁，不应有这种测试。
-- [x] [Fix] 解决 Theme 切换后字号不统一的问题。
+- [x] [Test] Remove redundant waits and setup from the test suite.
 
 ## 完成标准（每轮改动后需重新确认）
 

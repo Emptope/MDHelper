@@ -234,7 +234,7 @@ def test_gui_completes_coordination_on_generic_system(tmp_path: Path) -> None:
 
 
 def test_gui_automatically_reloads_species_and_index_groups(tmp_path: Path) -> None:
-    QApplication.instance() or QApplication([])
+    application = QApplication.instance() or QApplication([])
     first = tmp_path / "first.gro"
     second = tmp_path / "second.gro"
     index = tmp_path / "groups.ndx"
@@ -245,9 +245,10 @@ def test_gui_automatically_reloads_species_and_index_groups(tmp_path: Path) -> N
     )
     index.write_text("[ Reference ]\n1\n[ Neighbors ]\n2 3 4\n", encoding="ascii")
     window = MainWindow()
+    window._inspection_timer.setInterval(0)
     window.load.inputs.topology.edit.setText(str(first))
     window.load.inputs.trajectory.edit.setText(str(first))
-    QTest.qWait(350)
+    application.processEvents()
 
     first_species = {
         window.load.species.table.item(row, 0).text()
@@ -256,12 +257,12 @@ def test_gui_automatically_reloads_species_and_index_groups(tmp_path: Path) -> N
     assert first_species == {"REF", "LIGA", "LIGB"}
 
     window.load.inputs.index_file.edit.setText(str(index))
-    QTest.qWait(350)
+    application.processEvents()
 
     window.load.inputs.topology.edit.setText(str(second))
     window.load.inputs.trajectory.edit.setText(str(second))
     assert window.load.species.table.rowCount() == 0
-    QTest.qWait(350)
+    application.processEvents()
 
     second_species = {
         window.load.species.table.item(row, 0).text()
@@ -272,7 +273,7 @@ def test_gui_automatically_reloads_species_and_index_groups(tmp_path: Path) -> N
     window.load.inputs.topology.edit.setText(str(tmp_path / "missing.gro"))
 
     assert window.load.species.table.rowCount() == 0
-    QTest.qWait(350)
+    application.processEvents()
     assert window.load.species.table.rowCount() == 0
     window.job_controller.shutdown()
     window.close()
@@ -281,7 +282,7 @@ def test_gui_automatically_reloads_species_and_index_groups(tmp_path: Path) -> N
 def test_gui_backend_does_not_reload_system_or_control_species_detection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    QApplication.instance() or QApplication([])
+    application = QApplication.instance() or QApplication([])
     first = tmp_path / "first.gro"
     second = tmp_path / "second.gro"
     _write_trajectory(first)
@@ -290,9 +291,10 @@ def test_gui_backend_does_not_reload_system_or_control_species_detection(
         encoding="ascii",
     )
     window = MainWindow()
+    window._inspection_timer.setInterval(0)
     window.load.inputs.topology.edit.setText(str(first))
     window.load.inputs.trajectory.edit.setText(str(first))
-    QTest.qWait(350)
+    application.processEvents()
     first_species = {
         window.load.species.table.item(row, 0).text()
         for row in range(window.load.species.table.rowCount())
@@ -317,9 +319,9 @@ def test_gui_backend_does_not_reload_system_or_control_species_detection(
     window.analysis.parameters.set_gromacs_configured(True)
     window.analysis.parameters.set_gromacs_available(True)
     window.analysis.parameters.set_analysis_backend("gromacs")
-    QTest.qWait(350)
 
     assert inspections == []
+    assert not window._inspection_timer.isActive()
     assert {
         window.load.species.table.item(row, 0).text()
         for row in range(window.load.species.table.rowCount())
@@ -327,7 +329,7 @@ def test_gui_backend_does_not_reload_system_or_control_species_detection(
 
     window.load.inputs.topology.edit.setText(str(second))
     window.load.inputs.trajectory.edit.setText(str(second))
-    QTest.qWait(350)
+    application.processEvents()
 
     assert inspections == [True]
     assert window.analysis.parameters.analysis_backend_value() == "gromacs"

@@ -17,6 +17,7 @@ from mdhelper.core.errors import ConfigurationError, InputError, InputFileError
 from mdhelper.core.plotting import PlotLimits, PlotSelection, PlotState
 from mdhelper.core.system import FrameRange
 from mdhelper.integrations.manager import IntegrationManager
+from mdhelper.integrations.models import IntegrationStatus
 from mdhelper.plugins.analysis import AnalysisInput, BackendQuery
 from mdhelper.services.config import UserConfig
 
@@ -226,6 +227,7 @@ def test_native_and_mdanalysis_radial_pipelines_are_distinct_and_consistent(
 
 def test_auto_prioritizes_compatible_radial_backends() -> None:
     integrations = ApplicationService(UserConfig()).context.integrations
+    integrations._statuses["gromacs"] = IntegrationStatus("gromacs", False)
     indexed = BackendQuery(
         "rdf",
         "topology.gro",
