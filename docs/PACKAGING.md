@@ -15,12 +15,71 @@ archive:
   is the only Windows artifact.
 
 The Python wheel is a separate source-managed installation path containing the unified `mdhelper`
-launcher. PySide6 is excluded unless the optional `gui` extra is explicitly requested.
+launcher. On Linux, PySide6 is excluded unless the optional `gui` extra is explicitly requested.
+On Windows, the default installation includes PySide6 so the GUI works without an extra.
 
 Every wheel, standalone executable, and portable archive has a strict 256 MB size limit.
 Packaging fails before publication if any artifact exceeds it. Frozen payload audits also
 reject duplicate test/build runtimes, unused analysis modules, and platform-inappropriate Qt
 components.
+
+## Python wheel
+
+Build the wheel from the repository root with Python 3.12+ and `uv 0.12.6`, matching the quality
+workflow:
+
+```bash
+uv sync --frozen --group dev
+uv build --wheel
+uv run python packaging/verify_wheel.py dist/mdhelper-0.1.0-py3-none-any.whl
+```
+
+`uv build --wheel` uses the isolated build backend declared in `pyproject.toml` and writes only the
+wheel to `dist/`. The result is `dist/mdhelper-0.1.0-py3-none-any.whl`; it is platform-independent,
+but its dependencies are resolved for the platform where it is installed. The repository audit
+enforces the 256 MB limit, checks that every Python module matches `src/mdhelper`, rejects extra
+package-root modules, and confirms that all source templates are present. Do not distribute a
+wheel that has not passed this audit. The wheel also carries the schemas and bilingual user,
+method, and validation documents declared in `pyproject.toml`; it does not bundle Python or
+GROMACS.
+
+The setuptools backend may reuse the generated `build/` directory. If the audit reports unexpected
+modules after source files were renamed or deleted, remove only `build/`, then rebuild and rerun the
+audit. This directory contains generated files and is not a release artifact.
+
+Test the exact artifact in a clean virtual environment rather than the development environment.
+On Linux, use:
+
+```bash
+uv venv --python 3.12 /tmp/mdhelper-wheel-test
+uv pip install --python /tmp/mdhelper-wheel-test/bin/python \
+  ./dist/mdhelper-0.1.0-py3-none-any.whl
+/tmp/mdhelper-wheel-test/bin/mdhelper --version
+/tmp/mdhelper-wheel-test/bin/mdhelper cli --help
+```
+
+On Windows PowerShell, use:
+
+```powershell
+$wheelTest = Join-Path $env:TEMP "mdhelper-wheel-test"
+uv venv --python 3.12 $wheelTest
+uv pip install --python "$wheelTest\Scripts\python.exe" `
+  .\dist\mdhelper-0.1.0-py3-none-any.whl
+& "$wheelTest\Scripts\mdhelper.exe" --version
+& "$wheelTest\Scripts\mdhelper.exe" cli --help
+```
+
+A default Linux wheel installation provides the TUI and CLI. To install the optional Linux GUI,
+use:
+
+```bash
+uv pip install --python /tmp/mdhelper-wheel-test/bin/python \
+  "./dist/mdhelper-0.1.0-py3-none-any.whl[gui]"
+QT_QPA_PLATFORM=offscreen /tmp/mdhelper-wheel-test/bin/mdhelper gui --smoke-test
+```
+
+The version in `pyproject.toml` determines the artifact name. When the project version changes,
+use the newly generated filename in both the audit and installation commands.
 
 ## Linux build
 

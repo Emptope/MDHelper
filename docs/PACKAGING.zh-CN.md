@@ -11,12 +11,66 @@ MDHelper 的发布包按平台分类，每个平台包都是便携归档：
 - Windows x64：包含唯一的 `mdhelper.exe`、双语文档和同目录可编辑 `config.toml`
   的 ZIP；不需要安装或管理员权限，是唯一的 Windows 产物。
 
-Python wheel 是独立的源码环境安装路径，包含统一 `mdhelper` 启动器；除非显式安装
-`gui` extra，否则不包含 PySide6。
+Python wheel 是独立的源码环境安装路径，包含统一 `mdhelper` 启动器。在 Linux 上，只有
+显式安装 `gui` extra 才会安装 PySide6；在 Windows 上，默认安装会包含 PySide6，因此
+无需 extra 即可使用 GUI。
 
 每个 wheel、独立程序和便携归档都受 256 MB 强制上限约束；任一产物超限即
 构建失败。冻结内容审计还会拒绝重复的测试/构建 runtime、未使用的分析模块和平台不需要
 的 Qt 组件。
+
+## Python wheel
+
+在仓库根目录使用 Python 3.12+ 和与质量工作流一致的 `uv 0.12.6` 执行：
+
+```bash
+uv sync --frozen --group dev
+uv build --wheel
+uv run python packaging/verify_wheel.py dist/mdhelper-0.1.0-py3-none-any.whl
+```
+
+`uv build --wheel` 使用 `pyproject.toml` 声明的隔离构建后端，并且只向 `dist/` 写入
+wheel。生成的文件为 `dist/mdhelper-0.1.0-py3-none-any.whl`；wheel 本身不绑定平台，
+安装时会根据当前平台解析依赖。仓库审计会检查 256 MB 上限、wheel 中的全部 Python
+模块是否与 `src/mdhelper` 一致、包根目录是否出现额外模块，以及源码模板是否全部包含。
+未通过该审计的 wheel 不应发布。wheel 还会包含 `pyproject.toml` 声明的 schema、双语
+用户文档、方法文档和验证文档，但不会捆绑 Python 或 GROMACS。
+
+setuptools 构建后端可能复用生成的 `build/` 目录。如果源码文件重命名或删除后，审计报告
+存在意外模块，只删除 `build/`，然后重新构建并再次审计。该目录只包含生成文件，不是
+发布产物。
+
+应在干净的虚拟环境中验证实际产物，不要使用开发环境代替安装验证。在 Linux 上执行：
+
+```bash
+uv venv --python 3.12 /tmp/mdhelper-wheel-test
+uv pip install --python /tmp/mdhelper-wheel-test/bin/python \
+  ./dist/mdhelper-0.1.0-py3-none-any.whl
+/tmp/mdhelper-wheel-test/bin/mdhelper --version
+/tmp/mdhelper-wheel-test/bin/mdhelper cli --help
+```
+
+在 Windows PowerShell 中执行：
+
+```powershell
+$wheelTest = Join-Path $env:TEMP "mdhelper-wheel-test"
+uv venv --python 3.12 $wheelTest
+uv pip install --python "$wheelTest\Scripts\python.exe" `
+  .\dist\mdhelper-0.1.0-py3-none-any.whl
+& "$wheelTest\Scripts\mdhelper.exe" --version
+& "$wheelTest\Scripts\mdhelper.exe" cli --help
+```
+
+Linux 默认安装提供 TUI 和 CLI；如需安装可选 GUI，执行：
+
+```bash
+uv pip install --python /tmp/mdhelper-wheel-test/bin/python \
+  "./dist/mdhelper-0.1.0-py3-none-any.whl[gui]"
+QT_QPA_PLATFORM=offscreen /tmp/mdhelper-wheel-test/bin/mdhelper gui --smoke-test
+```
+
+产物名称由 `pyproject.toml` 中的版本决定。项目版本变化后，审计和安装命令都应使用
+新生成的文件名。
 
 ## Linux 构建
 
