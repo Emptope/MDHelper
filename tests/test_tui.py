@@ -18,6 +18,7 @@ from mdhelper.services.config import UserConfig
 from mdhelper.tui.controller import Tui
 from mdhelper.tui.model import AnalysisDraft, RadialTask, Workspace
 from mdhelper.tui.terminal import Terminal
+from mdhelper.version import DEVELOPER, __version__
 
 
 def test_tools_separates_integrations_templates_and_configuration(monkeypatch) -> None:
@@ -78,6 +79,48 @@ def test_terminal_heading_centers_any_title_with_stars() -> None:
     terminal.heading(title, width)
 
     assert output.getvalue() == f"*** {title} ***".center(width).rstrip() + "\n"
+
+
+def test_terminal_panel_centers_lines_inside_an_ascii_border() -> None:
+    output = StringIO()
+    terminal = Terminal(StringIO(), output)
+    lines = ("Title", "A longer detail")
+    width = 24
+
+    terminal.panel(lines, width)
+
+    rendered = output.getvalue().splitlines()
+    assert len(rendered) == len(lines) + 2
+    assert {len(line) for line in rendered} == {width}
+    assert rendered[0] == rendered[-1]
+    assert set(rendered[0]) == {"+", "-"}
+    for source, line in zip(lines, rendered[1:-1], strict=True):
+        assert line.startswith("|") and line.endswith("|")
+        assert line[1:-1].strip() == source
+        left = len(line[1:-1]) - len(line[1:-1].lstrip())
+        right = len(line[1:-1]) - len(line[1:-1].rstrip())
+        assert abs(left - right) <= 1
+
+
+def test_banner_frames_centered_product_and_developer_lines() -> None:
+    output = StringIO()
+    tui = Tui(ApplicationService(UserConfig()), Terminal(StringIO(), output))
+
+    try:
+        tui._banner()
+    finally:
+        tui.job_runner.shutdown()
+
+    rendered = output.getvalue().splitlines()
+    assert len(rendered) == 4
+    assert rendered[0] == rendered[-1]
+    assert all(len(line) == len(rendered[0]) for line in rendered)
+    assert rendered[1].strip("| ").startswith("MDHelper ")
+    assert __version__ in rendered[1]
+    assert "*" not in rendered[1]
+    assert DEVELOPER in rendered[2]
+    assert "interactive terminal" not in output.getvalue()
+    assert "Ctrl+C" not in output.getvalue()
 
 
 def test_unified_entry_prefers_gui_and_routes_explicit_modes(monkeypatch) -> None:

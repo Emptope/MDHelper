@@ -66,9 +66,12 @@ class Tui:
             self.job_runner.shutdown()
 
     def _banner(self) -> None:
-        self.terminal.heading(f"MDHelper {__version__} interactive terminal")
-        self.terminal.write(f"Developer: {DEVELOPER}")
-        self.terminal.write("Press Ctrl+C to interrupt an operation and to exit the program.")
+        self.terminal.panel(
+            (
+                f"MDHelper {__version__}",
+                f"Developer: {DEVELOPER}",
+            )
+        )
 
     def _load_choice(self) -> str | None:
         self._write_context()

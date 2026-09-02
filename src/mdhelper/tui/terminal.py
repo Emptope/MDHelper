@@ -37,6 +37,14 @@ class Terminal:
     def heading(self, title: str, width: int = _CONTENT_WIDTH) -> None:
         self.write(f"*** {title} ***".center(width).rstrip())
 
+    def panel(self, lines: Sequence[str], width: int = _CONTENT_WIDTH) -> None:
+        inner_width = max(width - 2, max((len(line) for line in lines), default=0))
+        border = f"+{'-' * inner_width}+"
+        self.write(border)
+        for line in lines:
+            self.write(f"|{line.center(inner_width)}|")
+        self.write(border)
+
     def _write_grid(self, items: Sequence[str], width: int = _CONTENT_WIDTH) -> None:
         if not items:
             return
