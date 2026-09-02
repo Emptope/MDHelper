@@ -18,7 +18,7 @@ class WorkspaceController(ControllerContext):
             choice = self.terminal.menu(
                 "System and project",
                 (
-                    ("Load inputs or project", "1"),
+                    ("Open a new project", "1"),
                     ("Create a project from current inputs", "2"),
                     ("Show current system summary", "3"),
                     ("Save confirmed species roles", "4"),
@@ -29,7 +29,7 @@ class WorkspaceController(ControllerContext):
             if choice is None:
                 return
             if choice == "1":
-                self._load_source()
+                self._open_project()
                 return
             if choice == "2":
                 self._create_project()
@@ -46,15 +46,6 @@ class WorkspaceController(ControllerContext):
             ):
                 self.workspace.clear()
                 self.terminal.write("Session reset.")
-
-    def _load_source(self) -> None:
-        source = self.terminal.ask(
-            f"Topology path ({', '.join(TOPOLOGY_SUFFIXES)}) or project directory"
-        )
-        if Path(source).expanduser().is_dir():
-            self._open_project(source)
-            return
-        self._load_inputs(source)
 
     def _load_inputs(self, topology: str | None = None) -> None:
         if topology is None:
@@ -78,7 +69,7 @@ class WorkspaceController(ControllerContext):
         if not self.workspace.loaded:
             raise InputError(
                 "No topology and trajectory are loaded.",
-                "Choose 'Load inputs or project' first.",
+                "Choose 'Open a new project' first.",
             )
         summary = self.application.checks.inspect_system(
             self.workspace.topology,

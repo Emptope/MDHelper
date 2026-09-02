@@ -11,6 +11,7 @@
 
 ## 已完成
 
+- [x] [Improve] Align the TUI workspace project entry with the initial project-opening flow.
 - [x] [Improve] 合并 TUI 中重复的工作区菜单和输入/项目加载入口。
 
 ## 完成标准（每轮代码改动后需重新确认）
