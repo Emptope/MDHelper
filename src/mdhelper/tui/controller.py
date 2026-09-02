@@ -66,11 +66,9 @@ class Tui:
             self.job_runner.shutdown()
 
     def _banner(self) -> None:
-        self.terminal.rule()
-        self.terminal.write(f"MDHelper {__version__} interactive terminal")
+        self.terminal.heading(f"MDHelper {__version__} interactive terminal")
         self.terminal.write(f"Developer: {DEVELOPER}")
         self.terminal.write("Press Ctrl+C to interrupt an operation and to exit the program.")
-        self.terminal.rule()
 
     def _load_choice(self) -> str | None:
         self._write_context()
@@ -91,7 +89,7 @@ class Tui:
             (
                 ("Analysis", "1"),
                 ("Results and export", "2"),
-                ("Input files and inspection", "3"),
+                ("System and input files", "3"),
                 ("Project", "4"),
                 ("Species roles", "5"),
                 ("Tools", "6"),
@@ -134,11 +132,11 @@ class Tui:
             raise
         except (MDHelperError, OSError, ValueError) as exc:
             record_error(exc, "TUI operation")
-            self.terminal.rule("Action could not be completed")
+            self.terminal.heading("Action could not be completed")
             self.terminal.write(error_text(exc))
         except Exception as exc:
             record_error(exc, "TUI operation")
-            self.terminal.rule("Unexpected internal error")
+            self.terminal.heading("Unexpected internal error")
             self.terminal.write(error_text(exc))
 
     def _tools(self) -> None:
@@ -163,12 +161,11 @@ class Tui:
     def _inputs(self) -> None:
         while True:
             choice = self.terminal.menu(
-                "Input files and inspection",
+                "System and input files",
                 (
                     ("Load topology and trajectory", "1"),
-                    ("Inspect current inputs", "2"),
-                    ("Show current system summary", "3"),
-                    ("Reset the current session", "4"),
+                    ("Show current system summary", "2"),
+                    ("Reset the current session", "3"),
                 ),
             )
             if choice is None:
@@ -177,10 +174,8 @@ class Tui:
                 self._load_inputs()
                 return
             if choice == "2":
-                self._inspect()
-            elif choice == "3":
                 self._show_summary()
-            elif choice == "4" and self.terminal.confirm(
+            elif choice == "3" and self.terminal.confirm(
                 "Clear inputs, project state, drafts, and the in-memory result?"
             ):
                 self.workspace.clear()
@@ -231,7 +226,7 @@ class Tui:
                     name,
                     role_decision(role, summary.role_suggestions[name], "project_manifest"),
                 )
-        self.terminal.rule("System inspection")
+        self.terminal.heading("System inspection")
         self.terminal.write(summary_text(summary))
         if set(self.workspace.roles) != set(summary.species):
             self.terminal.write("Choose a role for each species before running an analysis.")
@@ -242,7 +237,7 @@ class Tui:
     def _show_summary(self) -> None:
         if self.workspace.summary is None:
             raise InputError("The current inputs have not been inspected.")
-        self.terminal.rule("Current system")
+        self.terminal.heading("Current system")
         self.terminal.write(summary_text(self.workspace.summary))
 
     def _projects(self) -> None:
@@ -318,7 +313,7 @@ class Tui:
                 "The system has not been inspected.", "Inspect the current inputs first."
             )
         while True:
-            self.terminal.rule("Species roles")
+            self.terminal.heading("Species roles")
             self.terminal.write(roles_text(self.workspace))
             choice = self.terminal.menu(
                 "Role actions",
@@ -352,7 +347,7 @@ class Tui:
     def _choose_role(self, species: str) -> None:
         assert self.workspace.summary is not None
         suggestion = self.workspace.summary.role_suggestions[species]
-        self.terminal.rule(f"Choose role: {species}")
+        self.terminal.heading(f"Choose role: {species}")
         self.terminal.write(f"Numbers:  {self.workspace.summary.species[species]}")
         self.terminal.write(
             f"Suggestion: {suggestion.suggested_role or 'unavailable'} "
@@ -445,7 +440,7 @@ class Tui:
         draft = self.workspace.rdf_cn()
         self._prepare_setup(draft, edit_groups=False)
         while True:
-            self.terminal.rule("RDF + CN setup")
+            self.terminal.heading("RDF + CN setup")
             self.terminal.write(setup_panel(draft, self.workspace))
             choice = self.terminal.menu(
                 "Options",
@@ -488,7 +483,7 @@ class Tui:
         if initialized:
             self._add_task(draft)
         while True:
-            self.terminal.rule(f"{analysis_label(draft.analysis_type)} setup")
+            self.terminal.heading(f"{analysis_label(draft.analysis_type)} setup")
             self.terminal.write(setup_panel(draft, self.workspace))
             options: list[tuple[str, str]] = [
                 (
@@ -554,7 +549,7 @@ class Tui:
         if edit_groups and (
             not draft.reference.strip() or not draft.selection.strip()
         ):
-            self.terminal.rule(f"{analysis_label(draft.analysis_type)} groups")
+            self.terminal.heading(f"{analysis_label(draft.analysis_type)} groups")
             self.terminal.write("Choose the groups to analyze.")
             self._edit_selections(draft)
             return True
@@ -635,7 +630,7 @@ class Tui:
 
     def _edit_task(self, draft: AnalysisDraft, *, mixed: bool = False) -> None:
         action = "Update" if draft.queue_index is not None else "Add"
-        self.terminal.rule(f"{action} radial task")
+        self.terminal.heading(f"{action} radial task")
         if mixed:
             selected = self.terminal.choose(
                 "Analysis type",
@@ -690,7 +685,7 @@ class Tui:
             self.terminal.write("The task queue is empty.")
             return
         while draft.queue:
-            self.terminal.rule("Radial task queue")
+            self.terminal.heading("Radial task queue")
             for number, task in enumerate(draft.queue, 1):
                 self.terminal.write(f"  {number}. {task_label(task)}")
             choice = self.terminal.menu(
@@ -848,7 +843,7 @@ class Tui:
         )
         results: list[AnalysisResult] = []
         for number, request in enumerate(requests, 1):
-            self.terminal.rule(
+            self.terminal.write(
                 f"Task {number}/{len(requests)}: {analysis_label(request.analysis_type)}"
             )
             result = self.job_runner.run_sync(
@@ -890,7 +885,7 @@ class Tui:
                         result,
                     )
                 )
-        self.terminal.rule("Analysis completed")
+        self.terminal.heading("Analysis completed")
         for result in results:
             self.terminal.write(result_text(result))
         self.terminal.write("Exported files:")
@@ -930,7 +925,7 @@ class Tui:
         return self.workspace.result
 
     def _show_result(self) -> None:
-        self.terminal.rule("Current result")
+        self.terminal.heading("Current result")
         self.terminal.write(result_text(self._require_result()))
 
     def _current_plots(self) -> tuple[AnalysisResult, ...]:
@@ -1000,7 +995,7 @@ class Tui:
                 return
             name = names[int(choice) - 1]
             status = self.application.integrations.detect(name)
-            self.terminal.rule(f"{name} detection")
+            self.terminal.heading(f"{name} detection")
             availability = "available" if status.available else "unavailable"
             self.terminal.write(
                 f"{status.path or 'not found'} | {availability} | "
@@ -1024,12 +1019,12 @@ class Tui:
             if choice is None:
                 return
             template = templates[int(choice) - 1]
-            self.terminal.rule(template.title)
+            self.terminal.heading(template.title)
             self.terminal.write(template.content)
 
     def _config(self) -> None:
         config = self.application.config
-        self.terminal.rule("Resolved configuration")
+        self.terminal.heading("Resolved configuration")
         self.terminal.write(f"Path: {self.application.config_file}")
         self.terminal.write(f"Maximum pairs per chunk: {config.resources.max_pairs_per_chunk}")
         self.terminal.write(f"GUI theme: {config.gui.theme}")
@@ -1038,5 +1033,5 @@ class Tui:
         for name, item in sorted(config.integrations.items()):
             self.terminal.write(
                 f"  {name}: {'enabled' if item.enabled else 'disabled'}, "
-                f"path={item.path or 'automatic detection'}"
+                f"path: {item.path or 'automatic detection'}"
             )

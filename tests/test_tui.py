@@ -9,7 +9,7 @@ from test_synthetic_system import _write_trajectory
 import mdhelper.bootstrap.portable as portable
 import mdhelper.bootstrap.windows_console as windows_console
 from mdhelper.app import ApplicationService
-from mdhelper.core.analysis import AnalysisResult
+from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
 from mdhelper.core.species import role_decision
 from mdhelper.core.system import FrameRange
 from mdhelper.gui.main import tui_command
@@ -50,6 +50,34 @@ def test_opening_project_returns_to_main_menu(monkeypatch) -> None:
         tui.job_runner.shutdown()
 
     assert calls == ["open"]
+
+
+def test_inputs_shows_cached_summary_without_reinspection(monkeypatch) -> None:
+    tui = Tui(
+        ApplicationService(UserConfig()),
+        Terminal(StringIO("2\n0\n"), StringIO()),
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(tui, "_inspect", lambda: calls.append("inspect"))
+    monkeypatch.setattr(tui, "_show_summary", lambda: calls.append("summary"))
+
+    try:
+        tui._inputs()
+    finally:
+        tui.job_runner.shutdown()
+
+    assert calls == ["summary"]
+
+
+def test_terminal_heading_centers_any_title_with_stars() -> None:
+    output = StringIO()
+    terminal = Terminal(StringIO(), output)
+    title = "Section"
+    width = 30
+
+    terminal.heading(title, width)
+
+    assert output.getvalue() == f"*** {title} ***".center(width).rstrip() + "\n"
 
 
 def test_unified_entry_prefers_gui_and_routes_explicit_modes(monkeypatch) -> None:
@@ -897,3 +925,25 @@ def test_tui_energy_runs_without_review(monkeypatch) -> None:
         tui.job_runner.shutdown()
 
     assert calls == ["run", "complete"]
+
+
+def test_tui_analysis_run_has_no_decorative_heading(
+    monkeypatch,
+    energy_result: AnalysisResult,
+) -> None:
+    tui = Tui(ApplicationService(UserConfig()), Terminal(StringIO(), StringIO()))
+    request = AnalysisRequest.from_dict(energy_result.request)
+    headings: list[str] = []
+    monkeypatch.setattr(tui.terminal, "heading", lambda title: headings.append(title))
+    monkeypatch.setattr(
+        tui.job_runner,
+        "run_sync",
+        lambda *_args, **_kwargs: energy_result,
+    )
+
+    try:
+        assert tui._run_requests((request,)) == (energy_result,)
+    finally:
+        tui.job_runner.shutdown()
+
+    assert headings == []

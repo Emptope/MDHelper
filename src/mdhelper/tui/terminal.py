@@ -34,14 +34,8 @@ class Terminal:
         self.output.write(f"{text}\n")
         self.output.flush()
 
-    def rule(self, title: str = "", width: int = 76) -> None:
-        if not title:
-            self.write("=" * width)
-            return
-        label = f" {title} "
-        remaining = max(2, width - len(label))
-        left = remaining // 2
-        self.write(f"{'=' * left}{label}{'=' * (remaining - left)}")
+    def heading(self, title: str, width: int = _CONTENT_WIDTH) -> None:
+        self.write(f"*** {title} ***".center(width).rstrip())
 
     def _write_grid(self, items: Sequence[str], width: int = _CONTENT_WIDTH) -> None:
         if not items:
@@ -143,7 +137,7 @@ class Terminal:
         back: bool = True,
     ) -> T | None:
         self.write()
-        self.rule(title)
+        self.heading(title)
         for label, value in options:
             self.write(f" {value!s:>2}  {label}")
         if back:
@@ -165,7 +159,7 @@ class Terminal:
         default: T | None = None,
     ) -> T:
         self.write()
-        self.rule(title)
+        self.heading(title)
         numbered = list(enumerate(options, 1))
         for number, (label, value) in numbered:
             marker = " *" if default is not None and value == default else ""
@@ -200,7 +194,7 @@ class Terminal:
                 chosen.append(value)
         while True:
             self.write()
-            self.rule(title)
+            self.heading(title)
             width = max(2, len(str(len(options))))
             self._write_grid(
                 tuple(
