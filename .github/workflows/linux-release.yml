@@ -24,6 +24,10 @@ jobs:
         with:
           version: "0.12.6"
           enable-cache: true
+      - name: Install Linux GUI runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libegl1
       - name: Install locked GUI development environment
         run: uv sync --frozen --extra gui --group dev
       - name: Validate release metadata
