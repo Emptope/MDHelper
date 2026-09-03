@@ -38,8 +38,11 @@ class ResultDetailsDialog(QDialog):
 
         self.copy_button = QPushButton("Copy")
         self.copy_button.clicked.connect(self._copy)
+        self.close_button = QPushButton("Close")
+        self.close_button.clicked.connect(self.close)
         actions = ActionBar()
-        actions.add_button(self.copy_button, primary=True)
+        actions.add_leading_button(self.copy_button, primary=True)
+        actions.add_button(self.close_button)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)

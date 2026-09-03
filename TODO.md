@@ -11,7 +11,7 @@
 
 ## 已完成
 
-- [x] [Refactor] 按 MDAnalysis 与 GROMACS 完整管线整理 Backend 目录。
+- [x] [GUI] Result Details 和 Job Log 左侧显示 Copy，右侧显示 Close。
 
 ## 完成标准（每轮代码改动后需重新确认）
 
