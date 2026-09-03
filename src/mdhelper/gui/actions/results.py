@@ -121,7 +121,7 @@ class ResultActions:
         if visible:
             return plot_exports(
                 visible,
-                series_keys=self.results.plot_series_keys(),
+                series_keys=self.results.queue_series_keys(),
                 labels=self.results.plot_labels(),
                 color_ids=self.results.plot_color_ids(),
                 group_ids=self.results.plot_group_ids(),

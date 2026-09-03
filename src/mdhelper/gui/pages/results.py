@@ -82,11 +82,11 @@ class ResultPanel(QWidget):
         plots.advanced_button.clicked.connect(self.advanced_plot_requested)
         self.plot_panel = plots
         self.plot_controls = plots
-        self.combine_series_button = plots.combine_button
-        self.separate_series_button = plots.separate_button
-        self.remove_series_button = plots.remove_button
-        self.clear_series_button = plots.clear_button
-        self.plot_series = plots.series
+        self.combine_queue_button = plots.combine_button
+        self.separate_queue_button = plots.separate_button
+        self.remove_queue_button = plots.remove_button
+        self.clear_queue_button = plots.clear_button
+        self.plot_queue = plots.queue
         self.plot_title = plots.title
         self.color_scheme = plots.scheme
         self.x_min = plots.x_min
@@ -163,7 +163,7 @@ class ResultPanel(QWidget):
     def begin_batch(self, analysis_type: str) -> None:
         self.result = None
         self.text.setPlainText(
-            f"Running {result_analysis_label(analysis_type)} plot series..."
+            f"Running {result_analysis_label(analysis_type)} queue..."
         )
         self.export_button.setEnabled(False)
         self.project_button.setEnabled(False)
@@ -245,8 +245,8 @@ class ResultPanel(QWidget):
     def plot_color_ids(self) -> tuple[int, ...]:
         return self.plot_panel.plot_color_ids()
 
-    def plot_series_keys(self) -> tuple[str | None, ...]:
-        return self.plot_panel.plot_series_keys()
+    def queue_series_keys(self) -> tuple[str | None, ...]:
+        return self.plot_panel.queue_series_keys()
 
     def plot_group_ids(self) -> tuple[str | None, ...]:
         return self.plot_panel.plot_group_ids()
@@ -284,17 +284,17 @@ class ResultPanel(QWidget):
     def apply_plot_appearance(self, appearance: PlotAppearance) -> None:
         self.plot_panel.apply_plot_appearance(appearance)
 
-    def remove_selected_series(self) -> None:
-        self.plot_panel.remove_selected_series()
+    def remove_selected_queue_items(self) -> None:
+        self.plot_panel.remove_selected_queue_items()
 
-    def clear_series(self) -> None:
-        self.plot_panel.clear_series()
+    def clear_queue(self) -> None:
+        self.plot_panel.clear_queue()
 
-    def combine_selected_series(self) -> None:
-        self.plot_panel.combine_selected_series()
+    def combine_selected_queue_items(self) -> None:
+        self.plot_panel.combine_selected_queue_items()
 
-    def separate_selected_series(self) -> None:
-        self.plot_panel.separate_selected_series()
+    def separate_selected_queue_items(self) -> None:
+        self.plot_panel.separate_selected_queue_items()
 
     def _show_selected_result(self, result: AnalysisResult) -> None:
         self.result = result

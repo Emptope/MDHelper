@@ -147,8 +147,8 @@ class SelectionField:
     kind: Literal["float", "int"]
 
 
-class SelectionSeries(QWidget):
-    """Representation list of selection pairs that should share a result plot."""
+class SelectionQueue(QWidget):
+    """Ordered selection pairs waiting to run and populate result plots."""
 
     row_loaded = Signal(object)
 
@@ -188,7 +188,7 @@ class SelectionSeries(QWidget):
         buttons = QHBoxLayout()
         buttons.setContentsMargins(0, 0, 0, 0)
         buttons.setSpacing(8)
-        buttons.addWidget(QLabel("Configured series"))
+        buttons.addWidget(QLabel("Queue items"))
         buttons.addStretch(1)
         buttons.addWidget(self.add_button)
         buttons.addWidget(self.remove_button)
@@ -334,6 +334,6 @@ def _parameter_value(text: str, field: SelectionField) -> int | float:
         value: int | float = int(text) if field.kind == "int" else float(text)
     except ValueError as exc:
         raise InputError(
-            f"Selection-series field {field.label!r} must be a {field.kind}."
+            f"Selection queue field {field.label!r} must be a {field.kind}."
         ) from exc
     return value

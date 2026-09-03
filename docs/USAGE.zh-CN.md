@@ -80,7 +80,7 @@ uv run mdhelper templates list
 ## GUI Workflow
 
 Workflow 保存有序的分析类型序列。序列中的项目共用 GUI 已加载的输入，但各自保留独立的参数
-和绘图 series。
+和绘图队列。
 
 1. 打开 **Settings**，在 `config.toml` 中加入命名序列：
 
@@ -95,12 +95,12 @@ Workflow 保存有序的分析类型序列。序列中的项目共用 GUI 已加
    index 文件。
 4. 选择 **Tools > Run Workflow...**，再选择已命名的 Workflow。
 5. 通过左侧项目列表或 **Back** 和 **Next** 逐项审查。径向项目可以输入一个 selection pair，
-   也可以加入多组 configured series。**Next** 会校验当前项目。
+   也可以加入多个队列项。**Next** 会校验当前项目。
 6. 在最后一个项目选择 **Run**。MDHelper 会再次校验全部项目，并按照 Workflow 顺序将所有启用
-   的 series 提交到标准分析队列。
+   的队列项提交到标准分析队列。
 
 其他分析正在运行时不能打开 Workflow 面板。重复的分析标识表示相互独立的项目，可以使用不同
-的参数或 series。
+的参数或绘图队列。
 
 ## 开发检查
 

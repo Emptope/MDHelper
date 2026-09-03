@@ -67,7 +67,7 @@ class AnalysisActions:
     def run(self) -> None:
         parameters = self.analysis.parameters
         try:
-            items = self.analysis.request_series(self._common(parameters))
+            items = self.analysis.queued_requests(self._common(parameters))
         except Exception as exc:
             self.show_error(exc)
             return
@@ -76,7 +76,7 @@ class AnalysisActions:
     def request_items(
         self, parameters: ParameterPanel
     ) -> tuple[tuple[AnalysisRequest, str], ...]:
-        return parameters.request_series(self._common(parameters))
+        return parameters.queued_requests(self._common(parameters))
 
     def _common(self, parameters: ParameterPanel) -> dict[str, object]:
         return self.load.common(
@@ -153,7 +153,7 @@ class AnalysisActions:
 
     def _run_started(self, current: int, total: int, _name: str) -> None:
         self.parent.statusBar().showMessage(
-            f"Running plot series {current} of {total}..."
+            f"Running queue item {current} of {total}..."
         )
 
     def _progress(self, current: int, total: object, message: str) -> None:

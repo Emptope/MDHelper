@@ -82,7 +82,7 @@ outside the `1e-6 e` neutrality tolerance.
 ## GUI workflows
 
 A workflow stores an ordered sequence of analysis types. It reuses the inputs loaded in the GUI,
-while keeping separate parameters and plot series for every project in the sequence.
+while keeping separate parameters and a plot queue for every project in the sequence.
 
 1. Open **Settings** and add a named sequence to `config.toml`:
 
@@ -97,12 +97,12 @@ while keeping separate parameters and plot series for every project in the seque
    when its groups should be available in the selection controls.
 4. Choose **Tools > Run Workflow...**, then select the named workflow.
 5. Review each project with the sidebar or **Back** and **Next**. For a radial project, enter one
-   selection pair or add multiple configured series. **Next** validates the current project.
+   selection pair or add multiple queue items. **Next** validates the current project.
 6. Select **Run** on the final project. MDHelper validates every project again and submits all
-   enabled series to the standard analysis queue in workflow order.
+   enabled queue items to the standard analysis queue in workflow order.
 
 The workflow dialog cannot open while another analysis is running. Repeated analysis identifiers
-are separate projects and may use different parameters or series.
+are separate projects and may use different parameters or plot queues.
 
 ## Development checks
 

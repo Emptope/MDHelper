@@ -186,7 +186,7 @@ def results_plots(
     if color_ids is not None and len(color_ids) != len(results):
         raise ConfigurationError("Plot color IDs must match the number of results.")
     if series_keys is not None and len(series_keys) != len(results):
-        raise ConfigurationError("Plot series keys must match the number of results.")
+        raise ConfigurationError("Series keys must match the number of plot queue items.")
     if group_ids is not None and len(group_ids) != len(results):
         raise ConfigurationError("Plot group IDs must match the number of results.")
     if titles is not None and len(titles) != len(results):
@@ -232,7 +232,9 @@ def _selected_models(
     if series_key:
         selected = tuple(series for series in model.series if series.label == series_key)
         if len(selected) != 1:
-            raise ConfigurationError(f"Plot series {series_key!r} is not available.")
+            raise ConfigurationError(
+                f"Series {series_key!r} is not available for this plot queue item."
+            )
         return (replace(model, series=selected, title=_series_title(model, selected[0])),)
     if analysis_type != "energy":
         return (model,)

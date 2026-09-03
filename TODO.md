@@ -11,7 +11,7 @@
 
 ## 已完成
 
-- [x] [Maintenace] 完善 GitHub CI/CD 流程，完成仓库上传前工作。
+- [x] [UI] Standardize plot queue terminology and internal naming.
 
 ## 完成标准（每轮代码改动后需重新确认）
 

@@ -142,16 +142,16 @@ class ParameterPanel(QGroupBox):
             cast(RadialBackend, self.analysis_backend_value()),
         )
 
-    def request_series(
+    def queued_requests(
         self, common: dict[str, Any]
     ) -> tuple[tuple[AnalysisRequest, str], ...]:
-        """Build the independent requests represented by the active series list."""
+        """Build the independent requests represented by the active queue."""
 
         analysis_type = self._analysis_type()
         if analysis_type == "energy":
             return ((self.request(common), ""),)
         parameters = self.rdf if analysis_type == "rdf" else self.cumulative
-        return parameters.request_series(
+        return parameters.queued_requests(
             analysis_type,
             common,
             cast(RadialBackend, self.analysis_backend_value()),

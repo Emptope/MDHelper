@@ -55,7 +55,7 @@ working-directory/
 
 ## Workflow Design
 
-Workflows are stored in `config.toml` as named, ordered sequences of analysis types. Projects in a workflow retain separate parameters and plot series. After review, MDHelper submits them to the standard analysis queue in order for repeatable analysis and batch processing.
+Workflows are stored in `config.toml` as named, ordered sequences of analysis types. Projects in a workflow retain separate parameters and plot queues. After review, MDHelper submits the queue items to the standard analysis queue in order for repeatable analysis and batch processing.
 
 For configuration and operation details, see [Configuration](docs/CONFIGURATION.md#workflows) and
 [Usage](docs/USAGE.md#gui-workflows).

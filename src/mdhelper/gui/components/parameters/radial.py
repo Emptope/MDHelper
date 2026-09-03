@@ -15,7 +15,7 @@ from mdhelper.gui.components.selections import (
     SelectionInput,
     SelectionPair,
     SelectionPairEditor,
-    SelectionSeries,
+    SelectionQueue,
 )
 
 
@@ -40,7 +40,7 @@ class RadialParameters(QWidget):
         self.bin_width.setRange(0.000001, 100.0)
         self.bin_width.setDecimals(6)
         self.bin_width.setValue(0.002)
-        self.series = SelectionSeries(
+        self.queue = SelectionQueue(
             self.reference,
             self.selection,
             (
@@ -50,12 +50,12 @@ class RadialParameters(QWidget):
             labels=("Reference", "Selection"),
         )
         self._sync_defaults()
-        self.series.row_loaded.connect(self._load_pair)
+        self.queue.row_loaded.connect(self._load_pair)
         self.r_max.valueChanged.connect(
-            lambda value: self.series.set_current_parameter("r_max_nm", value)
+            lambda value: self.queue.set_current_parameter("r_max_nm", value)
         )
         self.bin_width.valueChanged.connect(
-            lambda value: self.series.set_current_parameter("bin_width_nm", value)
+            lambda value: self.queue.set_current_parameter("bin_width_nm", value)
         )
         self.inputs = SelectionPairEditor(
             self.reference,
@@ -65,7 +65,7 @@ class RadialParameters(QWidget):
         form = QFormLayout(self)
         configure_form(form)
         form.addRow(self.inputs)
-        form.addRow("Plot Queue", self.series)
+        form.addRow("Plot Queue", self.queue)
         form.addRow("Maximum radius (nm)", self.r_max)
         form.addRow("Bin width (nm)", self.bin_width)
 
@@ -88,16 +88,16 @@ class RadialParameters(QWidget):
         request.validate()
         return request
 
-    def request_series(
+    def queued_requests(
         self,
         analysis_type: AnalysisType,
         common: dict[str, Any],
         backend: RadialBackend,
     ) -> tuple[tuple[RadialRequest, str], ...]:
-        pairs = self.series.pairs()
+        pairs = self.queue.pairs()
         if not pairs:
             raise InputError(
-                "No plot series is enabled.",
+                "No queue item is enabled.",
                 "Enable at least one selection pair or clear the list to use the current pair.",
             )
         return tuple(
@@ -131,12 +131,12 @@ class RadialParameters(QWidget):
     def reset(self) -> None:
         self.reference.setText("")
         self.selection.setText("")
-        self.series.clear()
+        self.queue.clear()
         self.r_max.setValue(1.0)
         self.bin_width.setValue(0.002)
 
     def _sync_defaults(self) -> None:
-        self.series.set_defaults(
+        self.queue.set_defaults(
             {
                 "r_max_nm": self.r_max.value(),
                 "bin_width_nm": self.bin_width.value(),

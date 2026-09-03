@@ -31,7 +31,7 @@ from mdhelper.core.species import SpeciesRoleSuggestion
 from mdhelper.core.system import FrameRange, SystemSummary
 from mdhelper.gui.components.choices import choice_enabled
 from mdhelper.gui.components.parameters import ParameterPanel
-from mdhelper.gui.components.selections import SelectionInput, SelectionSeries
+from mdhelper.gui.components.selections import SelectionInput, SelectionQueue
 from mdhelper.gui.dialogs.integrations import IntegrationsDialog
 from mdhelper.gui.dialogs.log import JobLogDialog
 from mdhelper.gui.pages.results import ResultPanel
@@ -286,24 +286,24 @@ def test_plot_settings_dialog_applies_and_reverts_one_edit_session() -> None:
     assert cancelled.result() == QDialog.DialogCode.Rejected
 
 
-def test_selection_series_stores_enabled_pairs_and_editable_legends() -> None:
+def test_selection_queue_stores_enabled_pairs_and_editable_legends() -> None:
     reference = SelectionInput()
     selection = SelectionInput()
-    series = SelectionSeries(reference, selection)
+    queue = SelectionQueue(reference, selection)
     reference.setText("A")
     selection.setText("B")
-    series.add_current()
+    queue.add_current()
     selection.setText("C")
-    series.add_current()
-    first = series.table.item(0, 0)
-    second_label = series.table.item(1, 3)
+    queue.add_current()
+    first = queue.table.item(0, 0)
+    second_label = queue.table.item(1, 3)
     assert first is not None and second_label is not None
     first.setCheckState(Qt.CheckState.Unchecked)
     second_label.setText("custom legend")
 
-    assert series.pairs()[0].selection == "C"
-    assert series.pairs()[0].label == "custom legend"
-    series.close()
+    assert queue.pairs()[0].selection == "C"
+    assert queue.pairs()[0].label == "custom legend"
+    queue.close()
 
 
 def test_frame_controls_use_exclusive_gui_stop_and_round_trip_requests() -> None:
@@ -391,21 +391,21 @@ def test_apply_role_suggestions_saves_and_cancel_clears(
     window.close()
 
 
-def test_selection_series_builds_requests_with_independent_parameters() -> None:
+def test_selection_queue_builds_requests_with_independent_parameters() -> None:
     panel = ParameterPanel()
     panel._set_analysis("rdf")
     panel.rdf.reference.setText("A")
     panel.rdf.selection.setText("B")
     panel.rdf.r_max.setValue(0.8)
     panel.rdf.bin_width.setValue(0.004)
-    panel.rdf.series.add_current()
+    panel.rdf.queue.add_current()
     panel.rdf.selection.setText("C")
     panel.rdf.r_max.setValue(1.2)
     panel.rdf.bin_width.setValue(0.006)
-    panel.rdf.series.add_current()
-    panel.rdf.series.table.selectRow(0)
-    panel.rdf.series.table.item(0, 4).setText("0.9")
-    panel.rdf.series.table.cellClicked.emit(0, 0)
+    panel.rdf.queue.add_current()
+    panel.rdf.queue.table.selectRow(0)
+    panel.rdf.queue.table.item(0, 4).setText("0.9")
+    panel.rdf.queue.table.cellClicked.emit(0, 0)
     assert panel.rdf.r_max.value() == pytest.approx(0.9)
     assert panel.rdf.bin_width.value() == pytest.approx(0.004)
     common = {
@@ -416,7 +416,7 @@ def test_selection_series_builds_requests_with_independent_parameters() -> None:
         "species_roles": {},
     }
 
-    runs = panel.request_series(common)
+    runs = panel.queued_requests(common)
 
     assert [(run.r_max_nm, run.bin_width_nm) for run, _label in runs] == [
         (0.9, 0.004),
@@ -433,10 +433,10 @@ def test_result_panel_keeps_mixed_analysis_types_in_one_figure() -> None:
     panel.show_result(rdf)
     panel.show_result(cn)
 
-    assert panel.plot_series.rowCount() == 2
+    assert panel.plot_queue.rowCount() == 2
     assert len(panel.figure.axes) == 2
     assert not any(line.get_visible() for line in panel.figure.axes[1].yaxis.get_gridlines())
-    panel.plot_series.selectRow(0)
+    panel.plot_queue.selectRow(0)
     assert panel.plot_title.isEnabled()
     panel.plot_title.setText("Ion coordination comparison")
     panel.plot_title.editingFinished.emit()
@@ -445,9 +445,9 @@ def test_result_panel_keeps_mixed_analysis_types_in_one_figure() -> None:
         "Ion coordination comparison",
         "Ion coordination comparison",
     )
-    panel.plot_series.item(0, 2).setText("RDF saved")
-    panel.plot_series.item(1, 2).setText("Cumulative saved")
-    panel.plot_series.item(1, 0).setCheckState(Qt.CheckState.Unchecked)
+    panel.plot_queue.item(0, 2).setText("RDF saved")
+    panel.plot_queue.item(1, 2).setText("Cumulative saved")
+    panel.plot_queue.item(1, 0).setCheckState(Qt.CheckState.Unchecked)
     panel.color_scheme.setCurrentIndex(panel.color_scheme.findData("fixed"))
     panel.x_min.setText("0")
     panel.x_max.setText("5")
@@ -479,7 +479,7 @@ def test_result_panel_edits_only_the_selected_energy_plot_title(
     panel = ResultPanel()
     panel.show_result(energy_result)
     original = tuple(window.figure.axes[0].get_title() for window in panel.plot_windows)
-    panel.plot_series.selectRow(1)
+    panel.plot_queue.selectRow(1)
 
     panel.plot_title.setText("Temperature stability")
     panel.plot_title.editingFinished.emit()
@@ -502,16 +502,16 @@ def test_result_panel_combines_selected_energy_terms_and_restores_group(
     panel = ResultPanel()
     panel.show_result(energy_result)
 
-    assert panel.plot_series.rowCount() == 3
+    assert panel.plot_queue.rowCount() == 3
     assert len(panel.plot_windows) == 3
     assert all(len(window.figure.axes) == 1 for window in panel.plot_windows)
     panel.open_plot_window()
     assert all(window.isVisible() for window in panel.plot_windows)
-    panel.plot_series.clearSelection()
-    panel.plot_series.setRangeSelected(QTableWidgetSelectionRange(0, 0, 1, 5), True)
-    assert panel.combine_series_button.isEnabled()
+    panel.plot_queue.clearSelection()
+    panel.plot_queue.setRangeSelected(QTableWidgetSelectionRange(0, 0, 1, 5), True)
+    assert panel.combine_queue_button.isEnabled()
 
-    panel.combine_series_button.click()
+    panel.combine_queue_button.click()
 
     assert len(panel.plot_windows) == 2
     assert all(len(window.figure.axes) == 1 for window in panel.plot_windows)
@@ -530,15 +530,15 @@ def test_result_panel_combines_selected_energy_terms_and_restores_group(
     restored.restore_state(state, (energy_result,))
 
     assert restored.plot_state() == state
-    assert restored.plot_series.rowCount() == 3
+    assert restored.plot_queue.rowCount() == 3
     assert len(restored.plot_windows) == 2
     assert all(len(window.figure.axes) == 1 for window in restored.plot_windows)
-    restored.plot_series.clearSelection()
-    restored.plot_series.setRangeSelected(
+    restored.plot_queue.clearSelection()
+    restored.plot_queue.setRangeSelected(
         QTableWidgetSelectionRange(0, 0, 1, 5), True
     )
-    assert restored.separate_series_button.isEnabled()
-    restored.separate_series_button.click()
+    assert restored.separate_queue_button.isEnabled()
+    restored.separate_queue_button.click()
     assert len(restored.plot_windows) == 3
     assert all(len(window.figure.axes) == 1 for window in restored.plot_windows)
     assert all(not selection.group for selection in restored.plot_state().selections)
@@ -627,7 +627,7 @@ def test_gui_export_includes_every_visible_result_and_current_plot(
     second = _rdf_result("A", "C")
     window.results.show_result(first, "first")
     window.results.show_result(second, "second")
-    window.results.plot_series.selectRow(0)
+    window.results.plot_queue.selectRow(0)
     window.results.plot_title.setText("Exported comparison")
     window.results.plot_title.editingFinished.emit()
     window.results.open_plot_window()
@@ -888,7 +888,7 @@ def test_gui_analysis_initializes_project_in_trajectory_directory(
     monkeypatch.setattr(window.load, "common", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         window.analysis,
-        "request_series",
+        "queued_requests",
         lambda *_args, **_kwargs: ((request, ""),),
     )
     monkeypatch.setattr(

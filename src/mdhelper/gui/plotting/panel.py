@@ -39,13 +39,13 @@ class PlotPanel(PlotControls):
         self._plot_titles: tuple[str, ...] = ()
         self._restoring = False
 
-        self.combine_button.clicked.connect(self.combine_selected_series)
-        self.separate_button.clicked.connect(self.separate_selected_series)
-        self.remove_button.clicked.connect(self.remove_selected_series)
-        self.clear_button.clicked.connect(self.clear_series)
-        self.series.itemChanged.connect(self._plot_changed)
-        self.series.itemSelectionChanged.connect(self._plot_selection_changed)
-        self.series.color_changed.connect(self._plot_changed)
+        self.combine_button.clicked.connect(self.combine_selected_queue_items)
+        self.separate_button.clicked.connect(self.separate_selected_queue_items)
+        self.remove_button.clicked.connect(self.remove_selected_queue_items)
+        self.clear_button.clicked.connect(self.clear_queue)
+        self.queue.itemChanged.connect(self._plot_changed)
+        self.queue.itemSelectionChanged.connect(self._plot_selection_changed)
+        self.queue.color_changed.connect(self._plot_changed)
         self.title.editingFinished.connect(self._apply_title)
         self.scheme.currentIndexChanged.connect(self._coloring_changed)
         for edit in self.limit_edits():
@@ -97,22 +97,22 @@ class PlotPanel(PlotControls):
         self._windows.close(PlotWindow)
 
     def plot_results(self) -> tuple[AnalysisResult, ...]:
-        return tuple(item[0] for item in self._visible_series())
+        return tuple(item[0] for item in self._visible_queue_items())
 
     def plot_labels(self) -> tuple[str | None, ...]:
-        return tuple(item[1] for item in self._visible_series())
+        return tuple(item[1] for item in self._visible_queue_items())
 
     def plot_color_ids(self) -> tuple[int, ...]:
-        return tuple(item[2] for item in self._visible_series())
+        return tuple(item[2] for item in self._visible_queue_items())
 
-    def plot_series_keys(self) -> tuple[str | None, ...]:
-        return tuple(item[3] or None for item in self._visible_series())
+    def queue_series_keys(self) -> tuple[str | None, ...]:
+        return tuple(item[3] or None for item in self._visible_queue_items())
 
     def plot_group_ids(self) -> tuple[str | None, ...]:
-        return tuple(item[4] or None for item in self._visible_series())
+        return tuple(item[4] or None for item in self._visible_queue_items())
 
     def plot_titles(self) -> tuple[str | None, ...]:
-        return tuple(item[5] or None for item in self._visible_series())
+        return tuple(item[5] or None for item in self._visible_queue_items())
 
     def plot_models(self) -> tuple[PlotModel, ...]:
         self._sync()
@@ -155,7 +155,7 @@ class PlotPanel(PlotControls):
             self.set_limits(state.limits)
             self._render()
             self.open_button.setEnabled(bool(self._state.results))
-            self._update_series_actions()
+            self._update_queue_actions()
             self._redraw()
         finally:
             self._restoring = False
@@ -172,7 +172,7 @@ class PlotPanel(PlotControls):
         self._plot_rows = ()
         self._plot_titles = ()
         self._update_title_control()
-        self._update_series_actions()
+        self._update_queue_actions()
         self.results_changed.emit(set())
 
     def clear_limits(self) -> None:
@@ -188,42 +188,42 @@ class PlotPanel(PlotControls):
         self._redraw()
         self.state_changed.emit()
 
-    def remove_selected_series(self) -> None:
+    def remove_selected_queue_items(self) -> None:
         self._sync()
         used = self._state.remove(self._selected_plot_rows())
         self._render()
         self.open_button.setEnabled(bool(self._state.results))
-        self._update_series_actions()
+        self._update_queue_actions()
         self._redraw()
         self.results_changed.emit(used)
         self.state_changed.emit()
 
-    def clear_series(self) -> None:
+    def clear_queue(self) -> None:
         self.clear()
         self.state_changed.emit()
 
-    def combine_selected_series(self) -> None:
+    def combine_selected_queue_items(self) -> None:
         self._sync()
         rows = self._selected_plot_rows()
-        if not self._state.combine(rows, self.series.currentRow()):
+        if not self._state.combine(rows, self.queue.currentRow()):
             return
         self._render(rows)
-        self._update_series_actions()
+        self._update_queue_actions()
         self._redraw()
         self.state_changed.emit()
 
-    def separate_selected_series(self) -> None:
+    def separate_selected_queue_items(self) -> None:
         self._sync()
         rows = self._selected_plot_rows()
         if not self._state.separate(rows):
             return
         self._render(rows)
-        self._update_series_actions()
+        self._update_queue_actions()
         self._redraw()
         self.state_changed.emit()
 
     def _selected_plot_rows(self) -> tuple[int, ...]:
-        return self.series.selected_rows()
+        return self.queue.selected_rows()
 
     def _is_energy_row(self, row: int) -> bool:
         return self._state.is_energy(row)
@@ -233,7 +233,7 @@ class PlotPanel(PlotControls):
             return ""
         return self._state.entries[row].group
 
-    def _update_series_actions(self) -> None:
+    def _update_queue_actions(self) -> None:
         rows = self._selected_plot_rows()
         energy = bool(rows) and all(self._is_energy_row(row) for row in rows)
         self.combine_button.setEnabled(energy and len(rows) >= 2)
@@ -241,7 +241,7 @@ class PlotPanel(PlotControls):
             energy and any(bool(self._row_group(row)) for row in rows)
         )
 
-    def _visible_series(
+    def _visible_queue_items(
         self,
     ) -> tuple[tuple[AnalysisResult, str | None, int, str, str, str, int], ...]:
         self._sync()
@@ -259,10 +259,10 @@ class PlotPanel(PlotControls):
         )
 
     def _plot_selection_changed(self) -> None:
-        row = self.series.currentRow()
+        row = self.queue.currentRow()
         if 0 <= row < len(self._state.entries):
             self.result_selected.emit(self._state.entries[row].result)
-        self._update_series_actions()
+        self._update_queue_actions()
         self._update_title_control()
 
     def _apply_limits(self) -> None:
@@ -277,7 +277,7 @@ class PlotPanel(PlotControls):
         self.state_changed.emit()
 
     def _current_plot_index(self) -> int | None:
-        row = self.series.currentRow()
+        row = self.queue.currentRow()
         return next(
             (index for index, rows in enumerate(self._plot_rows) if row in rows),
             None,
@@ -315,7 +315,7 @@ class PlotPanel(PlotControls):
             self.state_changed.emit()
 
     def _coloring_changed(self, _value: object = None) -> None:
-        self.series.set_color_enabled(self.plot_scheme() == "fixed")
+        self.queue.set_color_enabled(self.plot_scheme() == "fixed")
         self._plot_changed()
 
     def _redraw(self) -> None:
@@ -343,7 +343,7 @@ class PlotPanel(PlotControls):
             self._windows.show_all(PlotWindow, activate=False)
 
     def _render(self, selected: tuple[int, ...] = ()) -> None:
-        self.series.show_entries(
+        self.queue.show_entries(
             self._state.entries,
             self.plot_scheme(),
             self._state.group_labels(),
@@ -351,7 +351,7 @@ class PlotPanel(PlotControls):
         )
 
     def _sync(self) -> None:
-        self._state.replace(self.series.entries(self._state.entries))
+        self._state.replace(self.queue.entries(self._state.entries))
 
     def _plot_window_items(self) -> tuple[PlotWindow, ...]:
         return self._windows.items(PlotWindow)

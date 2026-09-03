@@ -50,11 +50,11 @@ class AnalysisPanel(QWidget):
         layout.addWidget(action_bar)
         self.action_bar = action_bar
 
-    def request_series(
+    def queued_requests(
         self,
         common: dict[str, object],
     ) -> tuple[tuple[AnalysisRequest, str], ...]:
-        return self.parameters.request_series(common)
+        return self.parameters.queued_requests(common)
 
     def apply_request(self, request: AnalysisRequest) -> None:
         self.parameters.apply_request(request)

@@ -1,4 +1,4 @@
-"""Plot-series and display controls for the result page."""
+"""Plot queue and display controls for the result page."""
 
 from __future__ import annotations
 
@@ -35,23 +35,23 @@ class PlotControls(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(PAGE_SPACING)
-        series_controls = QHBoxLayout()
-        series_controls.addWidget(QLabel("Plot Queue"))
+        queue_controls = QHBoxLayout()
+        queue_controls.addWidget(QLabel("Plot Queue"))
         self.combine_button = QPushButton("Combine")
         self.combine_button.setEnabled(False)
         self.separate_button = QPushButton("Separate")
         self.separate_button.setEnabled(False)
         self.remove_button = QPushButton("Remove")
         self.clear_button = QPushButton("Clear All")
-        series_controls.addWidget(self.combine_button)
-        series_controls.addWidget(self.separate_button)
-        series_controls.addStretch(1)
-        series_controls.addWidget(self.remove_button)
-        series_controls.addWidget(self.clear_button)
-        layout.addLayout(series_controls)
+        queue_controls.addWidget(self.combine_button)
+        queue_controls.addWidget(self.separate_button)
+        queue_controls.addStretch(1)
+        queue_controls.addWidget(self.remove_button)
+        queue_controls.addWidget(self.clear_button)
+        layout.addLayout(queue_controls)
 
-        self.series = PlotTable()
-        layout.addWidget(self.series)
+        self.queue = PlotTable()
+        layout.addWidget(self.queue)
 
         self.settings = QGroupBox("Plot Settings")
         settings = QGridLayout(self.settings)
