@@ -11,12 +11,6 @@
 
 ## 已完成
 
-- [x] [Change] Refine integration configuration controls and remove the template dialog heading.
-- [x] [Change] Capitalize the Font Size group title.
-- [x] [Change] Capitalize the Add Current button label.
-- [x] [Change] Rename the plot series labels to Plot Queue.
-- [x] [Change] Simplify radial report labels and the species role panel title.
-
 ## 完成标准（每轮代码改动后需重新确认）
 
 - Ruff 和 mypy 通过。
