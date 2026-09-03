@@ -237,14 +237,15 @@ distance_squared = delta_mic dot delta_mic
 `distance_squared <= cutoff^2` 时保留。self pair 由原子索引判断，距离是否为零不参与判断，
 因此不同原子坐标重合仍是合法 pair。
 
-### 5.4 周期分胞和有界分块
+### 5.4 空间索引和有界分块
 
-小规模搜索以及 cutoff 覆盖大部分分胞的搜索直接分块。较大的局部搜索先把两个 selection
-映射到周期性分数坐标分胞。倒易盒矢量给出各轴上的保守分数坐标 cutoff，只有相邻且非空的
-分胞可能包含保留 pair。候选 pair 仍使用 5.3 节的三斜盒最小镜像公式，因此分胞剪枝不改变
-pair 身份和与顺序无关的 histogram 结果。
+轴对齐正交盒的大搜索使用周期 k-d tree。selection 按配置的 pair 上限分块建树，并先计算
+每个 reference 的精确邻居数；随后按邻居数划分 reference，使每个稀疏距离结果不超过该
+上限。小规模搜索和通用三斜盒搜索使用直接分块或周期性分数坐标分胞。倒易盒矢量给出各轴
+上的保守分数坐标 cutoff，只有相邻且非空的分胞可能包含保留 pair。候选 pair 仍使用 5.3 节
+的三斜盒最小镜像公式。两种空间索引都不改变 pair 身份和与顺序无关的 histogram 结果。
 
-RDF/CN 邻居搜索的 cutoff 严格等于 request 中由用户或模板设置的 `r_max`。分胞剪枝不会
+RDF/CN 邻居搜索的 cutoff 严格等于 request 中由用户或模板设置的 `r_max`。空间索引不会
 另行推断、缩小或调整这个 cutoff。
 
 若配置的 pair 上限为 `M`，每个候选块的目标和参考 chunk 大小为：
@@ -254,9 +255,9 @@ selection_chunk = max(1, min(N_S, floor(sqrt(M))))
 reference_chunk = max(1, floor(M / selection_chunk))
 ```
 
-每个临时距离矩阵至多约有 `M` 个元素。算法遍历候选 reference chunks 和 selection chunks，
-只 yield 通过 cutoff 的 reference slot、selection slot 和距离。局部 cutoff 不再枚举完整
-`N_R x N_S` 笛卡尔积；不适合分胞时仍不构造完整距离矩阵。
+直接路径的每个临时距离矩阵至多约有 `M` 个元素。所有路径只 yield 通过 cutoff 的
+reference slot、selection slot 和距离。局部 cutoff 不再枚举完整 `N_R x N_S` 笛卡尔积；
+不适合空间索引时仍不构造完整距离矩阵。
 
 ## 6. 进程内径向网格
 
@@ -712,14 +713,15 @@ pair 分块迭代自身当前没有单独的 cancel 参数；取消通常在下�
 
 | 算法 | 最坏时间量级 | 主要额外内存 |
 | --- | --- | --- |
-| RDF/累积 RDF pair 遍历 | 最坏 `O(F * N_R * N_S)`；局部分胞按候选 pair 缩减 | `O(N_R + N_S + M + B)` |
+| RDF/累积 RDF pair 遍历 | 最坏 `O(F * N_R * N_S)`；k-d tree 或局部分胞按候选 pair 缩减 | `O(N_R + N_S + M + B)` |
 | GRO source 构造 | `O(F * N_atoms)` 扫描 | `O(N_atoms)` 每帧 |
 | 文件 SHA-256 | `O(file bytes)` | 4 MiB chunk |
 | 绘图模型 | `O(result points)` | `O(result points)` |
 
-chunking 限制临时距离矩阵，周期分胞在局部 cutoff 下减少候选 pair，但最坏时间复杂度仍不变。
-当前没有 Verlet list、KD-tree 或 GPU 邻居搜索；后续优化若改变 pair 枚举方式，必须保持 self
-exclusion、三斜 PBC、cutoff 边界和结果容差。
+chunking 限制临时距离矩阵。轴对齐正交盒的大搜索使用周期 k-d tree，先分块建立 selection
+tree 并计算精确邻居数，再按邻居数约束 reference 块，使稀疏距离结果不超过 `M`。三斜盒
+继续使用周期分胞；两种索引都在局部 cutoff 下减少候选 pair，但最坏时间复杂度仍不变。
+后续优化若改变 pair 枚举方式，必须保持 self exclusion、三斜 PBC、cutoff 边界和结果容差。
 
 ## 19. 算法修改检查表
 

@@ -92,11 +92,22 @@ def iter_neighbor_pairs(
     if coordinates.ndim != 2 or coordinates.shape[1] != 3:
         raise InputError("Coordinates must have shape (n_atoms, 3).")
     matrix = box_matrix(box)
-    inverse = np.linalg.inv(matrix)
     squared_cutoff = max_distance_nm * max_distance_nm
     reference_slots = np.arange(len(ref_ids), dtype=np.int64)
     selection_slots = np.arange(len(selection_ids), dtype=np.int64)
     total_pairs = len(ref_ids) * len(selection_ids)
+    lengths = _orthogonal_lengths(matrix)
+    if lengths is not None and total_pairs > max_pairs_per_chunk:
+        yield from _iter_orthogonal_pairs(
+            coordinates,
+            ref_ids,
+            selection_ids,
+            lengths,
+            max_distance_nm,
+            max_pairs_per_chunk,
+        )
+        return
+    inverse = np.linalg.inv(matrix)
     cell_groups = _cell_groups(
         coordinates,
         ref_ids,
@@ -131,6 +142,77 @@ def iter_neighbor_pairs(
             squared_cutoff,
             max_pairs_per_chunk,
         )
+
+
+def _orthogonal_lengths(matrix: NDArray[np.float64]) -> NDArray[np.float64] | None:
+    lengths = np.diag(matrix)
+    if np.any(lengths <= 0.0) or np.count_nonzero(matrix - np.diag(lengths)):
+        return None
+    return lengths
+
+
+def _iter_orthogonal_pairs(
+    coordinates: NDArray[np.float64],
+    ref_ids: NDArray[np.int64],
+    selection_ids: NDArray[np.int64],
+    lengths: NDArray[np.float64],
+    cutoff: float,
+    max_pairs_per_chunk: int,
+) -> Iterator[tuple[NDArray[np.int64], NDArray[np.int64], NDArray[np.float64]]]:
+    from scipy.spatial import cKDTree
+
+    reference = np.mod(coordinates[ref_ids], lengths)
+    selection = np.mod(coordinates[selection_ids], lengths)
+    for selection_start in range(0, len(selection), max_pairs_per_chunk):
+        selection_stop = min(selection_start + max_pairs_per_chunk, len(selection))
+        selection_block = selection[selection_start:selection_stop]
+        selection_tree = cKDTree(selection_block, boxsize=lengths)
+        counts = np.asarray(
+            selection_tree.query_ball_point(reference, cutoff, return_length=True),
+            dtype=np.int64,
+        )
+        for reference_start, reference_stop in _count_blocks(
+            counts, max_pairs_per_chunk
+        ):
+            reference_tree = cKDTree(
+                reference[reference_start:reference_stop], boxsize=lengths
+            )
+            pairs = reference_tree.sparse_distance_matrix(
+                selection_tree,
+                cutoff,
+                output_type="coo_matrix",
+            )
+            local_reference = np.asarray(pairs.row, dtype=np.int64)
+            local_selection = np.asarray(pairs.col, dtype=np.int64)
+            reference_slots = local_reference + reference_start
+            selection_slots = local_selection + selection_start
+            keep = ref_ids[reference_slots] != selection_ids[selection_slots]
+            if np.any(keep):
+                yield (
+                    reference_slots[keep],
+                    selection_slots[keep],
+                    np.asarray(pairs.data[keep], dtype=np.float64),
+                )
+
+
+def _count_blocks(
+    counts: NDArray[np.int64], limit: int
+) -> Iterator[tuple[int, int]]:
+    start = 0
+    total = 0
+    for stop, value in enumerate(counts, start=1):
+        count = int(value)
+        if total and total + count > limit:
+            yield start, stop - 1
+            start = stop - 1
+            total = 0
+        total += count
+        if total == limit:
+            yield start, stop
+            start = stop
+            total = 0
+    if start < len(counts):
+        yield start, len(counts)
 
 
 def _iter_pair_blocks(

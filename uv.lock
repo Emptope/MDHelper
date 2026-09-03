@@ -537,6 +537,7 @@ dependencies = [
     { name = "platformdirs" },
     { name = "pyedr" },
     { name = "pyside6", marker = "sys_platform == 'win32'" },
+    { name = "scipy" },
     { name = "tomli-w" },
 ]
 
@@ -567,6 +568,7 @@ requires-dist = [
     { name = "pyedr", specifier = ">=0.8,<1" },
     { name = "pyside6", marker = "sys_platform == 'win32'", specifier = ">=6.7,<7" },
     { name = "pyside6", marker = "extra == 'gui'", specifier = ">=6.7,<7" },
+    { name = "scipy", specifier = ">=1.13,<2" },
     { name = "tomli-w", specifier = ">=1.1,<2" },
 ]
 provides-extras = ["gui"]

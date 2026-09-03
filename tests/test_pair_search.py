@@ -35,6 +35,29 @@ def _pairs(
     return result, largest
 
 
+def _brute_pairs(
+    positions: np.ndarray,
+    reference: tuple[int, ...],
+    selection: tuple[int, ...],
+    box: Box,
+    cutoff: float,
+) -> dict[tuple[int, int], float]:
+    matrix = np.asarray(box.vectors_nm, dtype=np.float64)
+    inverse = np.linalg.inv(matrix)
+    result: dict[tuple[int, int], float] = {}
+    for reference_slot, reference_id in enumerate(reference):
+        for selection_slot, selection_id in enumerate(selection):
+            if reference_id == selection_id:
+                continue
+            delta = positions[selection_id] - positions[reference_id]
+            fractional = delta @ inverse
+            delta = (fractional - np.rint(fractional)) @ matrix
+            distance = float(np.linalg.norm(delta))
+            if distance <= cutoff:
+                result[(reference_slot, selection_slot)] = distance
+    return result
+
+
 def test_periodic_cell_search_matches_direct_triclinic_pairs() -> None:
     rng = np.random.default_rng(17)
     matrix = np.asarray(
@@ -72,3 +95,27 @@ def test_periodic_cell_search_matches_direct_triclinic_pairs() -> None:
     assert cells == pytest.approx(direct)
     assert largest <= 64
     assert all(reference[ref] != selection[sel] for ref, sel in cells)
+
+
+def test_orthogonal_search_matches_bounded_periodic_pairs() -> None:
+    rng = np.random.default_rng(29)
+    lengths = np.asarray((4.0, 5.0, 6.0))
+    positions = rng.random((240, 3)) * lengths
+    positions[:12] += np.asarray((4.0, -5.0, 6.0))
+    reference = tuple(range(140))
+    selection = tuple(range(50, 240))
+    box = Box(((4.0, 0.0, 0.0), (0.0, 5.0, 0.0), (0.0, 0.0, 6.0)))
+
+    expected = _brute_pairs(positions, reference, selection, box, 0.7)
+    actual, largest = _pairs(
+        positions,
+        reference,
+        selection,
+        box,
+        cutoff=0.7,
+        chunk=128,
+    )
+
+    assert actual.keys() == expected.keys()
+    assert actual == pytest.approx(expected)
+    assert largest <= 128

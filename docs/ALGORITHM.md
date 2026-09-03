@@ -129,16 +129,18 @@ delta_mic = fractional @ H
 A pair is retained when its two atom indices differ and its squared distance is no greater than
 the squared cutoff. Distinct atoms at identical coordinates remain valid pairs.
 
-Pair matrices are bounded by `max_pairs_per_chunk`. Small searches and searches whose cutoff spans
-most cells use direct selection and reference chunks. Larger local searches first assign both
-selections to periodic fractional-coordinate cells. The reciprocal box vectors define a
-conservative fractional cutoff on each axis, so only neighboring occupied cells can contain a
-retained pair. Candidate blocks still use the triclinic minimum-image calculation above. This cell
-pruning changes neither pair identity nor histogram order-independent results and avoids enumerating
-the full `N_R * N_S` product when the cutoff is local.
+Pair matrices are bounded by `max_pairs_per_chunk`. Large axis-aligned orthogonal searches use
+periodic k-d trees. Selection trees and exact neighbor counts are built in bounded selection
+blocks; reference blocks are then sized so each sparse distance result contains at most the
+configured pair limit. Small searches and general triclinic searches use direct chunks or periodic
+fractional-coordinate cells. The reciprocal box vectors define a conservative fractional cutoff on
+each axis, so only neighboring occupied cells can contain a retained pair. Candidate blocks still
+use the triclinic minimum-image calculation above. These search indexes change neither pair
+identity nor histogram order-independent results and avoid enumerating the full `N_R * N_S`
+product when the cutoff is local.
 
 The RDF/CN neighbor-search cutoff is exactly the request's user- or template-supplied `r_max`.
-Cell pruning does not infer, reduce, or otherwise adjust this cutoff.
+Search indexing does not infer, reduce, or otherwise adjust this cutoff.
 
 ## 5. In-process radial grid
 
@@ -330,7 +332,7 @@ memory but does not itself guarantee cancellation latency within a very large fr
 
 | Operation | Worst-case time | Main additional memory |
 | --- | --- | --- |
-| RDF/cumulative RDF | worst-case `O(F * N_R * N_S)`; local cells reduce candidates | `O(N_R + N_S + M + B)` |
+| RDF/cumulative RDF | worst-case `O(F * N_R * N_S)`; k-d trees or local cells reduce candidates | `O(N_R + N_S + M + B)` |
 | MDHelper GRO Reader scan | `O(F * N_atoms)` | one frame |
 | File fingerprint | input bytes | 4 MiB |
 
