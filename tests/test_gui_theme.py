@@ -39,10 +39,9 @@ from mdhelper.core.system import FrameRange, SystemSummary
 from mdhelper.gui.components.choices import choice_enabled
 from mdhelper.gui.components.inputs import InputPanel
 from mdhelper.gui.components.layout import PAGE_MARGIN, PAGE_SPACING, ActionBar
-from mdhelper.gui.components.parameters import ParameterPanel
+from mdhelper.gui.components.parameters import ParameterPanel, RadialParameters
 from mdhelper.gui.components.paths import PathRow
 from mdhelper.gui.components.plot_controls import PlotControls
-from mdhelper.gui.components.radial import RadialParameters
 from mdhelper.gui.components.selections import SelectionInput, SelectionSeries
 from mdhelper.gui.components.species import SpeciesPanel
 from mdhelper.gui.dialogs.integrations import IntegrationsDialog
@@ -238,8 +237,8 @@ def test_input_and_radial_controls_use_independent_widgets() -> None:
     assert parameters.stack.widget(0) is not parameters.stack.widget(1)
     parameters.set_analysis_backend("mdanalysis")
     assert parameters.analysis_backend_value() == "mdanalysis"
-    assert parameters.rdf_inputs.findChildren(QPushButton) == [
-        parameters.rdf_inputs.hint_button
+    assert parameters.rdf.inputs.findChildren(QPushButton) == [
+        parameters.rdf.inputs.hint_button
     ]
 
 
@@ -248,21 +247,21 @@ def test_selection_hints_follow_index_file_and_use_a_table() -> None:
     panel = window.analysis
     parameters = panel.parameters
 
-    assert not parameters.rdf_inputs.hint_button.isHidden()
-    assert not parameters.cn_inputs.hint_button.isHidden()
+    assert not parameters.rdf.inputs.hint_button.isHidden()
+    assert not parameters.cn.inputs.hint_button.isHidden()
     parameters.set_selection_groups(True, {"System": 10})
-    assert parameters.rdf_inputs.hint_button.isHidden()
-    assert parameters.cn_inputs.hint_button.isHidden()
+    assert parameters.rdf.inputs.hint_button.isHidden()
+    assert parameters.cn.inputs.hint_button.isHidden()
     parameters.set_selection_groups(False, {})
-    assert not parameters.rdf_inputs.hint_button.isHidden()
-    assert not parameters.cn_inputs.hint_button.isHidden()
+    assert not parameters.rdf.inputs.hint_button.isHidden()
+    assert not parameters.cn.inputs.hint_button.isHidden()
 
     parameters.set_gromacs_configured(True)
     parameters.set_gromacs_available(True)
     parameters.set_analysis_backend("gromacs")
-    assert not parameters.rdf_inputs.hint_button.isHidden()
-    assert not parameters.cn_inputs.hint_button.isHidden()
-    parameters.rdf_inputs.hint_button.click()
+    assert not parameters.rdf.inputs.hint_button.isHidden()
+    assert not parameters.cn.inputs.hint_button.isHidden()
+    parameters.rdf.inputs.hint_button.click()
     dialog = window.windows.get(SelectionHintDialog)
     assert dialog is not None
     assert dialog.table.rowCount() == len(GROMACS_SELECTION_HINTS)
@@ -273,21 +272,21 @@ def test_selection_hints_follow_index_file_and_use_a_table() -> None:
     assert dialog.documentation.text() != link
 
     parameters.set_selection_groups(True, {"System": 10})
-    assert parameters.rdf_inputs.hint_button.isHidden()
-    assert parameters.cn_inputs.hint_button.isHidden()
-    assert parameters.rdf_reference.currentWidget() is parameters.rdf_reference.group
-    assert parameters.rdf_reference.group.count() == 1
-    assert parameters.rdf_reference.group.currentData() == "System"
+    assert parameters.rdf.inputs.hint_button.isHidden()
+    assert parameters.cn.inputs.hint_button.isHidden()
+    assert parameters.rdf.reference.currentWidget() is parameters.rdf.reference.group
+    assert parameters.rdf.reference.group.count() == 1
+    assert parameters.rdf.reference.group.currentData() == "System"
 
     parameters.set_analysis_backend("mdanalysis")
-    assert parameters.rdf_inputs.hint_button.isHidden()
-    assert parameters.cn_inputs.hint_button.isHidden()
+    assert parameters.rdf.inputs.hint_button.isHidden()
+    assert parameters.cn.inputs.hint_button.isHidden()
 
     parameters.set_selection_groups(False, {})
-    assert not parameters.rdf_inputs.hint_button.isHidden()
-    assert not parameters.cn_inputs.hint_button.isHidden()
+    assert not parameters.rdf.inputs.hint_button.isHidden()
+    assert not parameters.cn.inputs.hint_button.isHidden()
 
-    parameters.rdf_inputs.hint_button.click()
+    parameters.rdf.inputs.hint_button.click()
     dialog = window.windows.get(SelectionHintDialog)
     assert dialog is not None
     assert not dialog.isModal()
@@ -866,7 +865,7 @@ def test_configured_series_table_absorbs_vertical_window_growth() -> None:
     panel.resize(900, 700)
     panel.show()
     application.processEvents()
-    series = panel.rdf_series
+    series = panel.rdf.series
     compact_top = series.mapTo(panel, series.rect().topLeft()).y()
     compact_table_top = series.table.mapTo(panel, series.table.rect().topLeft()).y()
     compact_table_height = series.table.height()
@@ -882,9 +881,9 @@ def test_configured_series_table_absorbs_vertical_window_growth() -> None:
 
 def test_frame_controls_use_exclusive_gui_stop_and_round_trip_requests() -> None:
     panel = ParameterPanel()
-    panel.start.setValue(2)
-    panel.stop.setText("7")
-    panel.stride.setValue(2)
+    panel.frames.start.setValue(2)
+    panel.frames.stop.setText("7")
+    panel.frames.stride.setValue(2)
     assert panel.frame_range() == FrameRange(start=2, stop=7, stride=2)
 
     request = RadialRequest(
@@ -896,8 +895,8 @@ def test_frame_controls_use_exclusive_gui_stop_and_round_trip_requests() -> None
         frames=FrameRange(start=3, stop=9, stride=3),
     )
     panel.apply_request(request)
-    assert panel.start.value() == 3
-    assert panel.stop.text() == "9"
+    assert panel.frames.start.value() == 3
+    assert panel.frames.stop.text() == "9"
     assert panel.frame_range() == request.frames
     panel.close()
 
@@ -1021,20 +1020,20 @@ def test_apply_role_suggestions_saves_and_cancel_clears(
 def test_selection_series_builds_requests_with_independent_parameters() -> None:
     panel = ParameterPanel()
     panel.analysis_choice.setCurrentText("Radial Distribution Function (RDF)")
-    panel.rdf_reference.setText("A")
-    panel.rdf_selection.setText("B")
-    panel.rdf_max.setValue(0.8)
-    panel.rdf_bin_width.setValue(0.004)
-    panel.rdf_series.add_current()
-    panel.rdf_selection.setText("C")
-    panel.rdf_max.setValue(1.2)
-    panel.rdf_bin_width.setValue(0.006)
-    panel.rdf_series.add_current()
-    panel.rdf_series.table.selectRow(0)
-    panel.rdf_series.table.item(0, 4).setText("0.9")
-    panel.rdf_series.table.cellClicked.emit(0, 0)
-    assert panel.rdf_max.value() == pytest.approx(0.9)
-    assert panel.rdf_bin_width.value() == pytest.approx(0.004)
+    panel.rdf.reference.setText("A")
+    panel.rdf.selection.setText("B")
+    panel.rdf.r_max.setValue(0.8)
+    panel.rdf.bin_width.setValue(0.004)
+    panel.rdf.series.add_current()
+    panel.rdf.selection.setText("C")
+    panel.rdf.r_max.setValue(1.2)
+    panel.rdf.bin_width.setValue(0.006)
+    panel.rdf.series.add_current()
+    panel.rdf.series.table.selectRow(0)
+    panel.rdf.series.table.item(0, 4).setText("0.9")
+    panel.rdf.series.table.cellClicked.emit(0, 0)
+    assert panel.rdf.r_max.value() == pytest.approx(0.9)
+    assert panel.rdf.bin_width.value() == pytest.approx(0.004)
     common = {
         "topology": "topology",
         "trajectory": "trajectory",
@@ -1598,20 +1597,20 @@ def test_integration_dialog_saves_configured_executable(tmp_path: Path) -> None:
 def test_energy_terms_are_selected_through_an_ordered_queue() -> None:
     panel = ParameterPanel()
     panel.analysis_choice.setCurrentText("Energy Analysis")
-    panel.energy_file.edit.setText("sample.edr")
+    panel.energy.file.edit.setText("sample.edr")
     panel.set_energy_terms(
         "sample.edr",
         ("Bond", "Potential", "Temperature", "Pressure"),
     )
 
-    panel.energy_queue.available.item(2).setSelected(True)
-    panel.energy_queue.add_selected()
-    panel.energy_queue.available.clearSelection()
-    panel.energy_queue.available.item(1).setSelected(True)
-    panel.energy_queue.add_selected()
-    panel.energy_queue.add_all()
+    panel.energy.queue.available.item(2).setSelected(True)
+    panel.energy.queue.add_selected()
+    panel.energy.queue.available.clearSelection()
+    panel.energy.queue.available.item(1).setSelected(True)
+    panel.energy.queue.add_selected()
+    panel.energy.queue.add_all()
 
-    assert panel.energy_queue.items() == (
+    assert panel.energy.queue.items() == (
         "Temperature",
         "Potential",
         "Bond",
@@ -1627,7 +1626,7 @@ def test_energy_terms_are_selected_through_an_ordered_queue() -> None:
             "parameter_provenance": {},
         }
     )
-    assert request.energy_terms == panel.energy_queue.items()
+    assert request.energy_terms == panel.energy.queue.items()
     assert not hasattr(panel, "energy_terms")
     panel.close()
 
@@ -1652,21 +1651,21 @@ def test_energy_file_selection_automatically_reloads_terms_without_button(
     monkeypatch.setattr(window.application.analyses, "energy_terms", terms)
     panel.analysis_choice.setCurrentText("Energy Analysis")
 
-    panel.energy_file.edit.setText(str(first))
-    panel.energy_file.path_selected.emit(str(first))
+    panel.energy.file.edit.setText(str(first))
+    panel.energy.file.path_selected.emit(str(first))
 
     assert calls == [(str(first), "auto", None)]
-    assert panel.energy_queue.available.count() == 2
-    panel.energy_queue.add_all()
-    assert panel.energy_queue.items() == ("Potential", "Temperature")
+    assert panel.energy.queue.available.count() == 2
+    panel.energy.queue.add_all()
+    assert panel.energy.queue.items() == ("Potential", "Temperature")
 
-    panel.energy_file.edit.setText(str(second))
+    panel.energy.file.edit.setText(str(second))
 
-    assert panel.energy_queue.available.count() == 0
-    assert panel.energy_queue.items() == ()
-    panel.energy_file.path_selected.emit(str(second))
+    assert panel.energy.queue.available.count() == 0
+    assert panel.energy.queue.items() == ()
+    panel.energy.file.path_selected.emit(str(second))
     assert calls == [(str(first), "auto", None), (str(second), "auto", None)]
-    assert panel.energy_queue.available.item(0).text() == "Pressure"
+    assert panel.energy.queue.available.item(0).text() == "Pressure"
     panel.set_analysis_backend("mdanalysis")
     assert calls[-1] == (str(second), "mdanalysis", None)
     window.job_controller.shutdown()

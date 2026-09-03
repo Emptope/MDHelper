@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 from PySide6.QtWidgets import QDoubleSpinBox, QFormLayout, QWidget
 
-from mdhelper.core.analysis import RadialRequest
+from mdhelper.core.analysis import AnalysisType, RadialBackend, RadialRequest
+from mdhelper.core.errors import InputError
 from mdhelper.gui.components.layout import configure_form
 from mdhelper.gui.components.selections import (
     SelectionField,
@@ -66,6 +68,59 @@ class RadialParameters(QWidget):
         form.addRow("Plot series", self.series)
         form.addRow("Maximum radius (nm)", self.r_max)
         form.addRow("Bin width (nm)", self.bin_width)
+
+    def request(
+        self,
+        analysis_type: AnalysisType,
+        common: dict[str, Any],
+        backend: RadialBackend,
+        pair: SelectionPair | None = None,
+    ) -> RadialRequest:
+        parameters = {} if pair is None else pair.parameters
+        request = RadialRequest(
+            analysis_type=analysis_type,
+            reference=self.reference.text() if pair is None else pair.reference,
+            selection=self.selection.text() if pair is None else pair.selection,
+            r_max_nm=float(parameters.get("r_max_nm", self.r_max.value())),
+            bin_width_nm=float(parameters.get("bin_width_nm", self.bin_width.value())),
+            **{**common, "analysis_backend": backend},
+        )
+        request.validate()
+        return request
+
+    def request_series(
+        self,
+        analysis_type: AnalysisType,
+        common: dict[str, Any],
+        backend: RadialBackend,
+    ) -> tuple[tuple[RadialRequest, str], ...]:
+        pairs = self.series.pairs()
+        if not pairs:
+            raise InputError(
+                "No plot series is enabled.",
+                "Enable at least one selection pair or clear the list to use the current pair.",
+            )
+        return tuple(
+            (self.request(analysis_type, common, backend, pair), pair.label)
+            for pair in pairs
+        )
+
+    def set_selection_groups(self, use_index: bool, groups: dict[str, int]) -> None:
+        source = "index" if use_index else "expression"
+        self.reference.set_source(source, groups)
+        self.selection.set_source(source, groups)
+
+    def set_backend(self, backend: RadialBackend) -> None:
+        expression = self.reference.source == "expression"
+        self.inputs.set_hint_visible(
+            expression and backend in {"auto", "mdanalysis", "gromacs"}
+        )
+        gromacs = backend == "gromacs"
+        self.inputs.reference_label.setText("Reference (-ref)" if gromacs else "Reference")
+        self.inputs.selection_label.setText("Selection (-sel)" if gromacs else "Selection")
+        placeholder = "GROMACS Selection Language" if gromacs else "selection"
+        self.reference.setPlaceholderText(placeholder)
+        self.selection.setPlaceholderText(placeholder)
 
     def apply_request(self, request: RadialRequest) -> None:
         self.reference.setText(request.reference)

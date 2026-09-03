@@ -11,10 +11,9 @@
 
 ## 已完成
 
-- [x] [Feature] Make Index File 完成后自动加载生成的 index。
-- [x] [UI] 将 Simulation Inputs 标题精简为 Inputs。
-- [x] [UI] 统一 GUI 文件路径为系统原生分隔符。
-- [x] [Refactor] 按职责整理并注释 GUI 主窗口函数。
+- [x] [Refactor] 按职责拆分 GUI 分析参数组件。
+- [x] [Refactor] 分离 GUI 系统检查与分析后端动作。
+- [x] [Refactor] 检查 GUI 模块职责边界。
 
 ## 完成标准（每轮代码改动后需重新确认）
 

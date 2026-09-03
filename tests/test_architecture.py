@@ -22,7 +22,14 @@ GUI_ROOT_MODULES = {
     "windows.py",
 }
 GUI_SUBPACKAGES = {"actions", "components", "controllers", "dialogs", "pages"}
-GUI_ACTION_MODULES = {"__init__.py", "analysis.py", "project.py", "results.py", "system.py"}
+GUI_ACTION_MODULES = {
+    "__init__.py",
+    "analysis.py",
+    "backend.py",
+    "project.py",
+    "results.py",
+    "system.py",
+}
 GUI_PAGE_MODULES = {
     "__init__.py",
     "analysis.py",

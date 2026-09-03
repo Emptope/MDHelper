@@ -13,6 +13,7 @@ from mdhelper.core.analysis import AnalysisResult
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.species import SpeciesRoleSuggestion
 from mdhelper.gui.actions.analysis import AnalysisActions
+from mdhelper.gui.actions.backend import BackendActions
 from mdhelper.gui.actions.project import ProjectActions
 from mdhelper.gui.actions.results import ResultActions
 from mdhelper.gui.actions.system import SystemActions
@@ -77,6 +78,13 @@ class MainWindow(QMainWindow):
             self._project_ready,
             self._show_error,
         )
+        self.backend_actions = BackendActions(
+            self,
+            application,
+            self.session,
+            self.analysis,
+            self._show_error,
+        )
         self.analysis_actions = AnalysisActions(
             self,
             application,
@@ -126,7 +134,7 @@ class MainWindow(QMainWindow):
             application.config.gui.theme,
             self._set_theme,
         )
-        self.system_actions.detect_gromacs()
+        self.backend_actions.detect_gromacs()
 
     # System actions
 
@@ -158,7 +166,7 @@ class MainWindow(QMainWindow):
         self.system_actions.inspect(existing_roles, report_error)
 
     def _integration_detected(self, name: str, status: object) -> None:
-        self.system_actions.integration_detected(name, status)
+        self.backend_actions.integration_detected(name, status)
 
     def _make_index_file(self) -> None:
         if not self.application.integrations.is_configured("gromacs"):
@@ -242,7 +250,7 @@ class MainWindow(QMainWindow):
 
     def _integrations(self) -> None:
         IntegrationsDialog(self.application, self).exec()
-        self.system_actions.detect_gromacs()
+        self.backend_actions.detect_gromacs()
 
     def _templates(self) -> None:
         TemplatesDialog(self.application, self).exec()
@@ -300,5 +308,6 @@ class MainWindow(QMainWindow):
             self.analysis_actions.cancel()
         self.analysis_actions.shutdown()
         self.system_actions.shutdown()
+        self.backend_actions.shutdown()
         self.windows.close_all()
         event.accept()

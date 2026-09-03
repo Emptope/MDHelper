@@ -137,7 +137,7 @@ def test_gui_requires_check_for_sampled_gromacs_rdf(
         parameters = window.analysis.parameters
 
         assert choice_enabled(parameters.analysis_backend, "gromacs")
-        parameters.stride.setValue(2)
+        parameters.frames.stride.setValue(2)
         assert not choice_enabled(parameters.analysis_backend, "gromacs")
     finally:
         window.close()
@@ -296,13 +296,13 @@ def test_gui_completes_coordination_on_generic_system(tmp_path: Path) -> None:
         role = window.load.species.table.cellWidget(row, 2)
         assert isinstance(role, QComboBox)
         role.setCurrentText("other")
-    window.analysis.parameters.stop.setText("1")
+    window.analysis.parameters.frames.stop.setText("1")
 
     window.analysis.parameters.analysis_choice.setCurrentText("Cumulative Coordination Number (CN)")
-    window.analysis.parameters.cn_reference.setText("resname REF")
-    window.analysis.parameters.cn_selection.setText("resname LIGA")
-    window.analysis.parameters.cn_max.setValue(0.5)
-    window.analysis.parameters.cn_bin_width.setValue(0.05)
+    window.analysis.parameters.cn.reference.setText("resname REF")
+    window.analysis.parameters.cn.selection.setText("resname LIGA")
+    window.analysis.parameters.cn.r_max.setValue(0.5)
+    window.analysis.parameters.cn.bin_width.setValue(0.05)
     window._run()
     deadline = time.monotonic() + 10
     while window.job_controller.current is not None and time.monotonic() < deadline:
@@ -445,22 +445,22 @@ def test_gui_derives_selection_inputs_from_index_file() -> None:
     parameters = window.analysis.parameters
     assert window.load.inputs.index_value() is None
     assert not hasattr(window.load.inputs, "selection_source")
-    assert parameters.rdf_reference.currentWidget() is parameters.rdf_reference.expression
-    assert parameters.rdf_selection.currentWidget() is parameters.rdf_selection.expression
-    assert not parameters.rdf_inputs.hint_button.isHidden()
+    assert parameters.rdf.reference.currentWidget() is parameters.rdf.reference.expression
+    assert parameters.rdf.selection.currentWidget() is parameters.rdf.selection.expression
+    assert not parameters.rdf.inputs.hint_button.isHidden()
 
     window.load.inputs.index_file.edit.setText("missing.ndx")
     assert window.load.common({}, object(), require_selections=False)["index_file"] == "missing.ndx"
-    assert parameters.rdf_reference.currentWidget() is parameters.rdf_reference.group
-    assert parameters.rdf_reference.group.count() == 1
-    assert parameters.rdf_reference.group.currentData() is None
-    assert not parameters.rdf_reference.group.isEnabled()
-    assert parameters.rdf_inputs.hint_button.isHidden()
+    assert parameters.rdf.reference.currentWidget() is parameters.rdf.reference.group
+    assert parameters.rdf.reference.group.count() == 1
+    assert parameters.rdf.reference.group.currentData() is None
+    assert not parameters.rdf.reference.group.isEnabled()
+    assert parameters.rdf.inputs.hint_button.isHidden()
 
     window.load.inputs.index_file.edit.clear()
     assert window.load.common({}, object(), require_selections=False)["index_file"] is None
-    assert parameters.rdf_reference.currentWidget() is parameters.rdf_reference.expression
-    assert not parameters.rdf_inputs.hint_button.isHidden()
+    assert parameters.rdf.reference.currentWidget() is parameters.rdf.reference.expression
+    assert not parameters.rdf.inputs.hint_button.isHidden()
     window.job_controller.shutdown()
     window.close()
 

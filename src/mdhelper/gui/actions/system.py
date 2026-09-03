@@ -1,4 +1,4 @@
-"""Loaded-system and integration actions for the desktop GUI."""
+"""Loaded-system actions for the desktop GUI."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox
 from mdhelper.app import ApplicationService
 from mdhelper.core.analysis import AnalysisRequest
 from mdhelper.core.species import SpeciesRoleSuggestion, role_decision
-from mdhelper.gui.controllers.integration_detection import IntegrationDetectionController
 from mdhelper.gui.controllers.session import ProjectSession
 from mdhelper.gui.controllers.system_state import InspectionState
 from mdhelper.gui.dialogs.selection import SelectionHintDialog
@@ -45,8 +44,6 @@ class SystemActions:
         self.state = InspectionState()
         self.applying_roles = False
         self.suspend_auto_inspect = False
-        self.gromacs_detected = False
-        self.gromacs_capabilities: frozenset[str] = frozenset()
         self.timer = QTimer(parent)
         self.timer.setSingleShot(True)
         self.timer.setInterval(250)
@@ -57,8 +54,6 @@ class SystemActions:
         self.index_path: Path | None = None
         self.index_stamp: tuple[int, int] | None = None
         self.index_candidate: tuple[int, int] | None = None
-        self.detection = IntegrationDetectionController(application, parent)
-
         load.inputs.system_changed.connect(self.system_input_changed)
         load.inputs.index_changed.connect(self.index_input_changed)
         load.species.suggestions_requested.connect(self.apply_role_suggestions)
@@ -68,13 +63,6 @@ class SystemActions:
         load.species.role_edited.connect(self.role_edited)
         load.selection_inputs_changed.connect(analysis.parameters.set_selection_groups)
         analysis.selection_hint_requested.connect(self.show_selection_hint)
-        analysis.parameters.energy_terms_requested.connect(self.load_energy_terms)
-        analysis.parameters.analysis_backend_changed.connect(self.backend_changed)
-        analysis.parameters.backend_requirements_changed.connect(
-            self.sync_gromacs_availability
-        )
-        self.detection.completed.connect(self.integration_detected)
-        self.detection.failed.connect(self.integration_detection_failed)
 
     @property
     def role_suggestions(self) -> dict[str, SpeciesRoleSuggestion]:
@@ -91,78 +79,6 @@ class SystemActions:
     @role_provenance.setter
     def role_provenance(self, provenance: dict[str, Any]) -> None:
         self.state.provenance = dict(provenance)
-
-    def load_energy_terms(self, path: str) -> None:
-        backend = self.analysis.parameters.analysis_backend_value()
-        self.parent.statusBar().showMessage("Reading energy terms...")
-        try:
-            terms = self.application.analyses.energy_terms(
-                path,
-                backend,
-                cache_dir=(
-                    None
-                    if self.session.project is None
-                    else self.session.project.cache_dir
-                ),
-            )
-            self.analysis.parameters.set_energy_terms(path, terms)
-        except Exception as exc:
-            self.show_error(exc)
-            return
-        self.parent.statusBar().showMessage(f"Loaded {len(terms)} energy terms", 10000)
-
-    def backend_changed(self) -> None:
-        parameters = self.analysis.parameters
-        path = parameters.energy_file.edit.text().strip()
-        parameters.set_energy_terms("", ())
-        if Path(path).expanduser().is_file():
-            self.load_energy_terms(path)
-
-    def detect_gromacs(self) -> None:
-        configured = self.application.integrations.is_configured("gromacs")
-        self.analysis.parameters.set_gromacs_configured(configured)
-        if not configured:
-            self.gromacs_detected = False
-            self.gromacs_capabilities = frozenset()
-            self.analysis.parameters.set_gromacs_available(False)
-            return
-        self.analysis.parameters.set_gromacs_pending()
-        self.detection.submit("gromacs")
-
-    def integration_detected(self, name: str, status: object) -> None:
-        if name != "gromacs":
-            return
-        capabilities = getattr(status, "capabilities", ())
-        self.gromacs_detected = bool(getattr(status, "available", False))
-        self.gromacs_capabilities = frozenset(
-            str(capability) for capability in capabilities
-        )
-        self.sync_gromacs_availability()
-
-    def integration_detection_failed(self, name: str, _error: object) -> None:
-        if name != "gromacs":
-            return
-        self.gromacs_detected = False
-        self.gromacs_capabilities = frozenset()
-        self.sync_gromacs_availability()
-
-    def sync_gromacs_availability(self) -> None:
-        parameters = self.analysis.parameters
-        analysis_type = parameters.analysis_type_value()
-        try:
-            frames = None if analysis_type == "energy" else parameters.frame_range()
-        except ValueError:
-            parameters.set_gromacs_available(False)
-            return
-        required = self.application.analyses.backend_capabilities(
-            "gromacs",
-            analysis_type,
-            frames,
-        )
-        parameters.set_gromacs_available(
-            self.gromacs_detected
-            and set(required).issubset(self.gromacs_capabilities)
-        )
 
     def system_input_changed(self) -> None:
         if self.suspend_auto_inspect:
@@ -406,4 +322,3 @@ class SystemActions:
     def shutdown(self) -> None:
         self.timer.stop()
         self.cancel_index_watch()
-        self.detection.shutdown()
