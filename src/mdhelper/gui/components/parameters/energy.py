@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QFormLayout, QWidget
@@ -32,7 +33,7 @@ class EnergyParameters(QWidget):
         form.addRow(self.queue)
 
     def path(self) -> str:
-        return self.file.edit.text().strip()
+        return cast(str, self.file.edit.text()).strip()
 
     def request(self, backend: EnergyBackend) -> EnergyRequest:
         request = EnergyRequest(

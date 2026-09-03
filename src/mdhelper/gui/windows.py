@@ -96,7 +96,7 @@ class WindowManager:
     def _create_window(self, kind: type[WindowType]) -> WindowType:
         window = kind(self._owner)
         window.setWindowModality(Qt.WindowModality.NonModal)
-        return window
+        return cast(WindowType, window)
 
 
 def show_notice(

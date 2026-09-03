@@ -11,6 +11,8 @@
 
 ## 已完成
 
+- [Fix] Repair Linux GitHub Actions validation dependencies.
+
 ## 完成标准（每轮代码改动后需重新确认）
 
 - Ruff 和 mypy 通过。
