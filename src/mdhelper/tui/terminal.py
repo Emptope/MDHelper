@@ -34,15 +34,26 @@ class Terminal:
         self.output.write(f"{text}\n")
         self.output.flush()
 
-    def heading(self, title: str, width: int = _CONTENT_WIDTH) -> None:
+    def heading(
+        self,
+        title: str,
+        width: int = _CONTENT_WIDTH,
+        *,
+        blank_before: bool = False,
+    ) -> None:
+        if blank_before:
+            self.write()
         self.write(f"*** {title} ***".center(width).rstrip())
 
     def panel(self, lines: Sequence[str], width: int = _CONTENT_WIDTH) -> None:
         inner_width = max(width - 2, max((len(line) for line in lines), default=0))
         border = f"+{'-' * inner_width}+"
+        padding = f"|{' ' * inner_width}|"
         self.write(border)
+        self.write(padding)
         for line in lines:
             self.write(f"|{line.center(inner_width)}|")
+        self.write(padding)
         self.write(border)
 
     def _write_grid(self, items: Sequence[str], width: int = _CONTENT_WIDTH) -> None:
@@ -61,8 +72,12 @@ class Terminal:
         default: str | None = None,
         *,
         allow_empty: bool = False,
+        blank_before: bool = False,
+        blank_after: bool = True,
     ) -> str:
         suffix = f" [{default}]" if default is not None else ""
+        if blank_before:
+            self.write()
         while True:
             label = f"{prompt}{suffix}: " if prompt else f">{suffix} "
             self.output.write(label)
@@ -70,9 +85,10 @@ class Terminal:
             line = self.input.readline()
             if line == "":
                 raise EndOfInput("The terminal input stream was closed.")
-            # Terminal echo already ends the entered line. Writing one more newline keeps the
-            # next status block visually separate and also terminates prompts for piped input.
-            self.write()
+            # Terminal echo ends an interactive input line. Piped input still needs an
+            # explicit line ending so subsequent output does not join the prompt.
+            if blank_after or not self.interactive:
+                self.write()
             value = line.strip()
             if value:
                 return value

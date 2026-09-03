@@ -115,7 +115,7 @@ class AnalysisExecutionController(ControllerContext):
                         result,
                     )
                 )
-        self.terminal.heading("Analysis completed")
+        self.terminal.heading("Analysis completed", blank_before=True)
         for result in results:
             self.terminal.write(result_text(result))
         self.terminal.write()

@@ -196,7 +196,7 @@ class WorkspaceController(ControllerContext):
                 "The system has not been inspected.", "Inspect the current inputs first."
             )
         while True:
-            self.terminal.heading("Species roles")
+            self.terminal.heading("Species and roles", blank_before=True)
             self.terminal.write(roles_text(self.workspace))
             choice = self.terminal.menu(
                 "Role actions",
@@ -253,7 +253,7 @@ class WorkspaceController(ControllerContext):
         self.terminal.write("Suggestions to apply:")
         for species, suggestion in suggestions.items():
             self.terminal.write(f"  {species}: {suggestion.suggested_role}")
-        if not self.terminal.confirm("Apply these suggestions?"):
+        if not self.terminal.confirm("Apply these suggestions?", default=True):
             return
         for species, suggestion in suggestions.items():
             assert suggestion.suggested_role is not None

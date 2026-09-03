@@ -12,7 +12,14 @@ from mdhelper.tui.model import AnalysisDraft
 
 
 class AnalysisParameterController(AnalysisExecutionController):
-    def _selection(self, title: str, current: str = "") -> str:
+    def _selection(
+        self,
+        title: str,
+        current: str = "",
+        *,
+        blank_before: bool = False,
+        blank_after: bool = True,
+    ) -> str:
         summary = self.workspace.summary
         if self.workspace.index_file:
             if summary is None or not summary.index_groups:
@@ -26,10 +33,20 @@ class AnalysisParameterController(AnalysisExecutionController):
             )
             default = current if current in summary.index_groups else None
             return self.terminal.choose(title, options, default)
-        return self.terminal.ask(title, current or None)
+        return self.terminal.ask(
+            title,
+            current or None,
+            blank_before=blank_before,
+            blank_after=blank_after,
+        )
 
     def _edit_selections(self, draft: AnalysisDraft) -> None:
-        draft.reference = self._selection("Reference", draft.reference)
+        draft.reference = self._selection(
+            "Reference",
+            draft.reference,
+            blank_before=True,
+            blank_after=False,
+        )
         draft.selection = self._selection("Selection", draft.selection)
 
     def _edit_sampling(self, draft: AnalysisDraft) -> None:

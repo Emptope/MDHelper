@@ -29,9 +29,11 @@ def summary_text(summary: SystemSummary) -> str:
         f"Trajectory: {summary.trajectory}",
         f"Backend:    {summary.backend}",
         f"Size:       {summary.n_atoms} atoms, {frames} frames",
+        "",
         "Species:",
     ]
     lines.extend(f"  {name}: {count} molecule(s)" for name, count in summary.species.items())
+    lines.append("")
     if summary.system_charge_e is not None:
         lines.append(f"System charge: {summary.system_charge_e:.12g} e")
         if summary.has_net_charge:
@@ -44,17 +46,32 @@ def summary_text(summary: SystemSummary) -> str:
 def roles_text(workspace: Workspace) -> str:
     if workspace.summary is None:
         return "The system has not been inspected."
-    lines = [
-        "Roles describe project metadata and chemical context; they do not change selections.",
-        f"{'Species':<24} {'Numbers':>9}  {'Role':<14} Suggestion",
-    ]
+    headers = ("Species", "Numbers", "Role", "Suggestion")
+    rows: list[tuple[str, str, str, str]] = []
     for species, count in workspace.summary.species.items():
         suggestion = workspace.summary.role_suggestions[species]
         suggested = suggestion.suggested_role or "unavailable"
-        lines.append(
-            f"{species[:23]:<24} {count:>9}  {workspace.roles.get(species, 'not set'):<14}"
-            f" {suggested}"
+        rows.append(
+            (
+                species,
+                str(count),
+                workspace.roles.get(species, "not set"),
+                suggested,
+            )
         )
+    widths = tuple(
+        max((len(header), *(len(row[index]) for row in rows)))
+        for index, header in enumerate(headers)
+    )
+    lines = [
+        f"{headers[0]:<{widths[0]}}  {headers[1]:>{widths[1]}}  "
+        f"{headers[2]:<{widths[2]}}  {headers[3]}"
+    ]
+    lines.extend(
+        f"{species:<{widths[0]}}  {count:>{widths[1]}}  "
+        f"{role:<{widths[2]}}  {suggestion}"
+        for species, count, role, suggestion in rows
+    )
     return "\n".join(lines)
 
 

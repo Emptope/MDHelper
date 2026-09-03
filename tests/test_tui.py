@@ -15,6 +15,7 @@ from mdhelper.core.system import FrameRange, SystemSummary
 from mdhelper.gui.main import tui_command
 from mdhelper.services.config import UserConfig
 from mdhelper.tui.controller import Tui
+from mdhelper.tui.formatting import summary_text
 from mdhelper.tui.model import AnalysisDraft, RadialTask, Workspace
 from mdhelper.tui.terminal import Terminal
 
@@ -414,6 +415,89 @@ def test_tui_default_export_directory_follows_selected_trajectory(tmp_path: Path
     assert workspace.rdf_cn() is not workspace.draft("rdf")
 
 
+def test_tui_selection_fields_form_a_compact_prompt_block() -> None:
+    class TtyOutput(StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    class EchoInput(StringIO):
+        def __init__(self, value: str, output: StringIO):
+            super().__init__(value)
+            self.output = output
+
+        def isatty(self) -> bool:
+            return True
+
+        def readline(self, size: int = -1) -> str:
+            line = super().readline(size)
+            self.output.write(line)
+            return line
+
+    values = ("first group", "second group")
+    output = TtyOutput()
+    terminal = Terminal(EchoInput("\n".join(values) + "\n", output), output)
+    tui = Tui(ApplicationService(UserConfig()), terminal)
+    draft = AnalysisDraft("rdf")
+
+    try:
+        tui._edit_selections(draft)
+    finally:
+        tui.job_runner.shutdown()
+
+    lines = output.getvalue().splitlines()
+    assert lines[0] == ""
+    assert all(lines[index] for index in (1, 2))
+    assert lines[3] == ""
+    assert (draft.reference, draft.selection) == values
+
+
+def test_terminal_heading_can_start_a_separate_block() -> None:
+    title = "Section"
+    output = StringIO()
+
+    Terminal(StringIO(), output).heading(title, blank_before=True)
+
+    lines = output.getvalue().splitlines()
+    assert lines[0] == ""
+    assert title in lines[1]
+
+
+def test_terminal_panel_pads_content_vertically() -> None:
+    output = StringIO()
+
+    Terminal(StringIO(), output).panel(("first", "second"))
+
+    lines = output.getvalue().splitlines()
+    assert lines[1].strip("|") == " " * (len(lines[1]) - 2)
+    assert lines[-2] == lines[1]
+    assert all(
+        value in line
+        for value, line in zip(("first", "second"), lines[2:4], strict=True)
+    )
+
+
+def test_tui_summary_separates_the_species_section() -> None:
+    species = "SOL"
+    suggestion = SpeciesRoleSuggestion("solvent", "test", {})
+    summary = SystemSummary(
+        topology="topology.gro",
+        trajectory="trajectory.xtc",
+        n_atoms=1,
+        n_frames=1,
+        species={species: 1},
+        atom_names={"OW": 1},
+        backend="mdanalysis",
+        role_suggestions={species: suggestion},
+        system_charge_e=0.0,
+    )
+
+    lines = summary_text(summary).splitlines()
+    item = next(index for index, line in enumerate(lines) if line.startswith(f"  {species}:"))
+
+    assert lines[item - 2] == ""
+    assert lines[item + 1] == ""
+
+
 def test_tui_role_suggestion_batch_hides_internal_method() -> None:
     method = "internal evidence source"
     suggestion = SpeciesRoleSuggestion(
@@ -448,6 +532,33 @@ def test_tui_role_suggestion_batch_hides_internal_method() -> None:
     assert suggestion.suggested_role in rendered
     assert suggestion.method not in rendered
     assert tui.workspace.roles == {}
+
+
+def test_tui_role_suggestion_batch_applies_by_default() -> None:
+    species = "SOL"
+    role = "solvent"
+    suggestion = SpeciesRoleSuggestion(role, "test", {})
+    tui = Tui(
+        ApplicationService(UserConfig()),
+        Terminal(StringIO("\n"), StringIO()),
+    )
+    tui.workspace.summary = SystemSummary(
+        topology="topology.gro",
+        trajectory="trajectory.xtc",
+        n_atoms=1,
+        n_frames=1,
+        species={species: 1},
+        atom_names={"OW": 1},
+        backend="mdanalysis",
+        role_suggestions={species: suggestion},
+    )
+
+    try:
+        tui._apply_role_suggestions()
+    finally:
+        tui.job_runner.shutdown()
+
+    assert tui.workspace.roles == {species: role}
 
 
 def test_tui_analysis_setup_queues_initial_radial_selection(monkeypatch) -> None:
