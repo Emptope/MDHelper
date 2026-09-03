@@ -2,34 +2,15 @@
 
 [English](KNOWN_LIMITATIONS.md) | [Simplified Chinese](KNOWN_LIMITATIONS.zh-CN.md)
 
-- RDF method 1.0.0 is defined for static atom selections in three-dimensional periodic
-  bulk systems. It does not implement center-of-mass, slab, orientational, dynamic-selection,
-  intermolecular-only, or site-exclusion RDF variants.
-- Base RDF and cumulative RDF results are deterministic values over the selected frames. MDHelper
-  0.1.0 does not estimate equilibration, autocorrelation time, statistical inefficiency,
-  convergence, uncertainty, or effective sample size. Statistical analysis will require a
-  separate, explicitly enabled workflow with auditable time series and convergence checks.
-- First-minimum detection is an explainable diagnostic. It can be unavailable or low-confidence.
-  Cumulative RDF reports the running value at that boundary for review, but the diagnostic does
-  not alter the cumulative curve.
-- Species roles are suggestions rather than chemical perception. Net-charge sign is used only
-  when complete topology charges exist; neutral population dominance is low-confidence, and all
-  roles require confirmation.
-- Input identity is static: coordinate-dependent MDAnalysis selections are rejected.
-- In-process trajectory-format support depends on the bundled MDAnalysis version; a newer TPR may
-  require a compatible GRO/PDB topology snapshot. TNG is a GROMACS trajectory format but is not
-  supported in MDHelper 0.1.0 because
-  the current MDAnalysis/PyTNG reader does not reliably read valid GROMACS TNG output.
-- GROMACS is optional. Auto can select a detected complete GROMACS pipeline after earlier complete
-  candidates cannot load the input. Explicit `gromacs` RDF/cumulative RDF uses the installed
-  `gmx trjconv` and
-  `gmx rdf`, so numerical behavior can depend on that GROMACS version. Executable compatibility
-  remains the user's responsibility after version/capability detection.
-- Windows and Linux portable-archive smoke tests must pass in their release workflows. Their
-  workflow definitions are not evidence of a successful target run.
-- The bounded electrolyte regression dataset and hand-checkable generic system cover the
-  release analyses. A second independently sourced production MD trajectory is still desired
-  as additional validation evidence.
+- RDF supports static atom selections in three-dimensional periodic bulk systems. It excludes
+  center-of-mass, slab, orientational, dynamic, intermolecular-only, and site-exclusion variants.
+- RDF methods do not estimate equilibration, autocorrelation, convergence, uncertainty, or
+  effective sample size.
+- First-shell detection can be unavailable or low-confidence and never changes a curve.
+- Species roles require confirmation and do not perform chemical perception.
+- In-process format support follows the bundled MDAnalysis version. TNG is unsupported in 0.1.0.
+- GROMACS is optional. Its version can affect external-backend results after capability detection.
+- Release workflow definitions do not prove that target-platform smoke tests passed.
+- Current validation lacks a second independently sourced production trajectory.
 
-Observable-specific validation tolerances are published in the version-matched method and
-validation documents under `docs/methods/` and `docs/validation/`.
+Method-specific scope and checks are in [methods](methods/README.md) and [validation](validation/).

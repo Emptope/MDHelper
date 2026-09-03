@@ -11,6 +11,7 @@
 
 ## 已完成
 
+- [x] [Docs] Condense engineer-facing documentation while preserving contracts.
 - [x] [Refactor] Enforce acyclic package boundaries and separate contracts from infrastructure.
 
 ## 完成标准（每轮代码改动后需重新确认）

@@ -1,129 +1,71 @@
-# MDHelper 0.1.0 algorithm specification
+# MDHelper algorithm specification
 
 [English](ALGORITHM.md) | [Simplified Chinese](ALGORITHM.zh-CN.md)
 
-This document describes the numerical and deterministic engineering algorithms implemented by
-MDHelper 0.1.0. Package responsibilities are defined in [Architecture](ARCHITECTURE.md), released
-method definitions in [methods](methods/README.md), and validation tolerances in
-[validation](validation/).
+This document defines implemented engineering behavior for MDHelper 0.1.0. The versioned
+[method documents](methods/README.md) are normative for scientific quantities and formulas.
 
-Only implemented behavior is described. MDHelper does not infer an RDF cutoff, evaluate dynamic
-selections, estimate statistical uncertainty, or cache analysis results.
+## Conventions
 
-## 1. Conventions
+- Stored distance uses nm, time uses ps, and volume uses nm^3. Plots convert radial distance to
+  angstrom.
+- Backend adapters convert coordinates and boxes once. Core frames use NumPy `float64` arrays.
+- Frame ranges use zero-based Python slicing: inclusive `start`, exclusive `stop`, and stride
+  relative to `start`. `stop = null` means the trajectory end.
+- Selections resolve once to ordered, zero-based atom indices.
+- Coordinates are not unwrapped, reconstructed, aligned, or fitted.
+- `FrameAudit` records processed frame indices, times, and count.
 
-- Internal distance and coordinates use nm; time uses ps and volume uses nm^3.
-- MDAnalysis coordinates and box vectors are divided by 10 to enter the internal nm contract.
-- Core frames store coordinates as `float64` NumPy arrays. Readers perform format and unit
-  conversion once at the backend boundary.
-- Radial plots convert nm to angstrom; persisted arrays remain in nm.
-- A frame range is zero-based and follows Python slicing: `start` is inclusive, `stop` is
-  exclusive, and `stop = null` means the end of the trajectory. `stride` is measured in frames
-  and is relative to `start`. An explicit `stop` must not exceed the known trajectory frame count.
-  If a range contains multiple available frames, a stride that would retain only one is rejected;
-  an intentional one-frame range remains valid.
-- In-process selections are resolved once to fixed, ordered, zero-based atom-index tuples.
-- Coordinates are not unwrapped, reconstructed, aligned, or fitted. Every pair uses the current
-  frame's triclinic minimum image.
-
-The following notation is used for radial calculations:
-
-- `F`: number of frames actually processed;
-- `R`: reference indices, with size `N_R`;
-- `S`: selection indices, with size `N_S`;
-- `O = |R intersect S|`: number of overlapping indices;
-- `H_f`: the frame box matrix with box vectors stored as rows;
-- `V_f = |det(H_f)|`: frame volume;
-- `r_max`: requested maximum radial distance;
-- `d_req`: requested maximum bin width.
-
-`FrameAudit` records the actual first/last frame indices and times as well as `F`.
-
-## 2. Complete backend dispatch
-
-An explicit analysis backend resolves to one complete strategy:
+## Backend dispatch
 
 ```text
-mdanalysis -> MDAnalysis reader + MDAnalysis selection/frame/distance or Energy
-gromacs    -> GROMACS input processing + GROMACS selection + RDF/cumulative RDF or Energy
+mdanalysis -> MDAnalysis loading + selection + frame handling + calculation
+gromacs    -> GROMACS input + selection + frame handling + calculation
 ```
 
-Auto orders available complete strategies. Radial and Energy requests consider MDAnalysis before
-GROMACS when the required GROMACS capability is available. GROMACS frame subsets additionally
-require `trjconv` and `check`. A source-loading error may advance to the next complete strategy.
-Explicit requests do not fall back, and one attempt never combines components from different
-backends. Independent system inspection uses the MDAnalysis reader. Provenance records the resolved
-complete analysis backend.
+`auto` tries eligible complete backends in registry order. MDAnalysis precedes GROMACS. GROMACS
+frame subsets also require `trjconv` and `check`. A loading failure may advance to the next complete
+backend. Explicit selection does not fall back. Provenance records requested and resolved values.
 
-The two implementations are isolated in `analysis/mdanalysis/` and `analysis/gromacs/`, with their
-input adapters grouped under matching directories in `backends/`.
+The MDAnalysis adapter creates one Universe, preserves atom order, converts angstrom to nm, and
+maps molecules to `segid:residue_name:residue_id`. Missing finite charges remain null. Missing
+elements use an atom-name fallback without chemical inference.
 
-The MDAnalysis adapter creates one Universe, preserves its atom order, converts positions and
-triclinic dimensions from angstrom to nm, and maps each molecule to
-`segid:residue_name:residue_id`. Missing finite charges remain null. Missing elements use a small,
-format-independent atom-name fallback; this is not chemical perception.
+## Selection
 
-## 3. Selection resolution
+MDAnalysis uses `NdxSelectionEngine` when an index file exists and otherwise uses a static
+MDAnalysis expression. Injected engines cannot be combined with an index file. GROMACS quotes NDX
+groups and otherwise passes native expressions to `gmx rdf`.
 
-MDAnalysis selection dispatch is:
+NDX parsing preserves order, converts one-based numbers to zero-based indices, and rejects missing
+headers, duplicate groups or atoms, empty selected groups, invalid tokens, and out-of-range values.
+Group names are exact and case-sensitive.
 
-```text
-injected engine + index file -> error
-MDAnalysis + index file      -> NdxSelectionEngine
-MDAnalysis without index     -> MDAnalysisSelectionEngine
-injected engine              -> that engine
-```
+MDAnalysis rejects coordinate-dependent expressions including `around`, `sphzone`, `sphlayer`,
+`isolayer`, `cyzone`, `cylayer`, `point`, `prop`, and `same x/y/z as`.
 
-GROMACS RDF/cumulative RDF quotes an NDX group as
-`group "name"`; without NDX it passes the request value directly as a GROMACS selection expression.
+In-process selection records contain the source, count, ordered-index SHA-256, atom and residue
+names, language, and parser version. NDX records also contain the path and file hash. GROMACS
+records the native expression or group and command.
 
-NDX parsing preserves group and atom order, converts one-based atom numbers to zero-based indices,
-and rejects missing headers, duplicate groups, duplicate atoms, empty selected groups, non-integer
-tokens, and out-of-range indices. Group names are exact and case-sensitive.
+## Periodic geometry and radial grid
 
-The MDAnalysis route supports topology-stable expressions. It rejects coordinate-dependent tokens
-such as `around`, `sphzone`, `sphlayer`, `isolayer`, `cyzone`, `cylayer`, `point`, `prop`, and
-`same x/y/z as`. The remaining expression is evaluated against a lightweight topology-only
-Universe.
-
-Every in-process resolution record contains the original expression or group, count, an
-order-sensitive SHA-256 of the index sequence, sorted atom/residue names, language and parser
-version, and, for NDX, the index path and file SHA-256. Direct GROMACS resolution records contain
-the native expression or group; the Integration command owns selection parsing and validation.
-
-## 4. Periodic geometry and pair iteration
-
-For row box vectors `a`, `b`, and `c`:
+For a box matrix `H` with row vectors `a`, `b`, and `c`:
 
 ```text
 V = abs(a dot (b cross c))
-```
-
-The volume must be finite and greater than `1e-12 nm^3`. For a triclinic box, the reliable radial
-limit is half the shortest cell height:
-
-```text
 G = inverse(H)
 h_i = 1 / norm(G[:, i])
 r_limit = min(h_0, h_1, h_2) / 2
 ```
 
-Every processed frame must satisfy
-`r <= r_limit + max(1e-12, r_limit * 1e-10)`.
+Volume must be finite and greater than `1e-12 nm^3`. Each frame requires
+`r_max <= r_limit + max(1e-12, r_limit * 1e-10)`.
 
-The in-process route converts the row box vectors to MDAnalysis triclinic dimensions and calls
-`capped_distance` for periodic minimum-image distances. A pair is retained when its two topology
-atom indices differ and its distance is no greater than the cutoff. Distinct atoms at identical
-coordinates remain valid pairs. Neighbor-search method selection and temporary pair storage are
-owned by the bundled MDAnalysis version.
+The in-process path uses MDAnalysis `capped_distance` with triclinic minimum-image distances. It
+excludes pairs with the same topology index and retains distances at the cutoff.
 
-The RDF/cumulative-RDF neighbor-search cutoff is exactly the request's user- or template-supplied
-`r_max`. Search indexing does not infer, reduce, or otherwise adjust this cutoff.
-
-## 5. In-process radial grid
-
-The in-process grid reproduces the half-width histogram and resampling used by `gmx rdf`. For
-requested width `d`:
+For requested width `d`:
 
 ```text
 Q = max(1, round(2 * r_max / d))
@@ -132,191 +74,110 @@ B_cumulative = floor(Q / 2)
 h = d / 2
 ```
 
-`Q` is the number of fine bins of width `h`. RDF sample `k` is reported at `k*d`. Its first shell
-is `[0, d/2)`; later shells are `[(k-1/2)d, (k+1/2)d)`. The shell volume is
+RDF radii are `k*d`; cumulative radii are `(k+1)*d`. An unmatched final fine bin is omitted. The
+requested width is not adjusted to end at `r_max`. Radii are rounded to 15 decimal places. RDF may
+not exceed 1,000,000 samples.
 
-```text
-dV_0 = (4 * pi / 3) * (d/2)^3
-dV_k = (4 * pi / 3) * ((k+1/2)^3 - (k-1/2)^3) * d^3, k > 0
-```
+## In-process radial calculations
 
-Cumulative-RDF sample `k` is reported at `(k+1)*d` and combines fine bins `2k` and `2k+1`. A final
-unmatched fine bin is omitted by the relevant resampling, just as in GROMACS. The requested width
-is not adjusted to make the final sample land on `r_max`. Reported radii are rounded to 15 decimal
-places for stable serialization, and the RDF sample count may not exceed 1,000,000.
+For reference size `N_R`, selection size `N_S`, overlap `O`, and processed frames `F`, the possible
+non-self pair count per frame is `N_R * N_S - O` and must be positive. Pair exclusions do not
+change the RDF normalization denominator.
 
-## 6. In-process radial distribution function
-
-RDF uses ordered reference-selection pairs. The possible non-self pair count per frame is
-
-```text
-N_pair = N_R * N_S - O
-```
-
-and must be positive. This count is a validity check and diagnostic; following GROMACS, exclusions
-do not reduce the RDF normalization from `N_R*N_S` to `N_pair`. For each selected frame, MDHelper
-validates `r_max` and accumulates the fine pair histogram. Fine bins are then resampled into RDF
-counts `H_(f,k)`. Define
+Let `H_(f,k)` be a resampled frame count and `dV_k` its shell volume:
 
 ```text
 D_S = sum_f (N_S / V_f)
+g_k = sum_f H_(f,k) / (N_R * dV_k * D_S)
+
+N_ref_obs = F * N_R
+cumulative_number[k] = sum_(j=0..k) H_j / N_ref_obs
 ```
 
-The final curve is
+RDF stores `radius_nm,g_r`. Cumulative RDF stores `radius_nm,cumulative_number`. The cumulative
+curve counts selected atoms per reference atom; it does not convert contacts to molecule counts.
+
+## GROMACS radial calculations
+
+The default frame range passes original inputs to one `gmx rdf` call. RDF uses `-o`; cumulative RDF
+adds `-cn` and retains RDF output for shell diagnostics. Non-default ranges use `gmx check` for the
+frame count and one `gmx trjconv -fr` call for an exact XTC subset. The original topology remains
+the `-s` input. `-dt` is not used because its sampling origin differs from Python slicing.
+
+`bin_width_nm` and `r_max_nm` map to `-bin` and `-rmax`. GROMACS owns pair selection, PBC, endpoints,
+normalization, and cumulative integration. MDHelper accepts finite two-column XVG with increasing
+radii, maps it to the result contract, and records all commands. It does not recompute the curve.
+
+## Diagnostics and suggestions
+
+First-shell detection consumes a completed RDF without changing it. It requires 11 points, uses a
+Savitzky-Golay window of at most 11, then finds the first eligible peak and following minimum.
 
 ```text
-H_k = sum_f H_(f,k)
-g_k = H_k / (N_R * dV_k * D_S)
+peak prominence floor = max(0.05, 0.05 * max(smoothed_rdf))
+minimum prominence floor = max(0.02, peak_floor / 2)
 ```
 
-This is algebraically the GROMACS sequence of averaging raw frame counts, dividing by the average
-number of reference positions, shell volume, and average selection number density. The persisted
-arrays are `radius_nm` and `g_r`.
+Peak-to-minimum contrast gives high confidence at `>= 0.5`, medium at `>= 0.2`, and low otherwise.
+Every available boundary requires user confirmation. Missing or low-confidence results add a
+warning and do not change `r_max` or another result.
 
-## 7. In-process cumulative RDF
+Species are grouped by residue name and molecule ID. Complete molecular charges above `+0.25 e`
+suggest cation; values below `-0.25 e` suggest anion. A unique most-populous neutral species gets a
+low-confidence solvent suggestion. Missing, mixed, or tied evidence remains unavailable. Roles do
+not change selections or parameters.
 
-The GROMACS-style cumulative number RDF resamples the same fine pair histogram into width-`d`
-intervals `[k*d, (k+1)*d)` without the RDF ideal-gas normalization. With
-`N_ref_obs = F * N_R`:
-
-```text
-cumulative_number[k] = (sum_(j=0..k) H_j) / N_ref_obs
-```
-
-`cumulative_number[k]` is reported at radius `(k+1)*d` and is the mean number of selection
-particles inside that upper edge around one reference particle. This is the discrete form
-corresponding to
-
-```text
-cumulative_number(r) =
-    4 * pi * rho_selection * integral_0^r g_ref,selection(r') * r'^2 dr'
-```
-
-The result field is `cumulative_number`; the analysis identifier is `cumulative_rdf`. Following
-GROMACS, the UI calls the curve **Cumulative Number RDF**, uses **Cumulative RDF** as its plotted
-quantity, and labels its Y axis **number**. A single value evaluated at a shell boundary is a
-first-shell `coordination_number` diagnostic, not the name of the complete distance-dependent
-array.
-
-### GROMACS RDF/cumulative-RDF backend
-
-An explicit `gromacs` request does not use the formulas above as its curve source. The default
-`0:end:1` range invokes `gmx rdf` once, passing the selected topology and trajectory directly. RDF
-requests use `-o` only; cumulative RDF requests add `-cn` and retain the RDF output for the shared
-first-shell diagnostic. A non-default Python range is written as an exact XTC subset by translating
-its zero-based frame indices to the one-based NDX entries accepted by one `gmx trjconv -fr`
-command. The original topology remains the `gmx rdf -s` input. Every non-default range first obtains
-the frame count with `gmx check`; this validates an explicit stop without expanding the complete
-trajectory into another coordinate format. GROMACS `-dt` is not used because it samples an absolute
-time grid rather than a stride relative to `start`.
-
-The request's `bin_width_nm` and `r_max_nm` are passed as `-bin` and `-rmax`. GROMACS owns pair
-selection, PBC, grid endpoints, RDF normalization, and cumulative integration on this branch.
-MDHelper requires finite two-column XVG data with strictly increasing radii, maps it to `radius_nm`
-plus `g_r` or `cumulative_number`, applies the common first-shell diagnostic, and
-records every metadata inspection, conversion, and `rdf` Integration run. It does not recompute or
-replace either curve.
-
-## 8. First-shell diagnostic
-
-The diagnostic consumes the finished RDF and never modifies RDF or cumulative RDF values. It:
-
-1. requires at least 11 points and finite data;
-2. replaces non-finite values by zero for detection only;
-3. applies a Savitzky-Golay window of at most 11 points;
-4. finds the first eligible prominent peak;
-5. finds the first sufficiently prominent minimum after that peak.
-
-Peak prominence is `max(0.05, 0.05 * max(smoothed_rdf))`; minimum prominence is
-`max(0.02, peak_prominence / 2)`. Confidence is high for a peak-to-minimum contrast at least 0.5,
-medium for at least 0.2, and low otherwise. Every available boundary requires user confirmation.
-An unavailable or low-confidence result produces a warning but does not select a cutoff.
-
-## 9. Species-role suggestions
-
-Species are grouped by residue name and molecules by `molecule_id`; no residue-name special cases
-exist. With complete charges, molecular net charges above `+0.25 e` suggest cation and values below
-`-0.25 e` suggest anion. Consistently neutral species are candidates; only a unique most-populous
-neutral species receives a low-confidence solvent suggestion. Missing, mixed, or tied evidence is
-reported as unavailable. Confirmation metadata never changes selections or numerical parameters.
-
-## 10. Plot construction
+## Plot construction
 
 - RDF plots `g_r` as `g(r)` against angstrom distance.
 - Cumulative RDF plots `cumulative_number` as `Cumulative RDF` with Y label `number`.
-- Energy plots each explicitly selected EDR term against time in ps.
+- Energy plots each selected EDR term against ps.
 
-RDF and cumulative RDF share the `radial_distance` domain. If both are selected, RDF uses the
-primary axis and cumulative RDF the secondary axis. Residue-name coloring uses the resolved
-selection residue names; fixed coloring uses a stored color ID. Secondary-axis lines use
-a darker version of the related color and a dashed line.
+Compatible radial series share the intersection of their X domains. RDF uses the primary axis and
+cumulative RDF the secondary axis. Each Y axis starts at zero and uses finite values in the visible
+X range. User limits override automatic bounds.
 
-A non-empty persisted title overrides the generated title of its grouped plot. GUI title edits are
-copied to every currently visible source series in that plot. If grouping later joins independently
-titled series, the first non-empty title in input order is deterministic. Titles are single-line,
-trimmed, printable strings of at most 120 characters; an empty title restores generated naming.
+Residue-name colors use sorted diagnostic residue names. Fixed colors use stored IDs. Secondary
+series use a darker dashed variant. Titles are trimmed, printable, single-line strings of at most
+120 characters. Preview and export use the same appearance state and do not modify result arrays.
 
-For compatible radial series, the automatic X range is their domain intersection. Automatic
-primary and secondary Y ranges are calculated independently from finite points visible in the
-current X range and start at zero. Explicit user limits override corresponding automatic bounds.
+## Provenance and persistence
 
-Validated appearance state controls legend and grid visibility, legend placement, line width, and
-font sizes. Line width is applied directly to primary and step series; secondary series use 90% of
-that width and reference lines use 50%. Preview and export renderers consume the same appearance
-state, while the immutable result arrays remain unchanged.
+In-process inputs use SHA-256 in 4 MiB chunks. Direct GROMACS runs record resolved paths and commands
+without a pre-run hash pass. Provenance records runtime versions, platform, byte order, backend
+resolution, inputs, configuration source, roles, and parameter decisions.
 
-## 11. Provenance and project persistence
+Requests, results, manifests, and plot state use strict schema-1 parsing. Project relocation accepts
+only content-identical inputs. Result commit validates request and input identity, stores integration
+streams as fingerprinted files, writes and hashes the result, then atomically replaces the manifest.
+If manifest commit fails, the new unindexed files are removed. Loading checks path containment,
+hashes, identities, and schemas. JSON and TOML writes use same-directory temporary files and
+`os.replace`.
 
-In-process analysis inputs are SHA-256 hashed in 4 MiB chunks. Direct GROMACS analysis starts the
-native command without a pre-run input hash pass and records resolved input paths plus the complete
-Integration command. Provenance also records package/runtime versions, platform, byte order,
-requested and resolved complete backend, configuration source, role decisions, and parameter
-decisions.
+## External tools, configuration, and jobs
 
-Project manifests, analysis-specific requests, plot state, and results use strict schema-1 parsing.
-Radial requests contain trajectory, selection, and sampling fields; Energy requests contain only
-the EDR path and selected terms. Unknown or missing fields fail; 0.1.0 does not migrate
-development-era request names or plot states.
-Project input relocation is accepted only when the content hash is unchanged.
+Executable candidates are ordered by run override, configured path, configured search paths,
+adapter environment paths, `PATH`, then adapter paths. Detection and execution use argument vectors,
+restricted environments, captured output, timeouts, and `shell=False`. Cancellation and timeout
+terminate the process group and preserve captured output in the run record.
 
-Result commit validates the embedded request, input paths, any recorded input fingerprints, and ID;
-writes integration stdout/stderr to deterministic fingerprinted `.out`/`.err` files beside the
-result under `results/data`; replaces persisted stream bodies with hashes; writes one full result under
-`results/data/<analysis_id>.json`; hashes that file; and then atomically commits the manifest.
-If manifest commit fails, the new unindexed result and streams are removed. Every compact manifest result entry
-requires the ID, analysis type, commit time, and hash; it does not duplicate the request, method,
-constant completion state, or derived path. Loading checks path containment, file existence,
-content identity, result-entry identity, stream identity, and the strict result contract. The manifest
-contains neither integration preferences nor integration run history; standalone runs are archived
-under `results/runs`.
-JSON and TOML atomic writes use a same-directory temporary file and `os.replace`.
+`MDHELPER_CONFIG` overrides the colocated `config.toml`. Configuration is validated before atomic
+replacement. Templates are read in path order as non-empty ASCII and reject duplicate
+case-insensitive keys.
 
-## 12. External tools, configuration, and jobs
+Jobs move from pending to running and then completed, failed, or cancelled. Cancellation points
+exist at hash chunks, frame boundaries, and process polling. One frame's distance search can delay
+cancellation.
 
-External executable candidates are ordered by per-run override, configured executable, configured
-search paths, adapter environment candidates, `PATH`, then adapter candidate paths. Identity and
-capabilities are detected with an argument vector, restricted environment, timeout, captured output,
-and `shell=False`. Execution records argv, cwd, environment summary, logs, timing, status, exit code,
-and requested output fingerprints. Dedicated pipe readers expose cumulative output to progress
-callbacks while the process runs. Cancellation and timeout signal the complete process group, use a
-bounded wait, and preserve all output captured before termination.
+## Complexity and change checks
 
-Configuration selection honors an explicit `MDHELPER_CONFIG` and otherwise uses `config.toml`
-next to the executable. Saved TOML is validated before atomic replacement. Templates are discovered in stable
-path order, decoded as non-empty ASCII, and rejected on duplicate case-insensitive keys.
-
-Background jobs move through pending, running, and a terminal state. Cancellation is cooperative
-at file-hash chunks, analysis-frame boundaries, and external-process polling. A very large frame
-can delay cancellation until its distance search completes.
-
-## 13. Complexity and change checks
-
-| Operation | Worst-case time | Main additional memory |
+| Operation | Worst-case time | Additional memory |
 | --- | --- | --- |
-| RDF/cumulative RDF | worst-case `O(F * N_R * N_S)`; MDAnalysis selects the search method | `O(N_R + N_S + B)` |
-| File fingerprint | input bytes | 4 MiB |
+| RDF and cumulative RDF | `O(F * N_R * N_S)` | `O(N_R + N_S + P + B)` |
+| File hash | File size | 4 MiB |
+| Plot model | Result points | Result points |
 
-Any algorithm change must preserve or explicitly revise formulas, units, endpoint inclusion,
-triclinic PBC, self exclusion, selection identity, resource bounds, cancellation points,
-provenance, method version, schemas, method documents, validation evidence, and tests. It must not
-special-case a filename, sample, species, software name, or expected test value.
+Algorithm changes must update affected methods, schemas, validation, tests, and documentation.
+They must preserve or revise units, endpoints, PBC, self exclusion, selection identity, resource
+bounds, cancellation, and provenance without filename, sample, species, test, or output special
+cases.

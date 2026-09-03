@@ -2,18 +2,12 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-这些文档规范 MDHelper 0.1.0 的分析结果。结果通过 `analysis_type` 和 `method_version` 标识
-方法；任何可能改变数值定义的修改都必须产生新 method version。只改变展示或保持规范数值
-不变的性能优化不需要新方法版本。
+Result 通过 `analysis_type` 和 `method_version` 标识方法。数值定义变化需要新 method version；
+展示和保持数值等价的性能修改不需要。
 
-| 分析 | 方法规范 | 验证报告 |
+| 分析 | 方法 | 验证 |
 | --- | --- | --- |
-| RDF | [rdf-1.0.0.zh-CN.md](rdf-1.0.0.zh-CN.md) | [rdf-1.0.0.zh-CN.md](../validation/rdf-1.0.0.zh-CN.md) |
-| Cumulative Number RDF | [cumulative-rdf-1.0.0.zh-CN.md](cumulative-rdf-1.0.0.zh-CN.md) | [cumulative-rdf-1.0.0.zh-CN.md](../validation/cumulative-rdf-1.0.0.zh-CN.md) |
+| RDF | [1.0.0](rdf-1.0.0.zh-CN.md) | [报告](../validation/rdf-1.0.0.zh-CN.md) |
+| Cumulative Number RDF | [1.0.0](cumulative-rdf-1.0.0.zh-CN.md) | [报告](../validation/cumulative-rdf-1.0.0.zh-CN.md) |
 
-所有方法存储 nm 和 ps。进程内轨迹方法使用固定 atom identity、流式帧和共享的
-[选择契约](../SELECTIONS.zh-CN.md)。显式 GROMACS RDF/cumulative RDF 遵循对应方法章节记录的
-`gmx rdf` selection 与 sampling 规则；所选 Backend 是结果定义和 provenance 的一部分。
-
-基础结果是记录的轨迹、选择、帧范围和参数的确定函数，不包含固定 block size 或 standard
-error。未来统计分析必须显式启用并独立于基础方法。
+方法存储 nm 和 ps，使用固定 atom identity，并报告所选帧上的确定值。方法不包含不确定度估计。

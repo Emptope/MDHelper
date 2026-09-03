@@ -2,26 +2,21 @@
 
 [English](PACKAGING.md) | [简体中文](PACKAGING.zh-CN.md)
 
-MDHelper 的发布包按平台分类，每个平台包都是便携归档：
+## 产物
 
-- Linux x86_64 无头版：`tar.gz` 内包含唯一的独立 `mdhelper` 程序、双语文档和同目录可编辑
-  `config.toml`；程序内置 TUI、CLI，并明确排除 PySide6。
-- Linux x86_64 GUI 版：第二份 `tar.gz` 使用相同的便携目录结构并包含全部三个界面；内置
-  GUI 所需的 Qt Widgets runtime 以及 X11、Wayland、offscreen 平台插件。
-- Windows x64：包含唯一的 `mdhelper.exe`、双语文档和同目录可编辑 `config.toml`
-  的 ZIP；不需要安装或管理员权限，是唯一的 Windows 产物。
+| 平台 | 产物 | 界面 | GUI 依赖 |
+| --- | --- | --- | --- |
+| Linux x86_64 | 无头版 `tar.gz` | TUI、CLI | 排除 PySide6 |
+| Linux x86_64 | GUI 版 `tar.gz` | GUI、TUI、CLI | 包含所需 Qt plugin |
+| Windows x64 | ZIP | GUI、TUI、CLI | 包含 |
+| Python | Wheel | 取决于平台 | Linux 使用可选 `gui` extra |
 
-Python wheel 是独立的源码环境安装路径，包含统一 `mdhelper` 启动器。在 Linux 上，只有
-显式安装 `gui` extra 才会安装 PySide6；在 Windows 上，默认安装会包含 PySide6，因此
-无需 extra 即可使用 GUI。
+便携归档包含一个 executable、文档和同目录可编辑 `config.toml`，不包含 GROMACS。每个 wheel、
+executable 和 archive 不得超过 256 MB。
 
-每个 wheel、独立程序和便携归档都受 256 MB 强制上限约束；任一产物超限即
-构建失败。冻结内容审计还会拒绝重复的测试/构建 runtime、未使用的分析模块和平台不需要
-的 Qt 组件。
+## Wheel
 
-## Python wheel
-
-在仓库根目录使用 Python 3.12+ 和与质量工作流一致的 `uv 0.12.6` 执行：
+使用 Python 3.12 或更高版本及锁定的 `uv` 版本构建和审计：
 
 ```bash
 uv sync --frozen --group dev
@@ -29,18 +24,7 @@ uv build --wheel
 uv run python packaging/verify_wheel.py dist/mdhelper-0.1.0-py3-none-any.whl
 ```
 
-`uv build --wheel` 使用 `pyproject.toml` 声明的隔离构建后端，并且只向 `dist/` 写入
-wheel。生成的文件为 `dist/mdhelper-0.1.0-py3-none-any.whl`；wheel 本身不绑定平台，
-安装时会根据当前平台解析依赖。仓库审计会检查 256 MB 上限、wheel 中的全部 Python
-模块是否与 `src/mdhelper` 一致、包根目录是否出现额外模块，以及源码模板是否全部包含。
-未通过该审计的 wheel 不应发布。wheel 还会包含 `pyproject.toml` 声明的 schema、双语
-用户文档、方法文档和验证文档，但不会捆绑 Python 或 GROMACS。
-
-setuptools 构建后端可能复用生成的 `build/` 目录。如果源码文件重命名或删除后，审计报告
-存在意外模块，只删除 `build/`，然后重新构建并再次审计。该目录只包含生成文件，不是
-发布产物。
-
-应在干净的虚拟环境中验证实际产物，不要使用开发环境代替安装验证。在 Linux 上执行：
+审计比较 package 与源码中的模块和资源，并检查大小。在干净环境中测试 wheel：
 
 ```bash
 uv venv --python 3.12 /tmp/mdhelper-wheel-test
@@ -50,18 +34,7 @@ uv pip install --python /tmp/mdhelper-wheel-test/bin/python \
 /tmp/mdhelper-wheel-test/bin/mdhelper cli --help
 ```
 
-在 Windows PowerShell 中执行：
-
-```powershell
-$wheelTest = Join-Path $env:TEMP "mdhelper-wheel-test"
-uv venv --python 3.12 $wheelTest
-uv pip install --python "$wheelTest\Scripts\python.exe" `
-  .\dist\mdhelper-0.1.0-py3-none-any.whl
-& "$wheelTest\Scripts\mdhelper.exe" --version
-& "$wheelTest\Scripts\mdhelper.exe" cli --help
-```
-
-Linux 默认安装提供 TUI 和 CLI；如需安装可选 GUI，执行：
+Linux GUI 安装增加 extra：
 
 ```bash
 uv pip install --python /tmp/mdhelper-wheel-test/bin/python \
@@ -69,37 +42,26 @@ uv pip install --python /tmp/mdhelper-wheel-test/bin/python \
 QT_QPA_PLATFORM=offscreen /tmp/mdhelper-wheel-test/bin/mdhelper gui --smoke-test
 ```
 
-产物名称由 `pyproject.toml` 中的版本决定。项目版本变化后，审计和安装命令都应使用
-新生成的文件名。
+产物版本来自 `pyproject.toml`。
 
-## Linux 构建
-
-在 Linux x86_64 的锁定 GUI 开发环境中执行：
+## Linux
 
 ```bash
 uv sync --frozen --extra gui --group dev
 PYTHON=.venv/bin/python ./packaging/linux/build.sh
 ```
 
-两份产物分别为 `dist/linux/MDHelper-0.1.0-Linux-x86_64.tar.gz` 和
-`dist/linux/MDHelper-0.1.0-Linux-x86_64-GUI.tar.gz`。无头版会拒绝 PySide6，GUI 版只保留
-程序所需的 Qt 模块与桌面插件；两者都会拒绝测试/构建工具，分别检查程序和归档的 256 MB
-上限，再解压最终归档并实际启动其中的程序。smoke test 会验证版本、显式 TUI、无 display
-时的无参数 TUI 降级、便携配置和读取资源的 CLI 命令；GUI 版还会通过 offscreen 平台插件
-启动 Qt。解压无头版后运行：
+产物为：
 
-```bash
-./mdhelper
-./mdhelper tui
-./mdhelper cli --help
+```text
+dist/linux/MDHelper-0.1.0-Linux-x86_64.tar.gz
+dist/linux/MDHelper-0.1.0-Linux-x86_64-GUI.tar.gz
 ```
 
-用户不需要安装 Python。在 Linux 桌面解压 GUI 版后，可运行 `./mdhelper` 或
-`./mdhelper gui` 打开 GUI；该归档同样保留 TUI 和 CLI。
+构建审计内容和大小，解压每个 archive，并检查版本、TUI 启动、headless fallback、配置、资源
+及适用时的 offscreen GUI 启动。
 
-## Windows 构建
-
-在 Windows x64 的锁定开发环境中执行：
+## Windows
 
 ```powershell
 $env:UV_PROJECT_ENVIRONMENT = ".venv-windows"
@@ -107,13 +69,8 @@ uv sync --frozen --group dev
 .\packaging\windows\build.ps1 -Python ".venv-windows\Scripts\python.exe"
 ```
 
-产物为 `dist/windows/MDHelper-0.1.0-Windows-x64.zip`。构建会解压实际 ZIP，并验证
-唯一程序的全部界面模式、同目录配置和内置资源。归档包含 runtime、核心依赖、
-method/validation 文档、配置、schema 和依赖/版本/license inventory，不捆绑 GROMACS。
+产物为 `dist/windows/MDHelper-0.1.0-Windows-x64.zip`。构建解压 ZIP，并检查全部界面模式、
+同目录配置和 package 资源。`config.toml` 必须与 `mdhelper.exe` 同目录。`--settings` 和
+`MDHELPER_CONFIG` 可覆盖该路径。
 
-解压后 `config.toml` 和 `mdhelper.exe` 必须放在一起。无参数时优先进入
-GUI，GUI 不可用时降级到 TUI；可用 `gui`、`tui`、`cli` 显式选定模式。启动 GUI 时不会
-保留控制台窗口：外层控制台启动器创建独立的无控制台 GUI 进程后退出。显式终端模式会保持
-连接到启动它的终端，必要时自行创建。所有冻结程序都自动使用同目录 `config.toml`。显式
-`--settings` 或
-`MDHELPER_CONFIG` 仍优先。
+只有目标平台工作流成功后才满足发布门槛；文件存在不表示测试通过。
