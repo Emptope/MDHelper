@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from mdhelper.gui.components.layout import ActionBar
+from mdhelper.gui.windows import show_notice
 
 
 class JobLogDialog(QDialog):
@@ -27,7 +28,6 @@ class JobLogDialog(QDialog):
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, True)
         self.setWindowTitle("Job Log")
-        self.setWindowModality(Qt.WindowModality.NonModal)
         self.resize(720, 460)
         self.setMinimumSize(520, 320)
         self._job_id = ""
@@ -93,13 +93,9 @@ class JobLogDialog(QDialog):
 
     def _copy(self) -> None:
         QGuiApplication.clipboard().setText(self.log.toPlainText())
-        if self.copy_notice is None:
-            self.copy_notice = QMessageBox(self)
-            self.copy_notice.setIcon(QMessageBox.Icon.Information)
-            self.copy_notice.setWindowTitle("Log Copied")
-            self.copy_notice.setText("Log copied to clipboard.")
-            self.copy_notice.setStandardButtons(QMessageBox.StandardButton.Ok)
-            self.copy_notice.setWindowModality(Qt.WindowModality.NonModal)
-        self.copy_notice.show()
-        self.copy_notice.raise_()
-        self.copy_notice.activateWindow()
+        self.copy_notice = show_notice(
+            self,
+            self.copy_notice,
+            "Log Copied",
+            "Log copied to clipboard.",
+        )

@@ -12,19 +12,20 @@ from PySide6.QtWidgets import (
 from mdhelper.core.analysis import AnalysisRequest
 from mdhelper.gui.components.layout import ActionBar, configure_button, page_layout
 from mdhelper.gui.components.parameters import ParameterPanel
-from mdhelper.gui.dialogs.selection import SelectionHintDialog
 
 
 class AnalysisPanel(QWidget):
     run_requested = Signal()
     cancel_requested = Signal()
     details_requested = Signal()
+    selection_hint_requested = Signal(str)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self._hint_dialog: SelectionHintDialog | None = None
         self.parameters = ParameterPanel()
-        self.parameters.selection_hint_requested.connect(self._show_selection_hint)
+        self.parameters.selection_hint_requested.connect(
+            self.selection_hint_requested.emit
+        )
         layout = page_layout(self)
         layout.addWidget(self.parameters, 1)
         action_bar = ActionBar("Progress", stacked=True)
@@ -44,19 +45,10 @@ class AnalysisPanel(QWidget):
         self.cancel_button.setEnabled(False)
         self.run_button.clicked.connect(self.run_requested)
         self.cancel_button.clicked.connect(self.cancel_requested)
-        action_bar.add_button(self.run_button, primary=True)
         action_bar.add_button(self.cancel_button)
+        action_bar.add_button(self.run_button, primary=True)
         layout.addWidget(action_bar)
         self.action_bar = action_bar
-
-    def _show_selection_hint(self, backend: str) -> None:
-        if self._hint_dialog is None:
-            self._hint_dialog = SelectionHintDialog(backend, self)
-        else:
-            self._hint_dialog.set_backend(backend)
-        self._hint_dialog.show()
-        self._hint_dialog.raise_()
-        self._hint_dialog.activateWindow()
 
     def request_series(
         self,

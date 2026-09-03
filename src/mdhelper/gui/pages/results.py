@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QGroupBox,
@@ -47,6 +46,7 @@ from mdhelper.gui.formatting import (
     result_label,
     result_summary_html,
 )
+from mdhelper.gui.windows import WindowManager
 
 if TYPE_CHECKING:
     from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
@@ -65,10 +65,16 @@ class ResultPanel(QWidget):
     save_project_requested = Signal()
     export_requested = Signal()
     details_requested = Signal()
+    advanced_plot_requested = Signal()
     state_changed = Signal()
 
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        windows: WindowManager | None = None,
+    ):
         super().__init__(parent)
+        self._windows = windows or WindowManager(self)
         self.result: AnalysisResult | None = None
         self._results: dict[str, AnalysisResult] = {}
         self._context_names: dict[str, str] = {}
@@ -78,7 +84,6 @@ class ResultPanel(QWidget):
         self._plot_titles: tuple[str, ...] = ()
         self._restoring = False
         self.project_available = False
-        self._plot_windows: list[PlotWindow] = []
         layout = page_layout(self)
         history = QHBoxLayout()
         history.addWidget(QLabel("Saved results"))
@@ -133,7 +138,7 @@ class ResultPanel(QWidget):
         self.open_plot_button = controls.open_button
         self.open_plot_button.clicked.connect(self.open_plot_window)
         self.advanced_plot_button = controls.advanced_button
-        self.advanced_plot_button.clicked.connect(self.open_advanced_settings)
+        self.advanced_plot_button.clicked.connect(self.advanced_plot_requested)
         self.plot_settings = controls.settings
         sections = QSplitter(Qt.Orientation.Horizontal)
         sections.setChildrenCollapsible(False)
@@ -230,16 +235,17 @@ class ResultPanel(QWidget):
         if not self._results:
             return
         self._redraw()
-        for window in self._plot_windows:
-            window.show()
-            window.raise_()
-            window.activateWindow()
+        from mdhelper.gui.dialogs.plot import PlotWindow
+
+        self._windows.show_all(PlotWindow)
 
     @property
     def plot_window(self) -> PlotWindow:
-        if not self._plot_windows:
+        windows = self._plot_window_items()
+        if not windows:
             self._resize_plot_windows(1)
-        return self._plot_windows[0]
+            windows = self._plot_window_items()
+        return windows[0]
 
     @property
     def figure(self) -> Figure:
@@ -251,13 +257,21 @@ class ResultPanel(QWidget):
 
     @property
     def plot_windows(self) -> tuple[PlotWindow, ...]:
-        if not self._plot_windows:
+        windows = self._plot_window_items()
+        if not windows:
             self._resize_plot_windows(1)
-        return tuple(self._plot_windows)
+            windows = self._plot_window_items()
+        return windows
 
     def close_plot_windows(self) -> None:
-        for window in self._plot_windows:
-            window.close()
+        from mdhelper.gui.dialogs.plot import PlotWindow
+
+        self._windows.close(PlotWindow)
+
+    def _plot_window_items(self) -> tuple[PlotWindow, ...]:
+        from mdhelper.gui.dialogs.plot import PlotWindow
+
+        return self._windows.items(PlotWindow)
 
     def plot_results(self) -> tuple[AnalysisResult, ...]:
         return tuple(item[0] for item in self._visible_series())
@@ -397,8 +411,9 @@ class ResultPanel(QWidget):
         self.plot_series.setRowCount(0)
         self.plot_series.blockSignals(False)
         self.text.clear()
+        windows = self._plot_window_items()
         self.close_plot_windows()
-        if self._plot_windows:
+        if windows:
             self._resize_plot_windows(1)
             self.plot_window.clear_plot()
         self.export_button.setEnabled(False)
@@ -431,22 +446,11 @@ class ResultPanel(QWidget):
         self._redraw()
         self.state_changed.emit()
 
-    def open_advanced_settings(self) -> None:
-        from mdhelper.gui.dialogs.plot import PlotSettingsDialog
-
-        dialog = PlotSettingsDialog(self._appearance, self)
-        dialog.applied.connect(self._apply_plot_appearance)
-        dialog.exec()
-
-    def _apply_plot_appearance(self, appearance: PlotAppearance) -> None:
+    def apply_plot_appearance(self, appearance: PlotAppearance) -> None:
         appearance.validate()
         self._appearance = appearance
         self._redraw()
         self.state_changed.emit()
-
-    def closeEvent(self, event: QCloseEvent) -> None:
-        self.close_plot_windows()
-        super().closeEvent(event)
 
     def remove_selected_series(self) -> None:
         rows = sorted(
@@ -486,8 +490,9 @@ class ResultPanel(QWidget):
         self.plot_series.blockSignals(True)
         self.plot_series.setRowCount(0)
         self.plot_series.blockSignals(False)
+        windows = self._plot_window_items()
         self.close_plot_windows()
-        if self._plot_windows:
+        if windows:
             self._resize_plot_windows(1)
             self.plot_window.clear_plot()
         self.open_plot_button.setEnabled(False)
@@ -815,16 +820,18 @@ class ResultPanel(QWidget):
 
     def _redraw(self, _item: QTableWidgetItem | None = None) -> None:
         visible = self._visible_series()
-        windows_open = any(window.isVisible() for window in self._plot_windows)
+        windows = self._plot_window_items()
+        windows_open = any(window.isVisible() for window in windows)
         models = self.plot_models()
         self._plot_rows = tuple(
             tuple(visible[source][6] for source in model.source_indices)
             for model in models
         )
         self._plot_titles = tuple(model.title for model in models)
-        if models or self._plot_windows:
+        if models or windows:
             self._resize_plot_windows(max(1, len(models)))
-        for index, window in enumerate(self._plot_windows):
+        windows = self._plot_window_items()
+        for index, window in enumerate(windows):
             if index < len(models):
                 window.draw(
                     models[index],
@@ -836,15 +843,11 @@ class ResultPanel(QWidget):
                 window.clear_plot()
         self._update_title_control()
         if windows_open:
-            for window in self._plot_windows:
-                window.show()
-                window.raise_()
-
-    def _resize_plot_windows(self, count: int) -> None:
-        if len(self._plot_windows) < count:
             from mdhelper.gui.dialogs.plot import PlotWindow
 
-        while len(self._plot_windows) < count:
-            self._plot_windows.append(PlotWindow())
-        while len(self._plot_windows) > count:
-            self._plot_windows.pop().close()
+            self._windows.show_all(PlotWindow, activate=False)
+
+    def _resize_plot_windows(self, count: int) -> None:
+        from mdhelper.gui.dialogs.plot import PlotWindow
+
+        self._windows.resize(PlotWindow, count)

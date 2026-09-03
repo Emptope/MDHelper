@@ -35,8 +35,8 @@ from mdhelper.core.plotting import (
 class PlotWindow(QDialog):
     """Display the current result figure independently from result metadata."""
 
-    def __init__(self) -> None:
-        super().__init__(None)
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.setWindowTitle("MDHelper Plot")
         self.setMinimumSize(720, 520)
         self.figure = Figure(
@@ -95,15 +95,14 @@ class PlotSettingsDialog(QDialog):
     """Edit plot appearance without mutating the active plot until applied."""
 
     applied = Signal(object)
+    reverted = Signal(object)
 
-    def __init__(
-        self,
-        appearance: PlotAppearance,
-        parent: QWidget | None = None,
-    ) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Advanced Plot Settings")
         self.setMinimumWidth(440)
+        self._initial = PlotAppearance()
+        self._applied = self._initial
 
         self.line_width = _number_control(
             MIN_PLOT_LINE_WIDTH,
@@ -168,14 +167,29 @@ class PlotSettingsDialog(QDialog):
         layout.addWidget(display)
         layout.addWidget(text)
         layout.addLayout(actions)
+        self.set_appearance(self._initial)
+
+    def begin(self, appearance: PlotAppearance) -> None:
+        if self.isVisible():
+            return
+        appearance.validate()
+        self._initial = appearance
+        self._applied = appearance
         self.set_appearance(appearance)
 
     def _apply(self) -> None:
-        self.applied.emit(self.appearance())
+        self._applied = self.appearance()
+        self.applied.emit(self._applied)
 
     def _accept(self) -> None:
         self._apply()
         self.accept()
+
+    def reject(self) -> None:
+        if self._applied != self._initial:
+            self._applied = self._initial
+            self.reverted.emit(self._initial)
+        super().reject()
 
     def appearance(self) -> PlotAppearance:
         appearance = PlotAppearance(

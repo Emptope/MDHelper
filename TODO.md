@@ -11,7 +11,8 @@
 
 ## 已完成
 
-- [x] [Feature] GUI Results 页 Plot Settings 右下方加上 `Advanced` 按钮，点击弹出更详细的绘图设置。
+- [x] [Fix] Analysis 页 Progress 按钮按 `Cancel`、`Run` 排列。
+- [x] [Fix] 重构 GUI 非模态窗口管理，并让 Advanced Plot Settings 的 `Cancel` 回滚本次会话设置。
 
 ## 完成标准（每轮代码改动后需重新确认）
 

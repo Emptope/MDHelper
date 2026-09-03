@@ -31,8 +31,10 @@ from mdhelper.gui.controllers.integration_detection import IntegrationDetectionC
 from mdhelper.gui.controllers.session import ProjectSession
 from mdhelper.gui.dialogs.integrations import IntegrationsDialog
 from mdhelper.gui.dialogs.log import JobLogDialog
+from mdhelper.gui.dialogs.plot import PlotSettingsDialog
 from mdhelper.gui.dialogs.projects import NewProjectDialog
 from mdhelper.gui.dialogs.results import ResultDetailsDialog
+from mdhelper.gui.dialogs.selection import SelectionHintDialog
 from mdhelper.gui.dialogs.species import RoleHelpDialog, SuggestionDetailsDialog
 from mdhelper.gui.dialogs.templates import TemplatesDialog
 from mdhelper.gui.fonts import configure_ui_font
@@ -42,6 +44,7 @@ from mdhelper.gui.formatting import (
 from mdhelper.gui.menu import install_menu
 from mdhelper.gui.pages.workspace import WorkspaceTabs
 from mdhelper.gui.theme import theme_controller
+from mdhelper.gui.windows import WindowManager
 from mdhelper.jobs import JobHandle
 from mdhelper.runtime.logging import configure_logging, record_error
 from mdhelper.services.config import ThemeMode, save_config
@@ -67,10 +70,7 @@ class MainWindow(QMainWindow):
         self.session = ProjectSession(self.application)
         self.job_controller = AnalysisJobController(self.application, self)
         self.integration_detection = IntegrationDetectionController(self.application, self)
-        self._job_log_dialog: JobLogDialog | None = None
-        self._result_details_dialog: ResultDetailsDialog | None = None
-        self._role_help_dialog: RoleHelpDialog | None = None
-        self._suggestion_details_dialog: SuggestionDetailsDialog | None = None
+        self.windows = WindowManager(self)
         self.role_suggestions: dict[str, SpeciesRoleSuggestion] = {}
         self.role_provenance: dict[str, Any] = {}
         self._applying_roles = False
@@ -89,7 +89,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"MDHelper {__version__}")
         self.setMinimumSize(760, 680)
         self.resize(860, 800)
-        tabs = WorkspaceTabs()
+        tabs = WorkspaceTabs(windows=self.windows)
         self.load = tabs.load
         self.analysis = tabs.analysis
         self.results = tabs.results
@@ -138,6 +138,7 @@ class MainWindow(QMainWindow):
         self.analysis.run_requested.connect(self._run)
         self.analysis.cancel_requested.connect(self._cancel)
         self.analysis.details_requested.connect(self._show_job_log)
+        self.analysis.selection_hint_requested.connect(self._show_selection_hint)
         self.analysis.parameters.energy_terms_requested.connect(self._load_energy_terms)
         self.analysis.parameters.analysis_backend_changed.connect(self._backend_changed)
         self.analysis.parameters.backend_requirements_changed.connect(
@@ -148,6 +149,7 @@ class MainWindow(QMainWindow):
         self.results.save_project_requested.connect(self._save_project_figures)
         self.results.export_requested.connect(self._export_result)
         self.results.details_requested.connect(self._show_result_details)
+        self.results.advanced_plot_requested.connect(self._show_plot_settings)
         self.results.state_changed.connect(self._save_plot_state)
         self.job_controller.progress.connect(self._job_progress)
         self.job_controller.completed.connect(self._job_completed)
@@ -317,23 +319,21 @@ class MainWindow(QMainWindow):
         self.role_provenance[species] = role_decision(role, suggestion, "role_editor")
 
     def _show_role_help(self) -> None:
-        if self._role_help_dialog is None:
-            self._role_help_dialog = RoleHelpDialog(self)
-        self._show_dialog(self._role_help_dialog)
+        self.windows.show(RoleHelpDialog)
 
     def _show_suggestion_details(self, suggestions: object) -> None:
         if not isinstance(suggestions, dict):
             return
-        if self._suggestion_details_dialog is None:
-            self._suggestion_details_dialog = SuggestionDetailsDialog(self)
-        self._suggestion_details_dialog.set_suggestions(suggestions)
-        self._show_dialog(self._suggestion_details_dialog)
+        self.windows.show(
+            SuggestionDetailsDialog,
+            lambda dialog: dialog.set_suggestions(suggestions),
+        )
 
-    @staticmethod
-    def _show_dialog(dialog: QDialog) -> None:
-        dialog.show()
-        dialog.raise_()
-        dialog.activateWindow()
+    def _show_selection_hint(self, backend: str) -> None:
+        self.windows.show(
+            SelectionHintDialog,
+            lambda dialog: dialog.set_backend(backend),
+        )
 
     def _apply_role_suggestions(self) -> None:
         available = {
@@ -473,8 +473,9 @@ class MainWindow(QMainWindow):
 
     def _job_changed(self, job: JobHandle) -> None:
         self.analysis.set_details_available(True)
-        if self._job_log_dialog is not None:
-            self._job_log_dialog.set_content(
+        dialog = self.windows.get(JobLogDialog)
+        if dialog is not None:
+            dialog.set_content(
                 job.job_id,
                 job.name,
                 job.log_snapshot(),
@@ -484,21 +485,34 @@ class MainWindow(QMainWindow):
         job = self.job_controller.latest
         if job is None:
             return
-        if self._job_log_dialog is None:
-            self._job_log_dialog = JobLogDialog(self)
-        self._job_log_dialog.set_content(job.job_id, job.name, job.log_snapshot())
-        self._job_log_dialog.show()
-        self._job_log_dialog.raise_()
-        self._job_log_dialog.activateWindow()
+        self.windows.show(
+            JobLogDialog,
+            lambda dialog: dialog.set_content(
+                job.job_id,
+                job.name,
+                job.log_snapshot(),
+            ),
+        )
 
     def _show_result_details(self) -> None:
         result = self.results.result
         if result is None:
             return
-        if self._result_details_dialog is None:
-            self._result_details_dialog = ResultDetailsDialog(self)
-        self._result_details_dialog.set_content(self.results.context_name(), result)
-        self._show_dialog(self._result_details_dialog)
+        self.windows.show(
+            ResultDetailsDialog,
+            lambda dialog: dialog.set_content(self.results.context_name(), result),
+        )
+
+    def _show_plot_settings(self) -> None:
+        self.windows.show(
+            PlotSettingsDialog,
+            lambda dialog: dialog.begin(self.results.plot_appearance()),
+            setup=self._connect_plot_settings,
+        )
+
+    def _connect_plot_settings(self, dialog: PlotSettingsDialog) -> None:
+        dialog.applied.connect(self.results.apply_plot_appearance)
+        dialog.reverted.connect(self.results.apply_plot_appearance)
 
     def _job_completed(self, result: AnalysisResult) -> None:
         try:
@@ -588,7 +602,6 @@ class MainWindow(QMainWindow):
         self.load.set_index_groups({})
         self.analysis.reset()
         self.results.clear_result()
-        self.results.close_plot_windows()
         self.results.set_history(())
         self.results.set_project(False)
         self.setWindowTitle(f"MDHelper {__version__}")
@@ -786,5 +799,5 @@ class MainWindow(QMainWindow):
             self.job_controller.cancel()
         self.job_controller.shutdown()
         self.integration_detection.shutdown()
-        self.results.close_plot_windows()
+        self.windows.close_all()
         event.accept()

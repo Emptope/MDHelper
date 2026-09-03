@@ -302,22 +302,29 @@ Project non-recursively discovers `.tpr`/`.gro` topology,
 `.xtc`/`.trr`/`.gro` trajectory, and optional `.ndx` candidates. Background workers never mutate Qt
 widgets.
 
-The Analysis action bar keeps its Progress title and Run/Cancel controls on one row in that order, with progress and its
-Details action below. Details opens `dialogs/log.py` as a non-modal raw-message window, so menus and
-the main workspace remain interactive. The viewer follows new messages while it is at the bottom,
-preserves position when the user scrolls up, and confirms clipboard copies without blocking.
-Consecutive identical progress text is retained once because repeated callback values update
-progress state rather than representing distinct log events.
+`gui/windows.py` owns reusable non-modal window lifecycles. It creates each tool window once by
+type, manages variable-size groups of plot windows, enforces non-modal presentation, centralizes
+show/raise/activate behavior, and closes every managed window with the main window. Pages emit
+window requests instead of constructing dialogs or retaining dialog-specific fields. Modal command
+dialogs and synchronous message boxes remain at their call sites; reusable non-modal notices use
+the same centralized presentation helper.
+
+The Analysis action bar keeps its Progress title and Cancel/Run controls on one row in that order,
+with progress and its Details action below. Details opens `dialogs/log.py` as a non-modal raw-message
+window, so menus and the main workspace remain interactive. The viewer follows new messages while
+it is at the bottom, preserves position when the user scrolls up, and confirms clipboard copies
+without blocking. Consecutive identical progress text is retained once because repeated callback
+values update progress state rather than representing distinct log events.
 
 The Result page keeps reproduction metadata out of its Overview. Details opens the complete
 readable report, including technical metadata. The viewer is non-modal, uses the current job or
 workflow name as its heading, and provides a Copy action below the content. Test sessions redirect
 diagnostic logging to temporary storage so expected error-path tests never modify a user's
 persistent log. Plot Settings keeps frequently edited title, coloring, and range controls inline;
-its bottom-right Advanced action opens a modal editor for plot appearance. Control edits remain a
-draft until Apply or OK. Apply redraws open plot windows and updates the project state without
-closing the editor, OK applies then closes it, and Cancel discards changes made since the last
-application.
+its bottom-right Advanced action opens one reusable non-modal editor for plot appearance. Control
+edits remain a draft until Apply or OK. Apply redraws open plot windows and updates the project
+state without closing the editor, OK applies then closes it, and Cancel restores the appearance
+from before the current editor session, including settings changed by Apply during that session.
 
 Menu ordering is controlled by insertion order in `gui/menu.py`; analysis combo ordering is
 controlled by `addItem` order in `gui/components/parameters.py`; TUI menu ordering is controlled by

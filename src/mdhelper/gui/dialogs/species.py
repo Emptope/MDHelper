@@ -34,7 +34,6 @@ class RoleHelpDialog(QDialog):
         super().__init__(parent)
         _close_only(self)
         self.setWindowTitle("Species Roles")
-        self.setWindowModality(Qt.WindowModality.NonModal)
         self.resize(680, 340)
         self.setMinimumSize(520, 280)
 
@@ -60,7 +59,6 @@ class SuggestionDetailsDialog(QDialog):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Role Suggestion Details")
-        self.setWindowModality(Qt.WindowModality.NonModal)
         self.resize(700, 460)
         self.setMinimumSize(520, 320)
         self.text = QTextBrowser()

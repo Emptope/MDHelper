@@ -19,6 +19,7 @@ GUI_ROOT_MODULES = {
     "menu.py",
     "theme.py",
     "window.py",
+    "windows.py",
 }
 GUI_SUBPACKAGES = {"components", "controllers", "dialogs", "pages"}
 TUI_ROOT_MODULES = {
@@ -148,6 +149,20 @@ def test_gui_modules_follow_the_presentation_package_layout() -> None:
         if path.is_dir() and (path / "__init__.py").is_file()
     }
     assert packages == GUI_SUBPACKAGES
+
+
+def test_non_modal_window_presentation_is_centralized() -> None:
+    methods = {"activateWindow", "raise_"}
+    violations = {
+        str(path.relative_to(SOURCE_ROOT)): node.func.attr
+        for path in _files("gui")
+        if path.name != "windows.py"
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in methods
+    }
+    assert violations == {}
 
 
 def test_gui_subpackages_follow_their_dependency_direction() -> None:

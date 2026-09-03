@@ -44,9 +44,8 @@ SELECTION_HINTS = MDANALYSIS_SELECTION_HINTS
 class SelectionHintDialog(QDialog):
     """Show common selection building blocks for one expression backend."""
 
-    def __init__(self, backend: str, parent: QWidget | None = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowModality(Qt.WindowModality.NonModal)
         self.resize(760, 390)
         self.setMinimumSize(680, 340)
         self.table = QTableWidget(0, 3)
@@ -67,7 +66,7 @@ class SelectionHintDialog(QDialog):
         )
         layout.addWidget(self.documentation)
         self.backend = ""
-        self.set_backend(backend)
+        self.set_backend("mdanalysis")
 
     def set_backend(self, backend: str) -> None:
         backend = "gromacs" if backend == "gromacs" else "mdanalysis"

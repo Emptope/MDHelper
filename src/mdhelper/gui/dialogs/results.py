@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QDialog,
@@ -16,6 +15,7 @@ from PySide6.QtWidgets import (
 from mdhelper.core.analysis import AnalysisResult
 from mdhelper.gui.components.layout import ActionBar
 from mdhelper.gui.formatting import result_details_html
+from mdhelper.gui.windows import show_notice
 
 
 class ResultDetailsDialog(QDialog):
@@ -24,7 +24,6 @@ class ResultDetailsDialog(QDialog):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Result Details")
-        self.setWindowModality(Qt.WindowModality.NonModal)
         self.resize(720, 520)
         self.setMinimumSize(520, 340)
         self.copy_notice: QMessageBox | None = None
@@ -56,13 +55,9 @@ class ResultDetailsDialog(QDialog):
 
     def _copy(self) -> None:
         QGuiApplication.clipboard().setText(self.text.toPlainText())
-        if self.copy_notice is None:
-            self.copy_notice = QMessageBox(self)
-            self.copy_notice.setIcon(QMessageBox.Icon.Information)
-            self.copy_notice.setWindowTitle("Result Copied")
-            self.copy_notice.setText("Result details copied to clipboard.")
-            self.copy_notice.setStandardButtons(QMessageBox.StandardButton.Ok)
-            self.copy_notice.setWindowModality(Qt.WindowModality.NonModal)
-        self.copy_notice.show()
-        self.copy_notice.raise_()
-        self.copy_notice.activateWindow()
+        self.copy_notice = show_notice(
+            self,
+            self.copy_notice,
+            "Result Copied",
+            "Result details copied to clipboard.",
+        )

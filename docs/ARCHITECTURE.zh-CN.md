@@ -470,6 +470,7 @@ GUI 采用薄视图加会话控制器分工，Qt 只在 GUI 包内惰性导入�
 | --- | --- |
 | `main.py` | GUI 入口、Qt 应用创建和顶层异常边界。 |
 | `window.py` | 主窗口编排器，连接 load、analysis、job、result 和 menu 子模块。 |
+| `windows.py` | 按类型统一管理可复用非模态窗口和可变数量的绘图窗口，负责展示、聚焦与关闭。 |
 | `controllers/session.py` | 保存当前输入、系统摘要、项目、分析草稿和展示状态。 |
 | `controllers/analysis_jobs.py` | 将后台 `JobHandle` 映射为进度条、取消按钮和完成回调。 |
 | `controllers/integration_detection.py` | 在非 GUI 线程执行外部工具检测。 |
@@ -498,16 +499,21 @@ GUI 采用薄视图加会话控制器分工，Qt 只在 GUI 包内惰性导入�
 | `menu.py` | 顶部菜单和动作连接。 |
 | `__init__.py` | 保持轻量，避免导入即启动 Qt。 |
 
-Analysis 页使用 Type、Backend 和 Progress 标签，Progress 区域按 Run、Cancel 顺序排列，进度条右侧放置 Details。Log 视图在底部时自动跟随新 message，
+页面只发出窗口请求，不创建或保存具体对话框。`windows.py` 强制托管窗口使用非模态展示，
+统一处理单实例复用、绘图窗口组、显示、聚焦及主窗口退出时的关闭；同步命令对话框和短期
+阻塞式 message box 仍由调用点管理，可复用非模态提示使用同一展示辅助函数。
+
+Analysis 页使用 Type、Backend 和 Progress 标签，Progress 区域按 Cancel、Run 顺序排列，进度条右侧放置 Details。Log 视图在底部时自动跟随新 message，
 用户向上滚动后保留位置；复制完成提示不阻塞主窗口。连续相同的进度文本只作为一条
 日志保留，每次 callback 仍正常更新进度状态。
 
 Result 页的 Overview 不显示复现所需的技术元数据。Details 打开包含技术元数据的完整可读
 报告；该窗口为非模态窗口，顶栏显示当前 job 或 workflow 名称，内容下方提供 Copy 操作。
 测试会话将诊断日志重定向至临时目录，错误路径测试产生的预期日志不会写入用户的持久日志。
-Plot Settings 内联保留常用的标题、配色和范围控件，右下角 Advanced 打开模态外观编辑器；
+Plot Settings 内联保留常用的标题、配色和范围控件，右下角 Advanced 打开单实例非模态外观编辑器；
 控件编辑只改变草稿，Apply 会重绘已打开的绘图窗口并更新图片导出使用的项目状态但不关闭
-窗口，OK 会应用后关闭，Cancel 会丢弃上次应用之后的改动。
+窗口，OK 会应用后关闭，Cancel 会恢复本次打开编辑器之前的外观，包括回滚本次会话中已经
+Apply 的改动。
 
 批量 plot series 按配置逐项执行，以 `PlotModel` 合并展示。首次运行若尚无项目，GUI 在
 轨迹目录创建/选择项目，再通过项目用例提交结果。恢复结果时，数值数据来自结果文件，

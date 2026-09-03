@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-import mdhelper.gui.dialogs.plot as plot_dialog_module
 import mdhelper.gui.window as window_module
 import mdhelper.io.export as export_module
 from mdhelper.app import ApplicationService
@@ -48,10 +47,12 @@ from mdhelper.gui.components.species import SpeciesPanel
 from mdhelper.gui.dialogs.integrations import IntegrationsDialog
 from mdhelper.gui.dialogs.log import JobLogDialog
 from mdhelper.gui.dialogs.plot import PlotSettingsDialog
+from mdhelper.gui.dialogs.results import ResultDetailsDialog
 from mdhelper.gui.dialogs.selection import (
     GROMACS_SELECTION_HINTS,
     SELECTION_DOCUMENTATION,
     SELECTION_HINTS,
+    SelectionHintDialog,
 )
 from mdhelper.gui.dialogs.species import RoleHelpDialog, SuggestionDetailsDialog
 from mdhelper.gui.dialogs.templates import TemplatesDialog
@@ -61,6 +62,7 @@ from mdhelper.gui.pages.analysis import AnalysisPanel
 from mdhelper.gui.pages.results import ResultPanel
 from mdhelper.gui.theme import ThemeController
 from mdhelper.gui.window import MainWindow
+from mdhelper.gui.windows import WindowManager
 from mdhelper.integrations.models import IntegrationConfig, IntegrationStatus
 from mdhelper.jobs import JobHandle
 from mdhelper.services.config import UserConfig, load_config
@@ -179,6 +181,41 @@ def test_job_log_follows_new_messages_until_the_user_scrolls_up() -> None:
     dialog.close()
 
 
+def test_window_manager_reuses_and_resizes_non_modal_windows() -> None:
+    owner = QWidget()
+    windows = WindowManager(owner)
+    prepared: list[QDialog] = []
+    configured: list[QDialog] = []
+
+    first = windows.show(
+        QDialog,
+        prepared.append,
+        setup=configured.append,
+    )
+    second = windows.show(
+        QDialog,
+        prepared.append,
+        setup=configured.append,
+    )
+
+    assert first is second
+    assert prepared == [first, first]
+    assert configured == [first]
+    assert first.isVisible()
+    assert first.windowModality() == Qt.WindowModality.NonModal
+    group = windows.resize(QDialog, 2)
+    assert group[0] is first
+    assert len(group) == 2
+    assert all(window.parent() is owner for window in group)
+
+    windows.resize(QDialog, 1)
+    windows.close_all()
+
+    assert windows.items(QDialog) == (first,)
+    assert not first.isVisible()
+    owner.close()
+
+
 def test_input_and_radial_controls_use_independent_widgets() -> None:
     inputs = InputPanel()
     assert not hasattr(inputs, "backend")
@@ -196,7 +233,8 @@ def test_input_and_radial_controls_use_independent_widgets() -> None:
 
 
 def test_selection_hints_follow_index_file_and_use_a_table() -> None:
-    panel = AnalysisPanel()
+    window = MainWindow()
+    panel = window.analysis
     parameters = panel.parameters
 
     assert not parameters.rdf_inputs.hint_button.isHidden()
@@ -214,7 +252,7 @@ def test_selection_hints_follow_index_file_and_use_a_table() -> None:
     assert not parameters.rdf_inputs.hint_button.isHidden()
     assert not parameters.cn_inputs.hint_button.isHidden()
     parameters.rdf_inputs.hint_button.click()
-    dialog = panel._hint_dialog
+    dialog = window.windows.get(SelectionHintDialog)
     assert dialog is not None
     assert dialog.table.rowCount() == len(GROMACS_SELECTION_HINTS)
     assert dialog.documentation.openExternalLinks()
@@ -239,14 +277,14 @@ def test_selection_hints_follow_index_file_and_use_a_table() -> None:
     assert not parameters.cn_inputs.hint_button.isHidden()
 
     parameters.rdf_inputs.hint_button.click()
-    dialog = panel._hint_dialog
+    dialog = window.windows.get(SelectionHintDialog)
     assert dialog is not None
     assert not dialog.isModal()
     assert dialog.isVisible()
 
     assert dialog.table.rowCount() == len(SELECTION_HINTS)
     assert dialog.table.columnCount() == 3
-    dialog.close()
+    window.close()
 
 
 def test_gromacs_backend_availability_does_not_hide_energy_analysis() -> None:
@@ -505,7 +543,7 @@ def test_plot_representations_colors_and_axis_ranges_are_editable() -> None:
     panel.close()
 
 
-def test_plot_settings_dialog_applies_only_explicit_actions() -> None:
+def test_plot_settings_dialog_applies_and_reverts_one_edit_session() -> None:
     appearance = PlotAppearance(
         legend_visible=False,
         legend_location="lower_left",
@@ -516,11 +554,14 @@ def test_plot_settings_dialog_applies_only_explicit_actions() -> None:
         tick_font_size=9,
         legend_font_size=8,
     )
-    dialog = PlotSettingsDialog(appearance)
+    dialog = PlotSettingsDialog()
+    dialog.begin(appearance)
     dialog.show()
     _QT_APPLICATION.processEvents()
     applied: list[PlotAppearance] = []
+    reverted: list[PlotAppearance] = []
     dialog.applied.connect(applied.append)
+    dialog.reverted.connect(reverted.append)
 
     assert dialog.appearance() == appearance
     assert (
@@ -548,23 +589,27 @@ def test_plot_settings_dialog_applies_only_explicit_actions() -> None:
     dialog.ok_button.click()
 
     assert applied[-1] == PlotAppearance()
+    assert not reverted
     assert dialog.result() == QDialog.DialogCode.Accepted
 
-    cancelled = PlotSettingsDialog(appearance)
+    cancelled = PlotSettingsDialog()
+    cancelled.begin(appearance)
     cancelled.show()
     _QT_APPLICATION.processEvents()
     cancelled_values: list[PlotAppearance] = []
+    reverted_values: list[PlotAppearance] = []
     cancelled.applied.connect(cancelled_values.append)
+    cancelled.reverted.connect(reverted_values.append)
     cancelled.line_width.setValue(4.0)
+    cancelled.apply_button.click()
     cancelled.cancel_button.click()
 
-    assert not cancelled_values
+    assert len(cancelled_values) == 1
+    assert reverted_values == [appearance]
     assert cancelled.result() == QDialog.DialogCode.Rejected
 
 
-def test_result_panel_applies_confirmed_advanced_plot_settings(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_result_panel_applies_confirmed_advanced_plot_settings() -> None:
     selected = PlotAppearance(
         legend_visible=False,
         legend_location="lower_right",
@@ -576,37 +621,13 @@ def test_result_panel_applies_confirmed_advanced_plot_settings(
         legend_font_size=8,
     )
 
-    class Dialog:
-        calls = 0
-
-        def __init__(self, current: PlotAppearance, parent: QWidget):
-            assert current == PlotAppearance()
-            assert isinstance(parent, ResultPanel)
-            self.applied = _Callback()
-
-        def exec(self) -> QDialog.DialogCode:
-            self.__class__.calls += 1
-            if self.calls == 2:
-                self.applied.emit(selected)
-            return QDialog.DialogCode.Rejected
-
-    class _Callback:
-        def __init__(self) -> None:
-            self.callback: object | None = None
-
-        def connect(self, callback: object) -> None:
-            self.callback = callback
-
-        def emit(self, appearance: PlotAppearance) -> None:
-            assert callable(self.callback)
-            self.callback(appearance)
-
-    monkeypatch.setattr(plot_dialog_module, "PlotSettingsDialog", Dialog)
-    panel = ResultPanel()
+    window = MainWindow()
+    panel = window.results
     result = _rdf_result("A", "B")
     panel.show_result(result)
-    panel.resize(900, 700)
-    panel.show()
+    window.tabs.setCurrentWidget(panel)
+    window.resize(900, 700)
+    window.show()
     _QT_APPLICATION.processEvents()
     changes: list[bool] = []
     panel.state_changed.connect(lambda: changes.append(True))
@@ -616,13 +637,36 @@ def test_result_panel_applies_confirmed_advanced_plot_settings(
     assert button_rect.right() >= panel.y2_max.geometry().right()
 
     panel.advanced_plot_button.click()
+    dialog = window.windows.get(PlotSettingsDialog)
+    assert dialog is not None
+    assert dialog.windowModality() == Qt.WindowModality.NonModal
+    assert dialog.isVisible()
+    assert window.isEnabled()
     assert panel.plot_appearance() == PlotAppearance()
     assert not changes
 
     panel.advanced_plot_button.click()
+    assert window.windows.get(PlotSettingsDialog) is dialog
+
+    dialog.set_appearance(selected)
+    dialog.apply_button.click()
     assert panel.plot_appearance() == selected
     assert panel.plot_state().appearance == selected
     assert changes == [True]
+    dialog.cancel_button.click()
+    assert panel.plot_appearance() == PlotAppearance()
+    assert changes == [True, True]
+    assert not dialog.isVisible()
+
+    panel.advanced_plot_button.click()
+    confirmed = window.windows.get(PlotSettingsDialog)
+    assert confirmed is dialog
+    confirmed.set_appearance(selected)
+    confirmed.ok_button.click()
+
+    assert panel.plot_appearance() == selected
+    assert panel.plot_state().appearance == selected
+    assert changes == [True, True, True]
     assert panel.figure.axes[0].get_legend() is None
     assert not any(
         line.get_visible() for line in panel.figure.axes[0].get_xgridlines()
@@ -632,7 +676,7 @@ def test_result_panel_applies_confirmed_advanced_plot_settings(
     assert restored.plot_appearance() == selected
     assert restored.figure.axes[0].get_legend() is None
     restored.close()
-    panel.close()
+    window.close()
 
 
 def test_plot_color_does_not_change_from_wheel_input() -> None:
@@ -717,7 +761,7 @@ def test_result_actions_only_expose_details() -> None:
 
     panel.details_button.click()
     _QT_APPLICATION.processEvents()
-    details_dialog = window._result_details_dialog
+    details_dialog = window.windows.get(ResultDetailsDialog)
     assert details_dialog is not None
     assert details_dialog.heading.text() == name
     assert result.analysis_id in details_dialog.text.toPlainText()
@@ -1176,8 +1220,8 @@ def test_main_pages_use_consistent_action_surfaces() -> None:
     centers = [widget.geometry().center().y() for widget in controls]
     assert max(centers) - min(centers) <= 1
     assert (
-        window.analysis.run_button.geometry().left()
-        < window.analysis.cancel_button.geometry().left()
+        window.analysis.cancel_button.geometry().left()
+        < window.analysis.run_button.geometry().left()
     )
     assert window.analysis.progress.geometry().top() > max(
         widget.geometry().bottom() for widget in controls
@@ -1210,7 +1254,7 @@ def test_analysis_details_opens_the_retained_job_log() -> None:
     details.click()
     _QT_APPLICATION.processEvents()
 
-    dialog = window._job_log_dialog
+    dialog = window.windows.get(JobLogDialog)
     assert dialog is not None
     assert dialog.isVisible()
     assert not dialog.isModal()
