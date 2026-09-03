@@ -20,12 +20,13 @@ Build and audit with Python 3.12 or newer and the locked `uv` version:
 
 ```bash
 uv sync --frozen --group dev
-uv build --wheel
+uv build
 uv run python packaging/verify_wheel.py dist/mdhelper-0.1.0-py3-none-any.whl
 ```
 
-The audit compares packaged modules and resources with the source tree and checks size. Test the
-wheel in a clean environment:
+The build creates an sdist and then builds the wheel from that clean source archive, preventing a
+stale local build tree from entering the wheel. The audit compares packaged modules and resources
+with the source tree and checks size. Test the wheel in a clean environment:
 
 ```bash
 uv venv --python 3.12 /tmp/mdhelper-wheel-test
@@ -76,3 +77,49 @@ all interface modes, colocated configuration, and packaged resources. Keep `conf
 
 Release gates pass only after the target-platform workflow completes; file presence is not a test
 result.
+
+## Automation
+
+The `Quality` workflow runs for pull requests, pushes to `main`, and manual dispatches. Its Linux
+and Windows jobs install the locked environment, validate version metadata, run Ruff, mypy, and the
+complete test suite, then exercise the platform-specific startup path. The Linux job also builds,
+audits, and installs the wheel in a clean environment.
+
+Configure the default branch to require these checks before merging:
+
+- `Quality / Linux`
+- `Quality / Windows`
+
+The Linux and Windows release-candidate workflows remain manually dispatchable. They also expose
+reusable workflow entry points so the tag workflow can run the exact same target-platform builds.
+Each candidate build runs source validation and the packaged-application smoke tests before its
+artifacts are uploaded. Dependency and workflow action updates are grouped into weekly pull
+requests by Dependabot and still pass through the normal quality gates.
+
+## Publishing a release
+
+Keep `pyproject.toml` and `src/mdhelper/version.py` on the same version. After changing either
+dependency or project metadata, refresh `uv.lock` and commit it with the change. Before tagging,
+run:
+
+```bash
+uv sync --frozen --group dev
+uv run python packaging/check_release.py
+uv run ruff check conftest.py packaging src tests
+uv run mypy src packaging/check_release.py
+uv run pytest -q
+```
+
+Once the required checks are green on `main`, create and push a version tag that exactly matches
+the metadata:
+
+```bash
+git tag -a v0.1.0 -m "MDHelper 0.1.0"
+git push origin v0.1.0
+```
+
+The `Release` workflow rejects mismatched tags, builds the wheel and all three portable archives,
+and waits for both target-platform jobs. Only its final job receives `contents: write`; it downloads
+the validated artifacts, creates `SHA256SUMS`, and publishes the GitHub Release with generated
+notes. Do not create or move a release tag until the corresponding commit has passed the required
+checks.

@@ -1,35 +1,71 @@
 name: Linux release candidate
 
 on:
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: linux-release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-validate:
+    timeout-minutes: 120
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: "0.12.6"
+          enable-cache: true
       - name: Install locked GUI development environment
-        run: |
-          python -m pip install uv==0.12.6
-          uv sync --frozen --extra gui --group dev
+        run: uv sync --frozen --extra gui --group dev
+      - name: Validate release metadata
+        run: uv run python packaging/check_release.py
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: uv run python packaging/check_release.py --tag "${{ github.ref_name }}"
       - name: Validate source
         run: |
           uv run ruff check conftest.py packaging src tests
-          uv run mypy src
+          uv run mypy src packaging/check_release.py
           uv run pytest -q
+      - name: Build and smoke test wheel
+        run: |
+          version=$(uv run python packaging/check_release.py)
+          wheel="dist/mdhelper-${version}-py3-none-any.whl"
+          uv build
+          uv run python packaging/verify_wheel.py "$wheel"
+          uv run python packaging/generate_notices.py \
+            --output dist/THIRD_PARTY_NOTICES.json
+          wheel_env="${RUNNER_TEMP}/mdhelper-wheel"
+          uv venv --python 3.12 "$wheel_env"
+          uv pip install --python "$wheel_env/bin/python" "$wheel"
+          "$wheel_env/bin/mdhelper" --version
+          "$wheel_env/bin/mdhelper" cli --help
       - name: Build and smoke test Linux applications
-        run: ./packaging/linux/build.sh
+        run: PYTHON=.venv/bin/python ./packaging/linux/build.sh
       - name: Upload Linux release candidates
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: mdhelper-0.1.0-linux-x86-64
+          name: mdhelper-linux-x86-64
           path: |
             dist/linux/MDHelper-*-Linux-x86_64.tar.gz
             dist/linux/MDHelper-*-Linux-x86_64-GUI.tar.gz
           if-no-files-found: error
+          retention-days: 14
+      - name: Upload wheel release candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: mdhelper-python-wheel
+          path: |
+            dist/*.whl
+            dist/THIRD_PARTY_NOTICES.json
+          if-no-files-found: error
+          retention-days: 14

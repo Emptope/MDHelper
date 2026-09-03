@@ -11,9 +11,7 @@
 
 ## 已完成
 
-- Refined TUI panel and prompt spacing, role layout, headings, and suggestion defaults.
-- Fixed the TUI load menu to use `q` for Quit instead of a numbered action.
-- Simplified TUI batch role suggestions by hiding repeated internal method details.
+- [x] [Maintenace] 完善 GitHub CI/CD 流程，完成仓库上传前工作。
 
 ## 完成标准（每轮代码改动后需重新确认）
 

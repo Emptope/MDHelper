@@ -2,43 +2,66 @@ name: Quality
 
 on:
   push:
+    branches:
+      - main
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
+    name: ${{ matrix.name }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-2025]
+        include:
+          - name: Linux
+            os: ubuntu-22.04
+          - name: Windows
+            os: windows-2025
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: "0.12.6"
+          enable-cache: true
       - name: Install locked development environment
-        run: |
-          python -m pip install uv==0.12.6
-          uv sync --frozen --group dev
+        run: uv sync --frozen --group dev
+      - name: Validate release metadata
+        run: uv run python packaging/check_release.py
       - name: Lint
         run: uv run ruff check conftest.py packaging src tests
       - name: Type check
-        run: uv run mypy src
+        run: uv run mypy src packaging/check_release.py
       - name: Test
         run: uv run pytest -q
       - name: Verify headless Linux CLI
         if: runner.os == 'Linux'
         run: |
+          version=$(uv run python packaging/check_release.py)
+          wheel="dist/mdhelper-${version}-py3-none-any.whl"
           uv run python -c "import importlib.util; assert importlib.util.find_spec('PySide6') is None"
           env -u DISPLAY uv run mdhelper --version
           env -u DISPLAY uv run mdhelper tui --smoke-test
-          uv build --wheel
-          uv run python packaging/verify_wheel.py dist/mdhelper-0.1.0-py3-none-any.whl
+          uv build
+          uv run python packaging/verify_wheel.py "$wheel"
           uv run python packaging/generate_notices.py --output dist/THIRD_PARTY_NOTICES.json
+          wheel_env="${RUNNER_TEMP}/mdhelper-wheel"
+          uv venv --python 3.12 "$wheel_env"
+          uv pip install --python "$wheel_env/bin/python" "$wheel"
+          "$wheel_env/bin/mdhelper" --version
+          "$wheel_env/bin/mdhelper" cli --help
       - name: Verify Windows GUI startup
         if: runner.os == 'Windows'
         shell: pwsh
@@ -50,8 +73,9 @@ jobs:
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: mdhelper-linux-wheel
+          name: mdhelper-python-wheel-ci
           path: |
             dist/*.whl
             dist/THIRD_PARTY_NOTICES.json
           if-no-files-found: error
+          retention-days: 7
