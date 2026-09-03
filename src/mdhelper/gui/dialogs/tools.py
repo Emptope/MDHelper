@@ -16,17 +16,18 @@ class MakeIndexHelpDialog(QDialog):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Make Index File")
-        self.setMinimumWidth(540)
+        self.setMinimumWidth(600)
 
         summary = QLabel(
             "GROMACS is not configured. Configure it under Tools > Integrations, "
-            "or run this command in a terminal:"
+            "or run this command:"
         )
         summary.setWordWrap(True)
         self.command = QLineEdit("gmx make_ndx -f <.gro/.tpr> -o index.ndx")
         self.command.setReadOnly(True)
+        url = MAKE_INDEX_DOCUMENTATION
         self.documentation = QLabel(
-            f'<a href="{MAKE_INDEX_DOCUMENTATION}">Open the gmx make_ndx documentation</a>'
+            f'More info: <a href="{url}">{url}</a>'
         )
         self.documentation.setOpenExternalLinks(True)
         self.documentation.setTextInteractionFlags(
