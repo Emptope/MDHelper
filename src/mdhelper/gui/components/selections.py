@@ -176,7 +176,7 @@ class SelectionSeries(QWidget):
         self.table.setMinimumHeight(120)
         self.table.cellClicked.connect(self._load_row)
 
-        self.add_button = QPushButton("Add current")
+        self.add_button = QPushButton("Add Current")
         self.add_button.clicked.connect(self.add_current)
         self.remove_button = QPushButton("Remove")
         self.remove_button.clicked.connect(self.remove_selected)

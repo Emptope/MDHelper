@@ -72,7 +72,7 @@ class PlotSettingsDialog(QDialog):
         text_form.addRow("Axis labels", self.label_font_size)
         text_form.addRow("Tick labels", self.tick_font_size)
         text_form.addRow("Legend", self.legend_font_size)
-        text = QGroupBox("Font size")
+        text = QGroupBox("Font Size")
         text.setLayout(text_form)
 
         self.reset_button = QPushButton("Reset")

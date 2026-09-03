@@ -26,7 +26,7 @@ class RadialReport(Report):
         if width is None:
             width = self.request.bin_width_nm
         rows = [
-            ("Calculated distance range", f"0 to {_angstrom(radius)} {ANGSTROM_SYMBOL}"),
+            ("Range", f"0 to {_angstrom(radius)} {ANGSTROM_SYMBOL}"),
             ("Bin width", f"{_angstrom(width)} {ANGSTROM_SYMBOL}"),
             ("Data points", str(len(radii))),
             ("Frames analyzed", self.frame_count),
@@ -56,10 +56,7 @@ class CumulativeRdfReport(RadialReport):
         return tuple(rows)
 
     def configuration_rows(self) -> ReportRows:
-        return (
-            ("Counting basis", "Selection atoms per reference atom"),
-            *self.radial_configuration_rows(),
-        )
+        return self.radial_configuration_rows()
 
 
 def _curve_rows(

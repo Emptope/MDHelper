@@ -36,7 +36,7 @@ class PlotControls(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(PAGE_SPACING)
         series_controls = QHBoxLayout()
-        series_controls.addWidget(QLabel("Plot series"))
+        series_controls.addWidget(QLabel("Plot Queue"))
         self.combine_button = QPushButton("Combine")
         self.combine_button.setEnabled(False)
         self.separate_button = QPushButton("Separate")

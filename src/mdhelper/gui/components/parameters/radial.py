@@ -65,7 +65,7 @@ class RadialParameters(QWidget):
         form = QFormLayout(self)
         configure_form(form)
         form.addRow(self.inputs)
-        form.addRow("Plot series", self.series)
+        form.addRow("Plot Queue", self.series)
         form.addRow("Maximum radius (nm)", self.r_max)
         form.addRow("Bin width (nm)", self.bin_width)
 

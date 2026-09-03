@@ -31,7 +31,7 @@ class SpeciesPanel(QGroupBox):
     role_edited = Signal(str, str)
 
     def __init__(self, parent: QWidget | None = None):
-        super().__init__("Detected Species and Roles", parent)
+        super().__init__("Species and Roles", parent)
         layout = QVBoxLayout(self)
         self._suggestions: dict[str, SpeciesRoleSuggestion] = {}
         self.table = QTableWidget(0, 4)
