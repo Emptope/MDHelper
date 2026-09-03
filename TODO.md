@@ -11,6 +11,8 @@
 
 ## 已完成
 
+- Simplified TUI batch role suggestions by hiding repeated internal method details.
+
 ## 完成标准（每轮代码改动后需重新确认）
 
 - Ruff 和 mypy 通过。

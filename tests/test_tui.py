@@ -10,7 +10,8 @@ import mdhelper.bootstrap.portable as portable
 import mdhelper.bootstrap.windows_console as windows_console
 from mdhelper.app import ApplicationService
 from mdhelper.core.integrations import IntegrationStatus
-from mdhelper.core.system import FrameRange
+from mdhelper.core.species import SpeciesRoleSuggestion
+from mdhelper.core.system import FrameRange, SystemSummary
 from mdhelper.gui.main import tui_command
 from mdhelper.services.config import UserConfig
 from mdhelper.tui.controller import Tui
@@ -397,6 +398,42 @@ def test_tui_default_export_directory_follows_selected_trajectory(tmp_path: Path
     assert workspace.draft("cumulative_rdf").output == str(trajectory.parent / "results")
     assert workspace.rdf_cn().output == str(trajectory.parent / "results")
     assert workspace.rdf_cn() is not workspace.draft("rdf")
+
+
+def test_tui_role_suggestion_batch_hides_internal_method() -> None:
+    method = "internal evidence source"
+    suggestion = SpeciesRoleSuggestion(
+        "solvent",
+        method,
+        {"charge_e": 0.0},
+        reason="The molecular charge is neutral.",
+    )
+    summary = SystemSummary(
+        topology="topology.gro",
+        trajectory="trajectory.xtc",
+        n_atoms=1,
+        n_frames=1,
+        species={"SOL": 1},
+        atom_names={"OW": 1},
+        backend="mdanalysis",
+        role_suggestions={"SOL": suggestion},
+    )
+    output = StringIO()
+    tui = Tui(
+        ApplicationService(UserConfig()),
+        Terminal(StringIO("n\n"), output),
+    )
+    tui.workspace.summary = summary
+
+    try:
+        tui._apply_role_suggestions()
+    finally:
+        tui.job_runner.shutdown()
+
+    rendered = output.getvalue()
+    assert suggestion.suggested_role in rendered
+    assert suggestion.method not in rendered
+    assert tui.workspace.roles == {}
 
 
 def test_tui_analysis_setup_queues_initial_radial_selection(monkeypatch) -> None:

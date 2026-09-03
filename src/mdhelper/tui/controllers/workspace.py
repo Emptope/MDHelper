@@ -252,9 +252,7 @@ class WorkspaceController(ControllerContext):
             return
         self.terminal.write("Suggestions to apply:")
         for species, suggestion in suggestions.items():
-            self.terminal.write(
-                f"  {species}: {suggestion.suggested_role} ({suggestion.method})"
-            )
+            self.terminal.write(f"  {species}: {suggestion.suggested_role}")
         if not self.terminal.confirm("Apply these suggestions?"):
             return
         for species, suggestion in suggestions.items():
