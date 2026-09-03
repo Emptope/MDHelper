@@ -73,4 +73,4 @@ uv sync --frozen --group dev
 同目录配置和 package 资源。`config.toml` 必须与 `mdhelper.exe` 同目录。`--settings` 和
 `MDHELPER_CONFIG` 可覆盖该路径。
 
-只有目标平台工作流成功后才满足发布门槛；文件存在不表示测试通过。
+只有目标平台工作流成功后才满足发布门槛。
