@@ -12,7 +12,13 @@ from mdhelper.core.analysis import (
     EnergyRequest,
     RadialRequest,
 )
-from mdhelper.core.plotting import PlotLimits, PlotModel, PlotSize, results_plots
+from mdhelper.core.plotting import (
+    PlotAppearance,
+    PlotLimits,
+    PlotModel,
+    PlotSize,
+    results_plots,
+)
 
 
 def _radial_result(
@@ -166,6 +172,7 @@ def test_save_plots_numbers_every_combined_analysis_name(
         _scheme: str,
         _limits: PlotLimits | None,
         _size: PlotSize | None,
+        _appearance: PlotAppearance | None,
     ) -> list[Path]:
         path = Path(output) / f"{stem}.png"
         path.touch()
@@ -194,6 +201,7 @@ def test_save_plots_increments_combined_names_across_batch_and_disk(
         _scheme: str,
         _limits: PlotLimits | None,
         _size: PlotSize | None,
+        _appearance: PlotAppearance | None,
     ) -> list[Path]:
         path = Path(output) / f"{stem}.png"
         path.touch()
@@ -221,7 +229,16 @@ def test_export_bundle_rebuilds_standalone_radial_plots(
         color_ids=(2, 3),
         titles=("Pair comparison", "Pair comparison"),
     )
-    exported: list[tuple[Path, str, PlotModel, PlotLimits | None, PlotSize | None]] = []
+    exported: list[
+        tuple[
+            Path,
+            str,
+            PlotModel,
+            PlotLimits | None,
+            PlotSize | None,
+            PlotAppearance | None,
+        ]
+    ] = []
 
     def fake_result(
         _result: AnalysisResult,
@@ -241,16 +258,24 @@ def test_export_bundle_rebuilds_standalone_radial_plots(
         _scheme: str,
         limits: PlotLimits | None,
         size: PlotSize | None,
+        appearance: PlotAppearance | None,
     ) -> list[Path]:
-        exported.append((Path(output), stem, model, limits, size))
+        exported.append((Path(output), stem, model, limits, size, appearance))
         return [Path(output) / f"{stem}.png"]
 
     monkeypatch.setattr(exports_module, "export_result", fake_result)
     monkeypatch.setattr(exports_module, "export_plot_model", fake_plot)
     limits = PlotLimits(1.0, 6.0, 0.0, 4.0, 0.5, 8.0)
     size = PlotSize(7.0, 5.0)
+    appearance = PlotAppearance(grid_visible=False, line_width=3.0)
 
-    export_bundle(plans, tmp_path, limits=limits, sizes=(size,))
+    export_bundle(
+        plans,
+        tmp_path,
+        limits=limits,
+        sizes=(size,),
+        appearance=appearance,
+    )
 
     assert [(output.name, stem) for output, stem, *_rest in exported] == [
         ("rdf-LI-O_FSI", "rdf-LI-O_FSI"),
@@ -269,6 +294,8 @@ def test_export_bundle_rebuilds_standalone_radial_plots(
     assert cn_export[3] == PlotLimits(1.0, 6.0, 0.5, 8.0)
     assert rdf_export[4] == size
     assert cn_export[4] == size
+    assert rdf_export[5] == appearance
+    assert cn_export[5] == appearance
 
 
 def test_export_bundle_maps_limits_by_source_axis(
@@ -301,6 +328,7 @@ def test_export_bundle_maps_limits_by_source_axis(
         _scheme: str,
         limits: PlotLimits | None,
         _size: PlotSize | None,
+        _appearance: PlotAppearance | None,
     ) -> list[Path]:
         exported_limits.append(limits)
         return [Path(output) / f"{stem}.png"]

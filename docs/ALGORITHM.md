@@ -277,6 +277,11 @@ For compatible radial series, the automatic X range is their domain intersection
 primary and secondary Y ranges are calculated independently from finite points visible in the
 current X range and start at zero. Explicit user limits override corresponding automatic bounds.
 
+Validated appearance state controls legend and grid visibility, legend placement, line width, and
+font sizes. Line width is applied directly to primary and step series; secondary series use 90% of
+that width and reference lines use 50%. Preview and export renderers consume the same appearance
+state, while the immutable result arrays remain unchanged.
+
 ## 11. Provenance and project persistence
 
 In-process analysis inputs are SHA-256 hashed in 4 MiB chunks. Direct GROMACS analysis starts the

@@ -64,8 +64,8 @@ class SpeciesPanel(QGroupBox):
         controls = ActionBar()
         controls.add_leading_button(self.help_button)
         controls.add_button(self.details_button)
-        controls.add_button(self.apply_button, primary=True)
         controls.add_button(self.cancel_button)
+        controls.add_button(self.apply_button, primary=True)
         layout.addWidget(controls)
         self.action_bar = controls
 

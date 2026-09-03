@@ -16,6 +16,7 @@ from mdhelper.core.analysis import (
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.plotting import (
     DEFAULT_PLOT_SCHEME,
+    PlotAppearance,
     PlotLimits,
     PlotModel,
     PlotSize,
@@ -274,6 +275,7 @@ def export_bundle(
     scheme: str = DEFAULT_PLOT_SCHEME,
     limits: PlotLimits | None = None,
     sizes: Sequence[PlotSize | None] | None = None,
+    appearance: PlotAppearance | None = None,
 ) -> list[Path]:
     """Export result data and put each plot in its corresponding analysis directory."""
 
@@ -323,6 +325,7 @@ def export_bundle(
                 scheme,
                 _item_limits(axis, limits),
                 size,
+                appearance,
             )
         )
     return paths
@@ -334,6 +337,7 @@ def save_plots(
     scheme: str = DEFAULT_PLOT_SCHEME,
     limits: PlotLimits | None = None,
     sizes: Sequence[PlotSize | None] | None = None,
+    appearance: PlotAppearance | None = None,
 ) -> list[Path]:
     """Save every plot directly under one directory with its readable name."""
 
@@ -346,6 +350,14 @@ def save_plots(
     for plot, size in zip(plans, _plot_sizes(plans, sizes), strict=True):
         name = _unique_name(plot.name, reserved)
         paths.extend(
-            export_plot_model(plot.model, destination, name, scheme, limits, size)
+            export_plot_model(
+                plot.model,
+                destination,
+                name,
+                scheme,
+                limits,
+                size,
+                appearance,
+            )
         )
     return paths

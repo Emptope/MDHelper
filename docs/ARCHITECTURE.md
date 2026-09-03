@@ -120,10 +120,12 @@ modify numerical parameters.
 distance domain and may use left/right Y axes. The cumulative curve is `N(r)` and its Y label is
 `Coordination number`. Energy terms form separate plot windows by default and may be assigned an
 explicit shared group in one window. Each window renders one plot. Plot state stores the result ID,
-selected result series, panel group, visibility,
-legend, color, custom title, and strict primary/secondary limit fields. The GUI edits the title of
-the plot containing the current visible series and synchronizes that title across its grouped
-series; project restore and figure export consume the same state.
+selected result series, panel group, visibility, legend, color, custom title, strict
+primary/secondary limit fields, and validated appearance settings. Appearance covers legend and
+grid visibility, legend placement, line width, and title, axis-label, tick-label, and legend font
+sizes. The GUI edits the title of the plot containing the current visible series and synchronizes
+that title across its grouped series; project restore, plot windows, and figure export consume the
+same state.
 Interactive project figure saving writes one PNG/SVG/PDF set per plot model directly under
 `figures`, using canonical names allocated against both the current batch and existing image sets.
 Models with multiple series of one analysis type use `rdf`, `cn`, or `energy`; mixed RDF/CN models
@@ -311,7 +313,11 @@ The Result page keeps reproduction metadata out of its Overview. Details opens t
 readable report, including technical metadata. The viewer is non-modal, uses the current job or
 workflow name as its heading, and provides a Copy action below the content. Test sessions redirect
 diagnostic logging to temporary storage so expected error-path tests never modify a user's
-persistent log.
+persistent log. Plot Settings keeps frequently edited title, coloring, and range controls inline;
+its bottom-right Advanced action opens a modal editor for plot appearance. Control edits remain a
+draft until Apply or OK. Apply redraws open plot windows and updates the project state without
+closing the editor, OK applies then closes it, and Cancel discards changes made since the last
+application.
 
 Menu ordering is controlled by insertion order in `gui/menu.py`; analysis combo ordering is
 controlled by `addItem` order in `gui/components/parameters.py`; TUI menu ordering is controlled by

@@ -137,11 +137,13 @@ GUI does not reuse TUI controllers. Each adapter has presentation-specific tests
 ## 13. G12: plotting is separate from data
 
 Plots derive from immutable results through `core.plotting`. Changing titles, colors, labels,
-visible series, or axis limits never rewrites result arrays. Compatible RDF and cumulative RDF curves
-can share a distance axis while retaining independent Y scales.
+visible series, axis limits, legends, grids, line widths, or font sizes never rewrites result
+arrays. Compatible RDF and cumulative RDF curves can share a distance axis while retaining
+independent Y scales.
 
 The cumulative curve is `N(r)` and its Y-axis label is `Coordination number`. Plot state stores
-custom titles, explicit primary and secondary bounds, and strict color identifiers.
+custom titles, explicit primary and secondary bounds, strict color identifiers, and validated
+appearance settings shared by GUI previews and figure exports.
 
 ## 14. G13: isolated and auditable external programs
 

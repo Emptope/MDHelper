@@ -14,7 +14,7 @@ from mdhelper.backends.gro import GroTrajectorySource
 from mdhelper.cli import main
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError, InputError, InputFileError
-from mdhelper.core.plotting import PlotLimits, PlotSelection, PlotState
+from mdhelper.core.plotting import PlotAppearance, PlotLimits, PlotSelection, PlotState
 from mdhelper.core.system import FrameRange
 from mdhelper.integrations.manager import IntegrationManager
 from mdhelper.integrations.models import IntegrationStatus
@@ -407,6 +407,11 @@ def test_project_plot_state_round_trips_all_comparison_controls(
             y_max=4.0,
             y2_min=-1.0,
             y2_max=3.0,
+        ),
+        PlotAppearance(
+            legend_location="lower_right",
+            grid_visible=False,
+            line_width=2.5,
         ),
     )
     application.projects.set_plot_state(project, state)

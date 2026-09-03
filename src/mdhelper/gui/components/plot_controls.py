@@ -101,6 +101,11 @@ class PlotControls(QWidget):
         for column in range(3):
             settings.setColumnStretch(column, 1)
         settings.setRowStretch(settings.rowCount(), 1)
+        advanced_row = QHBoxLayout()
+        advanced_row.addStretch(1)
+        self.advanced_button = QPushButton("Advanced")
+        advanced_row.addWidget(self.advanced_button)
+        settings.addLayout(advanced_row, 7, 0, 1, 3)
         layout.addWidget(self.settings)
 
         self.open_button = QPushButton("Open Plot Window")

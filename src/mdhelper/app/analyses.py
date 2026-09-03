@@ -27,7 +27,13 @@ from mdhelper.core.errors import (
     JobCancelled,
     MDHelperError,
 )
-from mdhelper.core.plotting import DEFAULT_PLOT_SCHEME, PlotLimits, PlotModel, PlotSize
+from mdhelper.core.plotting import (
+    DEFAULT_PLOT_SCHEME,
+    PlotAppearance,
+    PlotLimits,
+    PlotModel,
+    PlotSize,
+)
 from mdhelper.core.progress import ProgressCallback
 from mdhelper.core.system import FrameRange
 from mdhelper.core.trajectory import TrajectorySource
@@ -54,8 +60,17 @@ class AnalysisUseCases:
         scheme: str = DEFAULT_PLOT_SCHEME,
         limits: PlotLimits | None = None,
         size: PlotSize | None = None,
+        appearance: PlotAppearance | None = None,
     ) -> list[Path]:
-        return export_result(result, output_directory, include_figures, scheme, limits, size)
+        return export_result(
+            result,
+            output_directory,
+            include_figures,
+            scheme,
+            limits,
+            size,
+            appearance,
+        )
 
     def export_figures(
         self,
@@ -65,8 +80,17 @@ class AnalysisUseCases:
         scheme: str = DEFAULT_PLOT_SCHEME,
         limits: PlotLimits | None = None,
         size: PlotSize | None = None,
+        appearance: PlotAppearance | None = None,
     ) -> list[Path]:
-        return export_figures(result, output_directory, stem, scheme, limits, size)
+        return export_figures(
+            result,
+            output_directory,
+            stem,
+            scheme,
+            limits,
+            size,
+            appearance,
+        )
 
     def export_comparison_figures(
         self,
@@ -81,6 +105,7 @@ class AnalysisUseCases:
         scheme: str = DEFAULT_PLOT_SCHEME,
         limits: PlotLimits | None = None,
         size: PlotSize | None = None,
+        appearance: PlotAppearance | None = None,
     ) -> list[Path]:
         return export_comparison_figures(
             results,
@@ -94,6 +119,7 @@ class AnalysisUseCases:
             scheme,
             limits,
             size,
+            appearance,
         )
 
     def export_plot_model(
@@ -104,8 +130,17 @@ class AnalysisUseCases:
         scheme: str = DEFAULT_PLOT_SCHEME,
         limits: PlotLimits | None = None,
         size: PlotSize | None = None,
+        appearance: PlotAppearance | None = None,
     ) -> list[Path]:
-        return export_plot_model(model, output_directory, stem, scheme, limits, size)
+        return export_plot_model(
+            model,
+            output_directory,
+            stem,
+            scheme,
+            limits,
+            size,
+            appearance,
+        )
 
     def export_bundle(
         self,
@@ -114,8 +149,16 @@ class AnalysisUseCases:
         scheme: str = DEFAULT_PLOT_SCHEME,
         limits: PlotLimits | None = None,
         sizes: Sequence[PlotSize | None] | None = None,
+        appearance: PlotAppearance | None = None,
     ) -> list[Path]:
-        return export_bundle(plots, output_directory, scheme, limits, sizes)
+        return export_bundle(
+            plots,
+            output_directory,
+            scheme,
+            limits,
+            sizes,
+            appearance,
+        )
 
     def save_plots(
         self,
@@ -124,8 +167,16 @@ class AnalysisUseCases:
         scheme: str = DEFAULT_PLOT_SCHEME,
         limits: PlotLimits | None = None,
         sizes: Sequence[PlotSize | None] | None = None,
+        appearance: PlotAppearance | None = None,
     ) -> list[Path]:
-        return save_plots(plots, output_directory, scheme, limits, sizes)
+        return save_plots(
+            plots,
+            output_directory,
+            scheme,
+            limits,
+            sizes,
+            appearance,
+        )
 
     def energy_terms(
         self,

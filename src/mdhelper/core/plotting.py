@@ -12,8 +12,13 @@ from .errors import ConfigurationError
 from .units import convert_distance
 
 DEFAULT_PLOT_SCHEME = "residue_name"
+DEFAULT_LEGEND_LOCATION = "upper_left"
 SECONDARY_COLOR_FACTOR = 0.5
 MAX_PLOT_TITLE_LENGTH = 120
+MIN_PLOT_LINE_WIDTH = 0.1
+MAX_PLOT_LINE_WIDTH = 10.0
+MIN_PLOT_FONT_SIZE = 6.0
+MAX_PLOT_FONT_SIZE = 48.0
 
 
 @dataclass(frozen=True)
@@ -80,6 +85,90 @@ class PlotColor:
     color_id: int
     label: str
     value: str
+
+
+@dataclass(frozen=True)
+class PlotLegendLocation:
+    """One supported legend placement with a presentation label."""
+
+    key: str
+    label: str
+    value: str
+
+
+@dataclass(frozen=True)
+class PlotAppearance:
+    """User-selected presentation settings shared by previews and exports."""
+
+    legend_visible: bool = True
+    legend_location: str = DEFAULT_LEGEND_LOCATION
+    grid_visible: bool = True
+    line_width: float = 2.0
+    title_font_size: float = 14.0
+    label_font_size: float = 12.0
+    tick_font_size: float = 10.0
+    legend_font_size: float = 9.0
+
+    def validate(self) -> None:
+        if type(self.legend_visible) is not bool:
+            raise ConfigurationError("Plot legend visibility must be true or false.")
+        if type(self.grid_visible) is not bool:
+            raise ConfigurationError("Plot grid visibility must be true or false.")
+        plot_legend_location(self.legend_location)
+        _validate_plot_number(
+            self.line_width,
+            "line width",
+            MIN_PLOT_LINE_WIDTH,
+            MAX_PLOT_LINE_WIDTH,
+        )
+        for name, value in (
+            ("title font size", self.title_font_size),
+            ("axis label font size", self.label_font_size),
+            ("tick font size", self.tick_font_size),
+            ("legend font size", self.legend_font_size),
+        ):
+            _validate_plot_number(
+                value,
+                name,
+                MIN_PLOT_FONT_SIZE,
+                MAX_PLOT_FONT_SIZE,
+            )
+
+    def to_dict(self) -> dict[str, object]:
+        self.validate()
+        return {
+            "legend_visible": self.legend_visible,
+            "legend_location": self.legend_location,
+            "grid_visible": self.grid_visible,
+            "line_width": self.line_width,
+            "title_font_size": self.title_font_size,
+            "label_font_size": self.label_font_size,
+            "tick_font_size": self.tick_font_size,
+            "legend_font_size": self.legend_font_size,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> PlotAppearance:
+        if not isinstance(value, dict):
+            raise ConfigurationError("Plot appearance must be an object.")
+        expected = {
+            "legend_visible",
+            "legend_location",
+            "grid_visible",
+            "line_width",
+            "title_font_size",
+            "label_font_size",
+            "tick_font_size",
+            "legend_font_size",
+        }
+        if set(value) != expected:
+            raise ConfigurationError("Plot appearance contains missing or unknown fields.")
+        try:
+            appearance = cls(**dict(value))
+        except TypeError as exc:
+            raise ConfigurationError("Plot appearance is invalid.") from exc
+        appearance.validate()
+        return appearance
 
 
 @dataclass(frozen=True)
@@ -205,6 +294,7 @@ class PlotState:
     selections: tuple[PlotSelection, ...] = ()
     scheme: str = DEFAULT_PLOT_SCHEME
     limits: PlotLimits = PlotLimits()
+    appearance: PlotAppearance = PlotAppearance()
     schema_version: int = 1
 
     def validate(self) -> None:
@@ -229,6 +319,9 @@ class PlotState:
             raise ConfigurationError("Grouped plot selections must use one title.")
         plot_scheme(self.scheme)
         self.limits.validate()
+        if not isinstance(self.appearance, PlotAppearance):
+            raise ConfigurationError("Plot appearance is invalid.")
+        self.appearance.validate()
 
     def to_dict(self) -> dict[str, object]:
         self.validate()
@@ -237,13 +330,20 @@ class PlotState:
             "selections": [selection.to_dict() for selection in self.selections],
             "scheme": self.scheme,
             "limits": self.limits.to_dict(),
+            "appearance": self.appearance.to_dict(),
         }
 
     @classmethod
     def from_dict(cls, value: object) -> PlotState:
         if not isinstance(value, dict):
             raise ConfigurationError("Plot state must be an object.")
-        expected = {"schema_version", "selections", "scheme", "limits"}
+        expected = {
+            "schema_version",
+            "selections",
+            "scheme",
+            "limits",
+            "appearance",
+        }
         if set(value) != expected:
             raise ConfigurationError("Plot state contains missing or unknown fields.")
         raw_selections = value.get("selections")
@@ -254,6 +354,7 @@ class PlotState:
             selections,
             value.get("scheme"),  # type: ignore[arg-type]
             PlotLimits.from_dict(value.get("limits")),
+            PlotAppearance.from_dict(value.get("appearance")),
             value.get("schema_version"),  # type: ignore[arg-type]
         )
         state.validate()
@@ -285,10 +386,23 @@ PLOT_COLORS = (
     PlotColor(16, "Black", "#000000"),
 )
 
+PLOT_LEGEND_LOCATIONS = (
+    PlotLegendLocation("best", "Best fit", "best"),
+    PlotLegendLocation("upper_left", "Upper left", "upper left"),
+    PlotLegendLocation("upper_right", "Upper right", "upper right"),
+    PlotLegendLocation("lower_left", "Lower left", "lower left"),
+    PlotLegendLocation("lower_right", "Lower right", "lower right"),
+    PlotLegendLocation("center_left", "Center left", "center left"),
+    PlotLegendLocation("center_right", "Center right", "center right"),
+)
+
 _CATEGORY_COLOR_IDS = (0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 8)
 
 _SCHEME_MAP = {scheme.key: scheme for scheme in PLOT_SCHEMES}
 _COLOR_MAP = {color.color_id: color for color in PLOT_COLORS}
+_LEGEND_LOCATION_MAP = {
+    location.key: location for location in PLOT_LEGEND_LOCATIONS
+}
 
 
 def plot_scheme(key: str) -> PlotScheme:
@@ -296,6 +410,30 @@ def plot_scheme(key: str) -> PlotScheme:
         return _SCHEME_MAP[key]
     except KeyError as exc:
         raise ConfigurationError(f"Unknown plot color scheme: {key!r}.") from exc
+
+
+def plot_legend_location(key: str) -> PlotLegendLocation:
+    try:
+        return _LEGEND_LOCATION_MAP[key]
+    except (KeyError, TypeError) as exc:
+        raise ConfigurationError(f"Unknown plot legend location: {key!r}.") from exc
+
+
+def _validate_plot_number(
+    value: object,
+    name: str,
+    minimum: float,
+    maximum: float,
+) -> None:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or not minimum <= value <= maximum
+    ):
+        raise ConfigurationError(
+            f"Plot {name} must be between {minimum:g} and {maximum:g}."
+        )
 
 
 def plot_color(color_id: int) -> PlotColor:
@@ -642,11 +780,14 @@ def draw_plot(
     model: PlotModel,
     scheme: str = DEFAULT_PLOT_SCHEME,
     limits: PlotLimits | None = None,
+    appearance: PlotAppearance | None = None,
 ) -> None:
     """Render a plot model with a consistent publication style."""
 
     selected_limits = limits or PlotLimits()
     selected_limits.validate()
+    selected_appearance = appearance or PlotAppearance()
+    selected_appearance.validate()
     auto_x = _common_x_range(model)
     x_range = _x_range(auto_x, selected_limits)
     method = plot_scheme(scheme)
@@ -685,7 +826,11 @@ def draw_plot(
                 color=color,
                 label=_legend_text(series),
                 linestyle="--" if series.axis == "secondary" else "-",
-                linewidth=1.8 if series.axis == "secondary" else 2.0,
+                linewidth=(
+                    selected_appearance.line_width * 0.9
+                    if series.axis == "secondary"
+                    else selected_appearance.line_width
+                ),
             )
         elif model.kind == "step":
             target_axis.step(
@@ -694,7 +839,7 @@ def draw_plot(
                 where="mid",
                 color=color,
                 label=_legend_text(series),
-                linewidth=1.8,
+                linewidth=selected_appearance.line_width,
             )
             target_axis.scatter(
                 x,
@@ -711,33 +856,52 @@ def draw_plot(
         axis.axhline(  # type: ignore[attr-defined]
             model.reference_y,
             color="#666666",
-            linewidth=1.0,
+            linewidth=selected_appearance.line_width * 0.5,
             linestyle="-",
             alpha=0.3,
             zorder=0,
         )
-    axis.set_xlabel(model.x_label, fontsize=12)  # type: ignore[attr-defined]
-    axis.set_ylabel(model.y_label, fontsize=12)  # type: ignore[attr-defined]
+    axis.set_xlabel(  # type: ignore[attr-defined]
+        model.x_label,
+        fontsize=selected_appearance.label_font_size,
+    )
+    axis.set_ylabel(  # type: ignore[attr-defined]
+        model.y_label,
+        fontsize=selected_appearance.label_font_size,
+    )
     if secondary_axis is not None and model.secondary_y_label is not None:
-        secondary_axis.set_ylabel(model.secondary_y_label, fontsize=12)
-        secondary_axis.tick_params(axis="y", colors="#202020", labelsize=10)
+        secondary_axis.set_ylabel(
+            model.secondary_y_label,
+            fontsize=selected_appearance.label_font_size,
+        )
+        secondary_axis.tick_params(
+            axis="y",
+            colors="#202020",
+            labelsize=selected_appearance.tick_font_size,
+        )
     axis.set_title(  # type: ignore[attr-defined]
         model.title,
-        fontsize=14,
+        fontsize=selected_appearance.title_font_size,
         fontweight="normal",
         pad=10,
         wrap=True,
     )
     axis.set_axisbelow(True)  # type: ignore[attr-defined]
-    axis.tick_params(axis="both", labelsize=10)  # type: ignore[attr-defined]
-    axis.grid(  # type: ignore[attr-defined]
-        True,
-        which="both",
-        color="#b0b0b0",
-        linestyle=":",
-        linewidth=0.8,
-        alpha=0.5,
+    axis.tick_params(  # type: ignore[attr-defined]
+        axis="both",
+        labelsize=selected_appearance.tick_font_size,
     )
+    if selected_appearance.grid_visible:
+        axis.grid(  # type: ignore[attr-defined]
+            True,
+            which="both",
+            color="#b0b0b0",
+            linestyle=":",
+            linewidth=0.8,
+            alpha=0.5,
+        )
+    else:
+        axis.grid(False)  # type: ignore[attr-defined]
     if x_range is not None:
         axis.set_xlim(*x_range)  # type: ignore[attr-defined]
     elif selected_limits.x_min is not None or selected_limits.x_max is not None:
@@ -764,7 +928,7 @@ def draw_plot(
             bottom=selected_limits.y2_min,
             top=selected_limits.y2_max,
         )
-    if model.series:
+    if model.series and selected_appearance.legend_visible:
         handles, legend_labels = axis.get_legend_handles_labels()  # type: ignore[attr-defined]
         if secondary_axis is not None:
             secondary_handles, secondary_labels = (
@@ -780,8 +944,8 @@ def draw_plot(
             framealpha=0.96,
             facecolor="white",
             edgecolor="#a8a8a8",
-            loc="upper left",
-            fontsize=9,
+            loc=plot_legend_location(selected_appearance.legend_location).value,
+            fontsize=selected_appearance.legend_font_size,
             handlelength=2.6,
             handletextpad=0.7,
             borderpad=0.55,

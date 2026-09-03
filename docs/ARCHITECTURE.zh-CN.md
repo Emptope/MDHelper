@@ -156,8 +156,10 @@ TUI/CLI 运行期间保持等待并连接标准流。GUI 启动会创建独立�
 - GUI 改变配色或范围后直接更新状态，不存在额外的 Auto/Apply 提交阶段。
 
 绘图状态逐行保存 result ID、result series、panel group、可见性、legend、颜色和自定义
-标题，因此同一 energy result 的多个 term 可以独立恢复、组合和导出。GUI 编辑当前可见
-序列所属绘图的标题，并同步到该绘图的其他分组序列；项目恢复和图片导出使用同一状态。
+标题，并保存经过校验的图例/网格可见性、图例位置、线宽以及标题、坐标标签、刻度和图例
+字号，因此同一 energy result 的多个 term 可以独立恢复、组合和导出。GUI 编辑当前可见
+序列所属绘图的标题，并同步到该绘图的其他分组序列；项目恢复、绘图窗口和图片导出使用
+同一状态。
 交互式界面保存项目图片时，每个绘图模型按可读分析名称直接在 `figures` 下生成一组
 PNG/SVG/PDF，不建立图片子目录；命名会同时避开本批次及磁盘已有图片组。RDF/CN 组合模型
 中，同类多序列模型固定使用 `rdf`、`cn` 或 `energy`，RDF/CN 混合模型使用 `rdf-cn`；名称
@@ -480,8 +482,8 @@ GUI 采用薄视图加会话控制器分工，Qt 只在 GUI 包内惰性导入�
 | `components/parameters.py` | `r_max`、bin width、cutoff 和帧采样等显式参数控件。 |
 | `components/radial.py` | RDF/CN 共用的选择、半径和 bin width 控件。 |
 | `components/selections.py` | 参考、目标、配体选择及批量 plot series 编辑。 |
-| `components/plot_controls.py` | plot series、配色、标题和坐标范围控件。 |
-| `dialogs/plot.py` | 渲染 core 绘图模型；配色和坐标选择后立即应用。 |
+| `components/plot_controls.py` | plot series、配色、标题、坐标范围和高级设置入口。 |
+| `dialogs/plot.py` | 渲染 core 绘图模型，并编辑图例、网格、线宽和字体等高级外观。 |
 | `dialogs/log.py` | 在带完整窗口控制的非模态窗口显示并复制最新 job 的 raw message。 |
 | `dialogs/results.py` | 显示并复制包含技术元数据的完整结果报告。 |
 | `dialogs/species.py` | 显示角色含义表和格式化角色建议详情。 |
@@ -503,10 +505,13 @@ Analysis 页使用 Type、Backend 和 Progress 标签，Progress 区域按 Run�
 Result 页的 Overview 不显示复现所需的技术元数据。Details 打开包含技术元数据的完整可读
 报告；该窗口为非模态窗口，顶栏显示当前 job 或 workflow 名称，内容下方提供 Copy 操作。
 测试会话将诊断日志重定向至临时目录，错误路径测试产生的预期日志不会写入用户的持久日志。
+Plot Settings 内联保留常用的标题、配色和范围控件，右下角 Advanced 打开模态外观编辑器；
+控件编辑只改变草稿，Apply 会重绘已打开的绘图窗口并更新图片导出使用的项目状态但不关闭
+窗口，OK 会应用后关闭，Cancel 会丢弃上次应用之后的改动。
 
 批量 plot series 按配置逐项执行，以 `PlotModel` 合并展示。首次运行若尚无项目，GUI 在
 轨迹目录创建/选择项目，再通过项目用例提交结果。恢复结果时，数值数据来自结果文件，
-配色、坐标范围和可见性来自绘图状态，两者不互相污染。
+配色、坐标范围、可见性和高级外观来自绘图状态，两者不互相污染。
 
 GUI 的 New Project 先选择目录，由 App 层非递归发现受支持的拓扑和轨迹候选，再要求用户
 在两个独立选项框中明确选择输入。取消目录或候选选择时保留当前工作区；确认后才清空会话、

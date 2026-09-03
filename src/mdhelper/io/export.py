@@ -16,6 +16,7 @@ from mdhelper.core.errors import BackendError
 from mdhelper.core.plotting import (
     DEFAULT_PLOT_SCHEME,
     DEFAULT_PLOT_SIZE,
+    PlotAppearance,
     PlotLimits,
     PlotModel,
     PlotSize,
@@ -221,6 +222,7 @@ def _write_figures(
     scheme: str = DEFAULT_PLOT_SCHEME,
     limits: PlotLimits | None = None,
     size: PlotSize | None = None,
+    appearance: PlotAppearance | None = None,
 ) -> list[Path]:
     matplotlib, _figure_type, _canvas_type = _load_matplotlib()
     filename = _safe_stem(results[0].analysis_type if stem is None else stem)
@@ -239,7 +241,7 @@ def _write_figures(
         for index, model in enumerate(models, start=1):
             axis = figure.add_subplot(len(models), 1, index)
             axis.set_facecolor("white")
-            draw_plot(axis, model, scheme, limits)
+            draw_plot(axis, model, scheme, limits, appearance)
         try:
             return _save_figure(figure, output, filename)
         finally:
@@ -266,6 +268,7 @@ def export_figures(
     scheme: str = DEFAULT_PLOT_SCHEME,
     limits: PlotLimits | None = None,
     size: PlotSize | None = None,
+    appearance: PlotAppearance | None = None,
 ) -> list[Path]:
     """Export only plot files, optionally under a result-specific filename."""
 
@@ -276,6 +279,7 @@ def export_figures(
         scheme=scheme,
         limits=limits,
         size=size,
+        appearance=appearance,
     )
 
 
@@ -291,6 +295,7 @@ def export_comparison_figures(
     scheme: str = DEFAULT_PLOT_SCHEME,
     limits: PlotLimits | None = None,
     size: PlotSize | None = None,
+    appearance: PlotAppearance | None = None,
 ) -> list[Path]:
     """Export one figure containing multiple compatible results."""
 
@@ -308,6 +313,7 @@ def export_comparison_figures(
         scheme,
         limits,
         size,
+        appearance,
     )
 
 
@@ -318,6 +324,7 @@ def export_plot_model(
     scheme: str = DEFAULT_PLOT_SCHEME,
     limits: PlotLimits | None = None,
     size: PlotSize | None = None,
+    appearance: PlotAppearance | None = None,
 ) -> list[Path]:
     """Export one prepared plot model without changing its grouping or labels."""
 
@@ -329,7 +336,7 @@ def export_plot_model(
         figure = _figure(panel_size)
         axis = figure.add_subplot(1, 1, 1)
         axis.set_facecolor("white")
-        draw_plot(axis, model, scheme, limits)
+        draw_plot(axis, model, scheme, limits, appearance)
         try:
             return _save_figure(figure, output, _safe_stem(stem))
         finally:
@@ -343,6 +350,7 @@ def export_result(
     scheme: str = DEFAULT_PLOT_SCHEME,
     limits: PlotLimits | None = None,
     size: PlotSize | None = None,
+    appearance: PlotAppearance | None = None,
 ) -> list[Path]:
     output = _output_directory(output_directory)
     metadata = output / "result.json"
@@ -369,6 +377,13 @@ def export_result(
     paths = [metadata, *_export_csv(result, output), *stream_paths]
     if include_figures:
         paths.extend(
-            _write_figures((result,), output, scheme=scheme, limits=limits, size=size)
+            _write_figures(
+                (result,),
+                output,
+                scheme=scheme,
+                limits=limits,
+                size=size,
+                appearance=appearance,
+            )
         )
     return paths

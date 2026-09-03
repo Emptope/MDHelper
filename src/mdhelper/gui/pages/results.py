@@ -31,6 +31,7 @@ from mdhelper.core.analysis import (
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.plotting import (
     PLOT_COLORS,
+    PlotAppearance,
     PlotLimits,
     PlotModel,
     PlotSelection,
@@ -72,6 +73,7 @@ class ResultPanel(QWidget):
         self._results: dict[str, AnalysisResult] = {}
         self._context_names: dict[str, str] = {}
         self._limits = PlotLimits()
+        self._appearance = PlotAppearance()
         self._plot_rows: tuple[tuple[int, ...], ...] = ()
         self._plot_titles: tuple[str, ...] = ()
         self._restoring = False
@@ -130,6 +132,8 @@ class ResultPanel(QWidget):
             edit.editingFinished.connect(self._apply_limits)
         self.open_plot_button = controls.open_button
         self.open_plot_button.clicked.connect(self.open_plot_window)
+        self.advanced_plot_button = controls.advanced_button
+        self.advanced_plot_button.clicked.connect(self.open_advanced_settings)
         self.plot_settings = controls.settings
         sections = QSplitter(Qt.Orientation.Horizontal)
         sections.setChildrenCollapsible(False)
@@ -292,6 +296,9 @@ class ResultPanel(QWidget):
     def plot_limits(self) -> PlotLimits:
         return self._limits
 
+    def plot_appearance(self) -> PlotAppearance:
+        return self._appearance
+
     def plot_size(self) -> PlotSize:
         width, height = self.figure.get_size_inches()
         return PlotSize(float(width), float(height))
@@ -321,7 +328,12 @@ class ResultPanel(QWidget):
                     str(shown.data(_TITLE_ROLE) or ""),
                 )
             )
-        return PlotState(tuple(selections), self.plot_scheme(), self._limits)
+        return PlotState(
+            tuple(selections),
+            self.plot_scheme(),
+            self._limits,
+            self._appearance,
+        )
 
     def restore_state(
         self,
@@ -357,6 +369,7 @@ class ResultPanel(QWidget):
             if scheme_index >= 0:
                 self.color_scheme.setCurrentIndex(scheme_index)
             self._limits = state.limits
+            self._appearance = state.appearance
             self._show_limits(state.limits)
             if self.result is not None:
                 self.text.setHtml(result_summary_html(self.result))
@@ -415,6 +428,19 @@ class ResultPanel(QWidget):
         ):
             edit.clear()
         self._limits = PlotLimits()
+        self._redraw()
+        self.state_changed.emit()
+
+    def open_advanced_settings(self) -> None:
+        from mdhelper.gui.dialogs.plot import PlotSettingsDialog
+
+        dialog = PlotSettingsDialog(self._appearance, self)
+        dialog.applied.connect(self._apply_plot_appearance)
+        dialog.exec()
+
+    def _apply_plot_appearance(self, appearance: PlotAppearance) -> None:
+        appearance.validate()
+        self._appearance = appearance
         self._redraw()
         self.state_changed.emit()
 
@@ -800,7 +826,12 @@ class ResultPanel(QWidget):
             self._resize_plot_windows(max(1, len(models)))
         for index, window in enumerate(self._plot_windows):
             if index < len(models):
-                window.draw(models[index], self.plot_scheme(), self._limits)
+                window.draw(
+                    models[index],
+                    self.plot_scheme(),
+                    self._limits,
+                    self._appearance,
+                )
             else:
                 window.clear_plot()
         self._update_title_control()

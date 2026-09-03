@@ -9,6 +9,7 @@ from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.plotting import (
     PLOT_SCHEMES,
+    PlotAppearance,
     PlotLimits,
     PlotSelection,
     PlotState,
@@ -167,6 +168,48 @@ def test_draw_plot_uses_selected_scheme_legend_and_user_limits() -> None:
         assert len(axis.collections) == 0
     finally:
         plt.close(figure)
+
+
+def test_plot_appearance_round_trips_and_controls_rendering() -> None:
+    appearance = PlotAppearance(
+        legend_visible=True,
+        legend_location="lower_right",
+        grid_visible=False,
+        line_width=3.2,
+        title_font_size=18,
+        label_font_size=13,
+        tick_font_size=8,
+        legend_font_size=7,
+    )
+    state = PlotState(appearance=appearance)
+
+    assert PlotState.from_dict(state.to_dict()) == state
+
+    figure, axis = plt.subplots()
+    try:
+        draw_plot(axis, result_plot(_result()), appearance=appearance)
+
+        assert axis.lines[0].get_linewidth() == pytest.approx(3.2)
+        assert axis.title.get_fontsize() == pytest.approx(18.0)
+        assert axis.xaxis.label.get_fontsize() == pytest.approx(13.0)
+        assert axis.get_xticklabels()[0].get_fontsize() == pytest.approx(8.0)
+        assert not any(line.get_visible() for line in axis.get_xgridlines())
+        legend = axis.get_legend()
+        assert legend is not None
+        assert legend._loc == 4
+        assert legend.get_texts()[0].get_fontsize() == pytest.approx(7.0)
+    finally:
+        plt.close(figure)
+
+
+def test_plot_appearance_rejects_invalid_values() -> None:
+    with pytest.raises(ConfigurationError, match="line width"):
+        PlotAppearance(line_width=0.0).validate()
+
+    raw = PlotAppearance().to_dict()
+    raw["legend_location"] = "outside"
+    with pytest.raises(ConfigurationError, match="legend location"):
+        PlotAppearance.from_dict(raw)
 
 
 def test_rdf_and_cn_are_combined_only_when_both_results_are_selected() -> None:

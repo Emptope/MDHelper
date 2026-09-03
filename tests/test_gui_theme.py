@@ -15,6 +15,7 @@ from PySide6.QtGui import QFont, QFontDatabase, QPalette, QWheelEvent
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QDialog,
     QFrame,
     QGridLayout,
     QMessageBox,
@@ -26,13 +27,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+import mdhelper.gui.dialogs.plot as plot_dialog_module
 import mdhelper.gui.window as window_module
 import mdhelper.io.export as export_module
 from mdhelper.app import ApplicationService
 from mdhelper.app.exports import export_directories, result_exports
 from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import InputError
-from mdhelper.core.plotting import PlotLimits
+from mdhelper.core.plotting import PlotAppearance, PlotLimits
 from mdhelper.core.species import SPECIES_ROLES, SpeciesRoleSuggestion
 from mdhelper.core.system import FrameRange, SystemSummary
 from mdhelper.gui.components.choices import choice_enabled
@@ -45,6 +47,7 @@ from mdhelper.gui.components.selections import SelectionInput, SelectionSeries
 from mdhelper.gui.components.species import SpeciesPanel
 from mdhelper.gui.dialogs.integrations import IntegrationsDialog
 from mdhelper.gui.dialogs.log import JobLogDialog
+from mdhelper.gui.dialogs.plot import PlotSettingsDialog
 from mdhelper.gui.dialogs.selection import (
     GROMACS_SELECTION_HINTS,
     SELECTION_DOCUMENTATION,
@@ -502,6 +505,136 @@ def test_plot_representations_colors_and_axis_ranges_are_editable() -> None:
     panel.close()
 
 
+def test_plot_settings_dialog_applies_only_explicit_actions() -> None:
+    appearance = PlotAppearance(
+        legend_visible=False,
+        legend_location="lower_left",
+        grid_visible=False,
+        line_width=2.8,
+        title_font_size=17,
+        label_font_size=13,
+        tick_font_size=9,
+        legend_font_size=8,
+    )
+    dialog = PlotSettingsDialog(appearance)
+    dialog.show()
+    _QT_APPLICATION.processEvents()
+    applied: list[PlotAppearance] = []
+    dialog.applied.connect(applied.append)
+
+    assert dialog.appearance() == appearance
+    assert (
+        dialog.reset_button.x()
+        < dialog.ok_button.x()
+        < dialog.cancel_button.x()
+        < dialog.apply_button.x()
+    )
+
+    dialog.line_width.setValue(3.4)
+    dialog.grid_visible.setChecked(True)
+
+    assert not applied
+
+    dialog.apply_button.click()
+
+    assert applied == [dialog.appearance()]
+    assert dialog.isVisible()
+
+    dialog.reset_button.click()
+
+    assert dialog.appearance() == PlotAppearance()
+    assert len(applied) == 1
+
+    dialog.ok_button.click()
+
+    assert applied[-1] == PlotAppearance()
+    assert dialog.result() == QDialog.DialogCode.Accepted
+
+    cancelled = PlotSettingsDialog(appearance)
+    cancelled.show()
+    _QT_APPLICATION.processEvents()
+    cancelled_values: list[PlotAppearance] = []
+    cancelled.applied.connect(cancelled_values.append)
+    cancelled.line_width.setValue(4.0)
+    cancelled.cancel_button.click()
+
+    assert not cancelled_values
+    assert cancelled.result() == QDialog.DialogCode.Rejected
+
+
+def test_result_panel_applies_confirmed_advanced_plot_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selected = PlotAppearance(
+        legend_visible=False,
+        legend_location="lower_right",
+        grid_visible=False,
+        line_width=3.0,
+        title_font_size=16,
+        label_font_size=12,
+        tick_font_size=9,
+        legend_font_size=8,
+    )
+
+    class Dialog:
+        calls = 0
+
+        def __init__(self, current: PlotAppearance, parent: QWidget):
+            assert current == PlotAppearance()
+            assert isinstance(parent, ResultPanel)
+            self.applied = _Callback()
+
+        def exec(self) -> QDialog.DialogCode:
+            self.__class__.calls += 1
+            if self.calls == 2:
+                self.applied.emit(selected)
+            return QDialog.DialogCode.Rejected
+
+    class _Callback:
+        def __init__(self) -> None:
+            self.callback: object | None = None
+
+        def connect(self, callback: object) -> None:
+            self.callback = callback
+
+        def emit(self, appearance: PlotAppearance) -> None:
+            assert callable(self.callback)
+            self.callback(appearance)
+
+    monkeypatch.setattr(plot_dialog_module, "PlotSettingsDialog", Dialog)
+    panel = ResultPanel()
+    result = _rdf_result("A", "B")
+    panel.show_result(result)
+    panel.resize(900, 700)
+    panel.show()
+    _QT_APPLICATION.processEvents()
+    changes: list[bool] = []
+    panel.state_changed.connect(lambda: changes.append(True))
+
+    button_rect = panel.advanced_plot_button.geometry()
+    assert button_rect.top() > panel.y2_max.geometry().bottom()
+    assert button_rect.right() >= panel.y2_max.geometry().right()
+
+    panel.advanced_plot_button.click()
+    assert panel.plot_appearance() == PlotAppearance()
+    assert not changes
+
+    panel.advanced_plot_button.click()
+    assert panel.plot_appearance() == selected
+    assert panel.plot_state().appearance == selected
+    assert changes == [True]
+    assert panel.figure.axes[0].get_legend() is None
+    assert not any(
+        line.get_visible() for line in panel.figure.axes[0].get_xgridlines()
+    )
+    restored = ResultPanel()
+    restored.restore_state(panel.plot_state(), (result,))
+    assert restored.plot_appearance() == selected
+    assert restored.figure.axes[0].get_legend() is None
+    restored.close()
+    panel.close()
+
+
 def test_plot_color_does_not_change_from_wheel_input() -> None:
     panel = ResultPanel()
     panel.show_result(_rdf_result("A", "B"))
@@ -762,8 +895,8 @@ def test_species_actions_separate_help_from_suggestion_workflow() -> None:
     _QT_APPLICATION.processEvents()
 
     assert panel.help_button.geometry().left() < panel.details_button.geometry().left()
-    assert panel.details_button.geometry().right() < panel.apply_button.geometry().left()
-    assert panel.apply_button.geometry().right() < panel.cancel_button.geometry().left()
+    assert panel.details_button.geometry().right() < panel.cancel_button.geometry().left()
+    assert panel.cancel_button.geometry().right() < panel.apply_button.geometry().left()
     assert not hasattr(panel, "review_button")
     assert not hasattr(panel, "save_button")
     panel.close()

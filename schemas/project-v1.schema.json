@@ -37,7 +37,7 @@
     "plot": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema_version", "selections", "scheme", "limits"],
+      "required": ["schema_version", "selections", "scheme", "limits", "appearance"],
       "properties": {
         "schema_version": {"const": 1},
         "selections": {
@@ -71,6 +71,40 @@
             "y_max": {"type": ["number", "null"]},
             "y2_min": {"type": ["number", "null"]},
             "y2_max": {"type": ["number", "null"]}
+          }
+        },
+        "appearance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "legend_visible",
+            "legend_location",
+            "grid_visible",
+            "line_width",
+            "title_font_size",
+            "label_font_size",
+            "tick_font_size",
+            "legend_font_size"
+          ],
+          "properties": {
+            "legend_visible": {"type": "boolean"},
+            "legend_location": {
+              "enum": [
+                "best",
+                "upper_left",
+                "upper_right",
+                "lower_left",
+                "lower_right",
+                "center_left",
+                "center_right"
+              ]
+            },
+            "grid_visible": {"type": "boolean"},
+            "line_width": {"type": "number", "minimum": 0.1, "maximum": 10.0},
+            "title_font_size": {"type": "number", "minimum": 6.0, "maximum": 48.0},
+            "label_font_size": {"type": "number", "minimum": 6.0, "maximum": 48.0},
+            "tick_font_size": {"type": "number", "minimum": 6.0, "maximum": 48.0},
+            "legend_font_size": {"type": "number", "minimum": 6.0, "maximum": 48.0}
           }
         }
       }

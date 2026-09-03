@@ -671,6 +671,7 @@ class MainWindow(QMainWindow):
                 self.results.plot_scheme(),
                 self.results.plot_limits(),
                 sizes,
+                self.results.plot_appearance(),
             )
         except Exception as exc:
             self._show_error(exc)
@@ -693,6 +694,7 @@ class MainWindow(QMainWindow):
                 self.results.plot_scheme(),
                 self.results.plot_limits(),
                 sizes,
+                self.results.plot_appearance(),
             )
         except Exception as exc:
             self._show_error(exc)
