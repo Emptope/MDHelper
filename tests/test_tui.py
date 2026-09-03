@@ -390,6 +390,20 @@ def test_gui_tui_command_reuses_the_unified_entry() -> None:
     ]
 
 
+def test_tui_load_menu_uses_quit_command() -> None:
+    tui = Tui(
+        ApplicationService(UserConfig()),
+        Terminal(StringIO("q\n"), StringIO()),
+    )
+
+    try:
+        choice = tui._load_choice()
+    finally:
+        tui.job_runner.shutdown()
+
+    assert choice == "q"
+
+
 def test_tui_default_export_directory_follows_selected_trajectory(tmp_path: Path) -> None:
     trajectory = tmp_path / "simulation" / "trajectory.gro"
     workspace = Workspace(trajectory=str(trajectory))

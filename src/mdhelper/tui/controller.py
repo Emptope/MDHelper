@@ -19,6 +19,8 @@ from mdhelper.tui.model import Workspace
 from mdhelper.tui.terminal import EndOfInput, Terminal
 from mdhelper.version import DEVELOPER, __version__
 
+_QUIT = "q"
+
 
 class Tui(
     AnalysisController,
@@ -41,12 +43,12 @@ class Tui(
             while True:
                 if main_menu:
                     choice = self._main_choice()
-                    if choice == "q":
+                    if choice == _QUIT:
                         return 0
                     self._action(choice)
                     continue
                 choice = self._load_choice()
-                if choice == "3":
+                if choice == _QUIT:
                     return 0
                 main_menu = self._load_action(choice)
         except EndOfInput:
@@ -75,7 +77,7 @@ class Tui(
             (
                 ("Open project", "1"),
                 ("Main menu", "2"),
-                ("Quit", "3"),
+                ("Quit", _QUIT),
             ),
             back=False,
         )
@@ -90,7 +92,7 @@ class Tui(
                 ("System and project", "3"),
                 ("Species roles", "4"),
                 ("Tools", "5"),
-                ("Quit", "q"),
+                ("Quit", _QUIT),
             ),
             back=False,
         )

@@ -11,6 +11,7 @@
 
 ## 已完成
 
+- Fixed the TUI load menu to use `q` for Quit instead of a numbered action.
 - Simplified TUI batch role suggestions by hiding repeated internal method details.
 
 ## 完成标准（每轮代码改动后需重新确认）
