@@ -89,4 +89,4 @@ class SelectionHintDialog(QDialog):
             for column, value in enumerate(values):
                 self.table.setItem(row, column, QTableWidgetItem(value))
         url = SELECTION_DOCUMENTATION[backend]
-        self.documentation.setText(f'<a href="{url}">{url}</a>')
+        self.documentation.setText(f'More info: <a href="{url}">{url}</a>')

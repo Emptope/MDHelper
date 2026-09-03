@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from PySide6.QtCore import Qt, Signal
@@ -10,7 +9,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QGroupBox,
     QHeaderView,
-    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -23,7 +21,6 @@ from mdhelper.core.species import (
     SPECIES_ROLES,
     SpeciesRoleSuggestion,
     role_decision,
-    role_description,
 )
 from mdhelper.core.system import SystemSummary
 from mdhelper.gui.components.layout import ActionBar
@@ -31,12 +28,15 @@ from mdhelper.gui.components.layout import ActionBar
 
 class SpeciesPanel(QGroupBox):
     suggestions_requested = Signal()
-    save_requested = Signal()
+    suggestions_cancelled = Signal()
+    help_requested = Signal()
+    details_requested = Signal(object)
     role_edited = Signal(str, str)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__("Detected Species and Roles", parent)
         layout = QVBoxLayout(self)
+        self._suggestions: dict[str, SpeciesRoleSuggestion] = {}
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(("Species", "Numbers", "Role", "Role suggestion"))
         header = self.table.horizontalHeader()
@@ -48,21 +48,24 @@ class SpeciesPanel(QGroupBox):
         header.resizeSection(2, 200)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self.table)
-        self.apply_button = QPushButton("Apply Suggestions")
+        self.apply_button = QPushButton("Apply")
+        self.apply_button.setEnabled(False)
         self.apply_button.clicked.connect(self.suggestions_requested)
-        self.save_button = QPushButton("Save Roles")
-        self.save_button.setEnabled(False)
-        self.save_button.clicked.connect(self.save_requested)
-        self.help_button = QPushButton("Role Help")
-        self.help_button.clicked.connect(self._show_role_help)
-        self.review_button = QPushButton("Review Suggestion")
-        self.review_button.setEnabled(False)
-        self.review_button.clicked.connect(self._show_selected_suggestion)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.setEnabled(False)
+        self.cancel_button.clicked.connect(self.suggestions_cancelled)
+        self.help_button = QPushButton("Help")
+        self.help_button.clicked.connect(self.help_requested)
+        self.details_button = QPushButton("Detail Suggestions")
+        self.details_button.setEnabled(False)
+        self.details_button.clicked.connect(
+            lambda: self.details_requested.emit(dict(self._suggestions))
+        )
         controls = ActionBar()
-        controls.add_button(self.help_button)
-        controls.add_button(self.review_button)
-        controls.add_button(self.save_button)
+        controls.add_leading_button(self.help_button)
+        controls.add_button(self.details_button)
         controls.add_button(self.apply_button, primary=True)
+        controls.add_button(self.cancel_button)
         layout.addWidget(controls)
         self.action_bar = controls
 
@@ -86,6 +89,7 @@ class SpeciesPanel(QGroupBox):
         return roles
 
     def set_summary(self, summary: SystemSummary, existing_roles: dict[str, str]) -> None:
+        self._suggestions = dict(summary.role_suggestions)
         self.table.setRowCount(len(summary.species))
         for row, (species, count) in enumerate(summary.species.items()):
             self.table.setItem(row, 0, QTableWidgetItem(species))
@@ -109,10 +113,10 @@ class SpeciesPanel(QGroupBox):
                 lambda selected, current=species: self.role_edited.emit(current, selected)
             )
             self.table.setCellWidget(row, 2, role)
-        self.apply_button.setEnabled(
-            any(suggestion.available for suggestion in summary.role_suggestions.values())
-        )
-        self.review_button.setEnabled(bool(summary.species))
+        available = any(suggestion.available for suggestion in summary.role_suggestions.values())
+        self.apply_button.setEnabled(available)
+        self.cancel_button.setEnabled(available)
+        self.details_button.setEnabled(bool(summary.role_suggestions))
         if self.table.rowCount():
             self.table.selectRow(0)
 
@@ -127,7 +131,7 @@ class SpeciesPanel(QGroupBox):
                 continue
             species = item.text()
             suggestion = suggestions[species]
-            if suggestion.suggested_role is None:
+            if suggestion.suggested_role is None or role.currentData():
                 continue
             role.setCurrentText(suggestion.suggested_role)
             decisions[species] = role_decision(
@@ -142,50 +146,16 @@ class SpeciesPanel(QGroupBox):
             if item is not None and isinstance(role, QComboBox):
                 role.setCurrentText(roles.get(item.text(), ""))
 
+    def clear_roles(self, species: set[str]) -> None:
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            role = self.table.cellWidget(row, 2)
+            if item is not None and item.text() in species and isinstance(role, QComboBox):
+                role.setCurrentIndex(0)
+
     def clear(self) -> None:
+        self._suggestions.clear()
         self.table.setRowCount(0)
         self.apply_button.setEnabled(False)
-        self.save_button.setEnabled(False)
-        self.review_button.setEnabled(False)
-
-    def _show_selected_suggestion(self) -> None:
-        row = self.table.currentRow()
-        item = self.table.item(row, 0) if row >= 0 else None
-        if item is None:
-            QMessageBox.information(self, "Species Role Suggestion", "Select a species to review.")
-            return
-        suggestion_item = self.table.item(row, 3)
-        suggestion = (
-            None if suggestion_item is None else suggestion_item.data(Qt.ItemDataRole.UserRole)
-        )
-        if not isinstance(suggestion, SpeciesRoleSuggestion):
-            return
-        QMessageBox.information(
-            self,
-            "Species Role Suggestion",
-            self._suggestion_text(item.text(), suggestion),
-        )
-
-    def _show_role_help(self) -> None:
-        lines = [
-            "Roles describe how a species is used in the workflow and are saved in project "
-            "metadata and provenance.",
-            "They never change atom selections or numerical analysis algorithms.",
-            "",
-        ]
-        lines.extend(f"{role}: {role_description(role)}" for role in SPECIES_ROLES)
-        QMessageBox.information(self, "Species Roles", "\n".join(lines))
-
-    @staticmethod
-    def _suggestion_text(species: str, suggestion: SpeciesRoleSuggestion) -> str:
-        candidates = ", ".join(suggestion.candidates) or "none"
-        reason = suggestion.reason or "No additional reason was provided."
-        return (
-            f"Suggestion for {species}: {suggestion.suggested_role or 'unavailable'}\n"
-            f"Confidence: {suggestion.confidence}\n"
-            f"Method: {suggestion.method}\n"
-            f"Reason: {reason}\n"
-            f"Candidates: {candidates}\n"
-            f"Evidence:\n{json.dumps(suggestion.evidence, indent=2, sort_keys=True)}\n"
-            "Confirmation is always required."
-        )
+        self.cancel_button.setEnabled(False)
+        self.details_button.setEnabled(False)

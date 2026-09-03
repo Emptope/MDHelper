@@ -33,7 +33,8 @@ from mdhelper.app.exports import export_directories, result_exports
 from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import InputError
 from mdhelper.core.plotting import PlotLimits
-from mdhelper.core.system import FrameRange
+from mdhelper.core.species import SPECIES_ROLES, SpeciesRoleSuggestion
+from mdhelper.core.system import FrameRange, SystemSummary
 from mdhelper.gui.components.choices import choice_enabled
 from mdhelper.gui.components.inputs import InputPanel
 from mdhelper.gui.components.layout import PAGE_MARGIN, PAGE_SPACING, ActionBar
@@ -46,10 +47,13 @@ from mdhelper.gui.dialogs.integrations import IntegrationsDialog
 from mdhelper.gui.dialogs.log import JobLogDialog
 from mdhelper.gui.dialogs.selection import (
     GROMACS_SELECTION_HINTS,
+    SELECTION_DOCUMENTATION,
     SELECTION_HINTS,
 )
+from mdhelper.gui.dialogs.species import RoleHelpDialog, SuggestionDetailsDialog
 from mdhelper.gui.dialogs.templates import TemplatesDialog
 from mdhelper.gui.fonts import configure_ui_font
+from mdhelper.gui.formatting import result_details_html, result_summary_html
 from mdhelper.gui.pages.analysis import AnalysisPanel
 from mdhelper.gui.pages.results import ResultPanel
 from mdhelper.gui.theme import ThemeController
@@ -211,6 +215,10 @@ def test_selection_hints_follow_index_file_and_use_a_table() -> None:
     assert dialog is not None
     assert dialog.table.rowCount() == len(GROMACS_SELECTION_HINTS)
     assert dialog.documentation.openExternalLinks()
+    url = SELECTION_DOCUMENTATION[dialog.backend]
+    link = f'<a href="{url}">{url}</a>'
+    assert dialog.documentation.text().endswith(link)
+    assert dialog.documentation.text() != link
 
     parameters.set_selection_groups(True, {"System": 10})
     assert parameters.rdf_inputs.hint_button.isHidden()
@@ -549,6 +557,46 @@ def test_result_panel_prioritizes_overview_and_separates_plot_controls() -> None
     panel.close()
 
 
+def test_result_overview_excludes_metadata_kept_in_details() -> None:
+    result = _rdf_result("A", "B")
+
+    overview = result_summary_html(result)
+    details = result_details_html(result)
+
+    assert result.analysis_id not in overview
+    assert result.analysis_id in details
+
+
+def test_result_actions_only_expose_details() -> None:
+    window = MainWindow()
+    result = _rdf_result("A", "B")
+    name = "Queued radial analysis"
+    window.results.show_result(result, context_name=name)
+    window.tabs.setCurrentWidget(window.results)
+    window.resize(1000, 800)
+    window.show()
+    _QT_APPLICATION.processEvents()
+
+    panel = window.results
+    details_top = panel.details_button.mapTo(panel.summary_box, QPoint()).y()
+    assert details_top > panel.text.geometry().bottom()
+    assert not hasattr(panel, "logs_button")
+
+    panel.details_button.click()
+    _QT_APPLICATION.processEvents()
+    details_dialog = window._result_details_dialog
+    assert details_dialog is not None
+    assert details_dialog.heading.text() == name
+    assert result.analysis_id in details_dialog.text.toPlainText()
+    assert (
+        details_dialog.copy_button.mapTo(details_dialog, QPoint()).y()
+        > details_dialog.text.geometry().bottom()
+    )
+    details_dialog.copy_button.click()
+    assert _QT_APPLICATION.clipboard().text() == details_dialog.text.toPlainText()
+    window.close()
+
+
 @pytest.mark.parametrize("height", (800, 680))
 def test_result_overview_stays_inside_its_scrollable_area(
     height: int, energy_result: AnalysisResult
@@ -673,6 +721,113 @@ def test_species_table_prioritizes_species_and_suggestion_columns() -> None:
     assert header.sectionSize(0) == 180
     assert header.sectionSize(2) == 200
     panel.close()
+
+
+def _species_summary() -> SystemSummary:
+    suggestions = {
+        "alpha": SpeciesRoleSuggestion(
+            "cation",
+            ("cation", "other"),
+            "net charge",
+            "high",
+            {"net_charge_e": 1.0},
+            reason="Positive molecular charge.",
+        ),
+        "beta": SpeciesRoleSuggestion(
+            "anion",
+            ("anion", "other"),
+            "net charge",
+            "high",
+            {"net_charge_e": -1.0},
+            reason="Negative molecular charge.",
+        ),
+    }
+    return SystemSummary(
+        topology="topology",
+        trajectory="trajectory",
+        n_atoms=2,
+        n_frames=1,
+        species={name: 1 for name in suggestions},
+        atom_names={"X": 2},
+        backend="test",
+        role_suggestions=suggestions,
+    )
+
+
+def test_species_actions_separate_help_from_suggestion_workflow() -> None:
+    panel = SpeciesPanel()
+    panel.resize(760, 360)
+    panel.set_summary(_species_summary(), {})
+    panel.show()
+    _QT_APPLICATION.processEvents()
+
+    assert panel.help_button.geometry().left() < panel.details_button.geometry().left()
+    assert panel.details_button.geometry().right() < panel.apply_button.geometry().left()
+    assert panel.apply_button.geometry().right() < panel.cancel_button.geometry().left()
+    assert not hasattr(panel, "review_button")
+    assert not hasattr(panel, "save_button")
+    panel.close()
+
+
+def test_species_help_uses_role_meaning_table_and_close_only() -> None:
+    dialog = RoleHelpDialog()
+    flags = dialog.windowFlags()
+
+    assert dialog.table.columnCount() == 2
+    assert dialog.table.rowCount() == len(SPECIES_ROLES)
+    assert flags & Qt.WindowType.WindowCloseButtonHint
+    assert not flags & Qt.WindowType.WindowMinimizeButtonHint
+    assert not flags & Qt.WindowType.WindowMaximizeButtonHint
+    assert not flags & Qt.WindowType.WindowContextHelpButtonHint
+    dialog.close()
+
+
+def test_species_details_format_all_suggestions() -> None:
+    summary = _species_summary()
+    dialog = SuggestionDetailsDialog()
+
+    dialog.set_suggestions(summary.role_suggestions)
+
+    plain_text = dialog.text.toPlainText()
+    assert all(species in plain_text for species in summary.species)
+    assert "<table" in dialog.text.toHtml().casefold()
+    dialog.close()
+
+
+def test_apply_role_suggestions_saves_and_cancel_clears(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = MainWindow()
+    summary = _species_summary()
+    window.role_suggestions = dict(summary.role_suggestions)
+    window.load.species.set_summary(summary, {})
+    window.session.project = SimpleNamespace()
+    saved: list[dict[str, str]] = []
+    monkeypatch.setattr(
+        window.session,
+        "set_species_roles",
+        lambda roles: saved.append(dict(roles)),
+    )
+    manual = window.load.species.table.cellWidget(0, 2)
+    assert isinstance(manual, QComboBox)
+    manual.setCurrentText("other")
+
+    window.load.species.apply_button.click()
+
+    expected = {
+        species: suggestion.suggested_role
+        for species, suggestion in summary.role_suggestions.items()
+    }
+    expected[window.load.species.table.item(0, 0).text()] = "other"
+    assert window.load.species.roles() == expected
+    assert saved[-1] == expected
+
+    window.load.species.cancel_button.click()
+
+    assert window.load.species.roles() == {"alpha": "other"}
+    assert set(window.role_provenance) == {"alpha"}
+    assert saved[-1] == {"alpha": "other"}
+    window.close()
 
 
 def test_selection_series_builds_requests_with_independent_parameters() -> None:

@@ -474,7 +474,7 @@ GUI 采用薄视图加会话控制器分工，Qt 只在 GUI 包内惰性导入�
 | `pages/workspace.py` | 固定主工作区页面的构造和标签顺序。 |
 | `pages/load.py` | 轨迹/拓扑/index 加载流程和加载后状态更新。 |
 | `pages/analysis.py` | 分析类型切换、请求构造和运行编排。 |
-| `pages/results.py` | 结果页、表格/摘要和项目结果加载。 |
+| `pages/results.py` | 结果页、概览、详情入口和项目结果加载。 |
 | `components/inputs.py` | 输入控件构造、路径读取和启用状态。 |
 | `components/species.py` | 角色建议、确认和用户选择界面。 |
 | `components/parameters.py` | `r_max`、bin width、cutoff 和帧采样等显式参数控件。 |
@@ -483,6 +483,8 @@ GUI 采用薄视图加会话控制器分工，Qt 只在 GUI 包内惰性导入�
 | `components/plot_controls.py` | plot series、配色、标题和坐标范围控件。 |
 | `dialogs/plot.py` | 渲染 core 绘图模型；配色和坐标选择后立即应用。 |
 | `dialogs/log.py` | 在带完整窗口控制的非模态窗口显示并复制最新 job 的 raw message。 |
+| `dialogs/results.py` | 显示并复制包含技术元数据的完整结果报告。 |
+| `dialogs/species.py` | 显示角色含义表和格式化角色建议详情。 |
 | `formatting.py` | 把共享结果报告渲染为 GUI HTML，并格式化 GUI 错误和选择摘要。 |
 | `dialogs/integrations.py` | 外部程序集成配置和检测对话框。 |
 | `dialogs/projects.py` | 显示 App 层发现的拓扑和轨迹候选，并要求用户分别确认。 |
@@ -497,6 +499,10 @@ GUI 采用薄视图加会话控制器分工，Qt 只在 GUI 包内惰性导入�
 Analysis 页使用 Type、Backend 和 Progress 标签，Progress 区域按 Run、Cancel 顺序排列，进度条右侧放置 Details。Log 视图在底部时自动跟随新 message，
 用户向上滚动后保留位置；复制完成提示不阻塞主窗口。连续相同的进度文本只作为一条
 日志保留，每次 callback 仍正常更新进度状态。
+
+Result 页的 Overview 不显示复现所需的技术元数据。Details 打开包含技术元数据的完整可读
+报告；该窗口为非模态窗口，顶栏显示当前 job 或 workflow 名称，内容下方提供 Copy 操作。
+测试会话将诊断日志重定向至临时目录，错误路径测试产生的预期日志不会写入用户的持久日志。
 
 批量 plot series 按配置逐项执行，以 `PlotModel` 合并展示。首次运行若尚无项目，GUI 在
 轨迹目录创建/选择项目，再通过项目用例提交结果。恢复结果时，数值数据来自结果文件，

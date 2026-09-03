@@ -32,11 +32,12 @@ from mdhelper.gui.controllers.session import ProjectSession
 from mdhelper.gui.dialogs.integrations import IntegrationsDialog
 from mdhelper.gui.dialogs.log import JobLogDialog
 from mdhelper.gui.dialogs.projects import NewProjectDialog
+from mdhelper.gui.dialogs.results import ResultDetailsDialog
+from mdhelper.gui.dialogs.species import RoleHelpDialog, SuggestionDetailsDialog
 from mdhelper.gui.dialogs.templates import TemplatesDialog
 from mdhelper.gui.fonts import configure_ui_font
 from mdhelper.gui.formatting import (
     error_text,
-    role_suggestions_text,
 )
 from mdhelper.gui.menu import install_menu
 from mdhelper.gui.pages.workspace import WorkspaceTabs
@@ -67,6 +68,9 @@ class MainWindow(QMainWindow):
         self.job_controller = AnalysisJobController(self.application, self)
         self.integration_detection = IntegrationDetectionController(self.application, self)
         self._job_log_dialog: JobLogDialog | None = None
+        self._result_details_dialog: ResultDetailsDialog | None = None
+        self._role_help_dialog: RoleHelpDialog | None = None
+        self._suggestion_details_dialog: SuggestionDetailsDialog | None = None
         self.role_suggestions: dict[str, SpeciesRoleSuggestion] = {}
         self.role_provenance: dict[str, Any] = {}
         self._applying_roles = False
@@ -127,7 +131,9 @@ class MainWindow(QMainWindow):
         self.load.inputs.system_changed.connect(self._system_input_changed)
         self.load.inputs.index_changed.connect(self._index_input_changed)
         self.load.species.suggestions_requested.connect(self._apply_role_suggestions)
-        self.load.species.save_requested.connect(self._save_roles)
+        self.load.species.suggestions_cancelled.connect(self._cancel_role_suggestions)
+        self.load.species.help_requested.connect(self._show_role_help)
+        self.load.species.details_requested.connect(self._show_suggestion_details)
         self.load.selection_inputs_changed.connect(self.analysis.parameters.set_selection_groups)
         self.analysis.run_requested.connect(self._run)
         self.analysis.cancel_requested.connect(self._cancel)
@@ -141,6 +147,7 @@ class MainWindow(QMainWindow):
         self.results.load_requested.connect(self._load_project_result)
         self.results.save_project_requested.connect(self._save_project_figures)
         self.results.export_requested.connect(self._export_result)
+        self.results.details_requested.connect(self._show_result_details)
         self.results.state_changed.connect(self._save_plot_state)
         self.job_controller.progress.connect(self._job_progress)
         self.job_controller.completed.connect(self._job_completed)
@@ -295,8 +302,6 @@ class MainWindow(QMainWindow):
         finally:
             self._applying_roles = False
         self._pending_roles = self.load.species.roles()
-        project = self.session.project
-        self.load.species.save_button.setEnabled(project is not None)
         group_text = f"; {len(summary.index_groups)} index groups" if summary.index_groups else ""
         self.statusBar().showMessage(
             f"Loaded {summary.n_atoms} atoms; backend: {summary.backend}{group_text}", 10000
@@ -311,6 +316,25 @@ class MainWindow(QMainWindow):
         suggestion = self.role_suggestions[species]
         self.role_provenance[species] = role_decision(role, suggestion, "role_editor")
 
+    def _show_role_help(self) -> None:
+        if self._role_help_dialog is None:
+            self._role_help_dialog = RoleHelpDialog(self)
+        self._show_dialog(self._role_help_dialog)
+
+    def _show_suggestion_details(self, suggestions: object) -> None:
+        if not isinstance(suggestions, dict):
+            return
+        if self._suggestion_details_dialog is None:
+            self._suggestion_details_dialog = SuggestionDetailsDialog(self)
+        self._suggestion_details_dialog.set_suggestions(suggestions)
+        self._show_dialog(self._suggestion_details_dialog)
+
+    @staticmethod
+    def _show_dialog(dialog: QDialog) -> None:
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
     def _apply_role_suggestions(self) -> None:
         available = {
             species: suggestion
@@ -324,29 +348,61 @@ class MainWindow(QMainWindow):
                 "No suggestions available.",
             )
             return
-        answer = QMessageBox.question(
-            self,
-            "Apply Role Suggestions",
-            role_suggestions_text(available),
-        )
-        if answer != QMessageBox.StandardButton.Yes:
-            return
         self._applying_roles = True
         try:
             self.role_provenance.update(self.load.species.apply_suggestions(self.role_suggestions))
         finally:
             self._applying_roles = False
+        self._pending_roles = self.load.species.roles()
+        self._save_roles()
 
-    def _save_roles(self) -> None:
-        if self.session.project is None:
-            QMessageBox.information(self, "Project", "Create or open a project first.")
+    def _cancel_role_suggestions(self) -> None:
+        species = {
+            name
+            for name, decision in self.role_provenance.items()
+            if isinstance(decision, dict) and decision.get("source") == "suggestion_batch"
+        }
+        if not species:
             return
+        self._applying_roles = True
         try:
-            self.session.set_species_roles(self.load.species.roles(require_all=True))
+            self.load.species.clear_roles(species)
+        finally:
+            self._applying_roles = False
+        for name in species:
+            self.role_provenance.pop(name, None)
+        self._pending_roles = self.load.species.roles()
+        if self.session.project is not None:
+            self._save_roles()
+        else:
+            self.statusBar().showMessage("Role suggestions cleared", 10000)
+
+    def _save_roles(self) -> bool:
+        roles = self.load.species.roles()
+        try:
+            if self.session.project is None:
+                topology = Path(
+                    self.load.inputs.topology.edit.text().strip()
+                ).expanduser().resolve()
+                trajectory = Path(
+                    self.load.inputs.trajectory.edit.text().strip()
+                ).expanduser().resolve()
+                _project, created = self.session.ensure(
+                    trajectory.parent,
+                    topology,
+                    trajectory,
+                    roles,
+                    self.load.inputs.index_value(),
+                )
+                action = "created automatically" if created else "opened automatically"
+                self._project_ready(action, restore=False)
+            else:
+                self.session.set_species_roles(roles)
         except Exception as exc:
             self._show_error(exc)
-            return
+            return False
         self.statusBar().showMessage("Confirmed species roles saved", 10000)
+        return True
 
     def _run(self) -> None:
         if (
@@ -435,6 +491,15 @@ class MainWindow(QMainWindow):
         self._job_log_dialog.raise_()
         self._job_log_dialog.activateWindow()
 
+    def _show_result_details(self) -> None:
+        result = self.results.result
+        if result is None:
+            return
+        if self._result_details_dialog is None:
+            self._result_details_dialog = ResultDetailsDialog(self)
+        self._result_details_dialog.set_content(self.results.context_name(), result)
+        self._show_dialog(self._result_details_dialog)
+
     def _job_completed(self, result: AnalysisResult) -> None:
         try:
             if self.session.complete(result) is not None:
@@ -443,7 +508,9 @@ class MainWindow(QMainWindow):
             self._pending_jobs.clear()
             self._show_error(exc)
             return
-        self.results.show_result(result, self._active_label or None)
+        job = self.job_controller.latest
+        context_name = job.name if job is not None and job.result is result else None
+        self.results.show_result(result, self._active_label or None, context_name)
         if self._pending_jobs:
             self._submit_next()
             return
@@ -531,7 +598,6 @@ class MainWindow(QMainWindow):
     def _project_ready(self, action: str, restore: bool = True) -> None:
         assert self.session.project is not None
         self.setWindowTitle(f"MDHelper {__version__} - {self.session.project.root.name}")
-        self.load.species.save_button.setEnabled(True)
         if self.session.result is None:
             self.results.clear_result()
         self.results.set_project(True)

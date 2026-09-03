@@ -26,6 +26,7 @@ from mdhelper.core.analysis import (
     AnalysisResult,
     EnergyRequest,
     RadialRequest,
+    analysis_label,
 )
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.plotting import (
@@ -62,12 +63,14 @@ class ResultPanel(QWidget):
     load_requested = Signal()
     save_project_requested = Signal()
     export_requested = Signal()
+    details_requested = Signal()
     state_changed = Signal()
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.result: AnalysisResult | None = None
         self._results: dict[str, AnalysisResult] = {}
+        self._context_names: dict[str, str] = {}
         self._limits = PlotLimits()
         self._plot_rows: tuple[tuple[int, ...], ...] = ()
         self._plot_titles: tuple[str, ...] = ()
@@ -89,11 +92,18 @@ class ResultPanel(QWidget):
         self.text = QTextBrowser()
         self.text.setReadOnly(True)
         self.text.setOpenExternalLinks(False)
-        self.summary_box = QGroupBox("Result overview")
+        self.summary_box = QGroupBox("Overview")
         summary_layout = QVBoxLayout(self.summary_box)
         summary_layout.setContentsMargins(12, 12, 12, 12)
         summary_layout.setSpacing(8)
         summary_layout.addWidget(self.text)
+        self.details_button = QPushButton("Details")
+        self.details_button.setEnabled(False)
+        self.details_button.clicked.connect(self.details_requested)
+        result_actions = ActionBar()
+        result_actions.add_button(self.details_button)
+        summary_layout.addWidget(result_actions)
+        self.result_action_bar = result_actions
         controls = PlotControls()
         self.combine_series_button = controls.combine_button
         self.combine_series_button.clicked.connect(self.combine_selected_series)
@@ -165,9 +175,19 @@ class ResultPanel(QWidget):
         value = self.project_results.currentData()
         return None if value is None else str(value)
 
-    def show_result(self, result: AnalysisResult, label: str | None = None) -> None:
+    def show_result(
+        self,
+        result: AnalysisResult,
+        label: str | None = None,
+        context_name: str | None = None,
+    ) -> None:
         self.result = result
         self.text.setHtml(result_summary_html(result))
+        if context_name:
+            self._context_names[result.analysis_id] = context_name
+        elif result.analysis_id not in self._context_names:
+            name = analysis_label(result.analysis_type)
+            self._context_names[result.analysis_id] = f"{name}: {label}" if label else name
         if result.analysis_id not in self._results:
             self._results[result.analysis_id] = result
             self._append_series(result, label)
@@ -178,6 +198,7 @@ class ResultPanel(QWidget):
         self.export_button.setEnabled(True)
         self.project_button.setEnabled(self.project_available)
         self.open_plot_button.setEnabled(True)
+        self.details_button.setEnabled(True)
 
     def begin_batch(self, analysis_type: str) -> None:
         """Announce a batch without discarding stored plot representations."""
@@ -189,6 +210,15 @@ class ResultPanel(QWidget):
         self.export_button.setEnabled(False)
         self.project_button.setEnabled(False)
         self.open_plot_button.setEnabled(bool(self._results))
+        self.details_button.setEnabled(False)
+
+    def context_name(self) -> str:
+        if self.result is None:
+            return "Analysis"
+        return self._context_names.get(
+            self.result.analysis_id,
+            analysis_label(self.result.analysis_type),
+        )
 
     def open_plot_window(self) -> None:
         """Show each independent plot in its own standalone window."""
@@ -304,12 +334,16 @@ class ResultPanel(QWidget):
         try:
             self.result = results[-1] if results else None
             self._results.clear()
+            self._context_names.clear()
             self.plot_series.setRowCount(0)
             for selection in state.selections:
                 result = available.get(selection.result_id)
                 if result is None:
                     continue
                 self._results[result.analysis_id] = result
+                self._context_names[result.analysis_id] = analysis_label(
+                    result.analysis_type
+                )
                 self._append_series(
                     result,
                     selection.label or None,
@@ -333,6 +367,7 @@ class ResultPanel(QWidget):
                 self.project_available and self.result is not None
             )
             self.open_plot_button.setEnabled(bool(self._results))
+            self.details_button.setEnabled(self.result is not None)
             self._update_color_controls()
             self._normalize_plot_groups()
             self._update_plot_groups()
@@ -344,6 +379,7 @@ class ResultPanel(QWidget):
     def clear_result(self) -> None:
         self.result = None
         self._results.clear()
+        self._context_names.clear()
         self.plot_series.blockSignals(True)
         self.plot_series.setRowCount(0)
         self.plot_series.blockSignals(False)
@@ -355,6 +391,7 @@ class ResultPanel(QWidget):
         self.export_button.setEnabled(False)
         self.project_button.setEnabled(False)
         self.open_plot_button.setEnabled(False)
+        self.details_button.setEnabled(False)
         self._plot_rows = ()
         self._plot_titles = ()
         self._update_title_control()
@@ -405,6 +442,11 @@ class ResultPanel(QWidget):
             for result_id, result in self._results.items()
             if result_id in used
         }
+        self._context_names = {
+            result_id: name
+            for result_id, name in self._context_names.items()
+            if result_id in used
+        }
         self.open_plot_button.setEnabled(bool(self._results))
         self._normalize_plot_groups()
         self._update_plot_groups()
@@ -414,6 +456,7 @@ class ResultPanel(QWidget):
 
     def clear_series(self) -> None:
         self._results.clear()
+        self._context_names.clear()
         self.plot_series.blockSignals(True)
         self.plot_series.setRowCount(0)
         self.plot_series.blockSignals(False)
@@ -675,6 +718,7 @@ class ResultPanel(QWidget):
             return
         self.result = result
         self.text.setHtml(result_summary_html(result))
+        self.details_button.setEnabled(True)
 
     def _apply_limits(self) -> None:
         try:

@@ -22,10 +22,11 @@ __all__ = (
     "error_text",
     "json_text",
     "result_analysis_label",
+    "result_details_html",
     "result_label",
     "result_summary",
     "result_summary_html",
-    "role_suggestions_text",
+    "role_suggestions_html",
 )
 
 
@@ -52,23 +53,29 @@ def error_text(error: BaseException) -> str:
     return "\n".join(lines)
 
 
-def role_suggestions_text(suggestions: Mapping[str, SpeciesRoleSuggestion]) -> str:
-    lines = [
-        "Roles are descriptive project metadata. They do not change selections or numerical "
-        "algorithms.",
-        "",
-    ]
+def role_suggestions_html(suggestions: Mapping[str, SpeciesRoleSuggestion]) -> str:
+    """Render complete role suggestions as readable rich text."""
+
+    parts: list[str] = []
     for species, item in suggestions.items():
-        lines.append(
-            f"{species}: {item.suggested_role or 'unavailable'} "
-            f"({item.confidence} confidence)"
+        fields = (
+            ("Suggested role", item.suggested_role or "Unavailable"),
+            ("Confidence", item.confidence),
+            ("Method", item.method),
+            ("Reason", item.reason),
+            ("Candidates", ", ".join(item.candidates)),
         )
-        if item.reason:
-            lines.append(f"  {item.reason}")
-    lines.extend(
-        ("", "Apply these suggestions? You can review or override each role afterward.")
-    )
-    return "\n".join(lines)
+        parts.append(f"<h3>{escape(species)}</h3><table cellspacing='5'>")
+        parts.extend(
+            f"<tr><td><b>{escape(key)}</b></td><td>{escape(value)}</td></tr>"
+            for key, value in fields
+        )
+        evidence = json.dumps(item.evidence, indent=2, sort_keys=True, ensure_ascii=True)
+        parts.append(
+            "<tr><td><b>Evidence</b></td>"
+            f"<td><pre>{escape(evidence)}</pre></td></tr></table>"
+        )
+    return "".join(parts)
 
 
 def result_label(entry: Mapping[str, object]) -> str:
@@ -87,7 +94,7 @@ def result_label(entry: Mapping[str, object]) -> str:
     return f"{local_time(entry.get('committed_at'))} | {analysis_type}{selection}"
 
 
-def result_summary_html(result: AnalysisResult) -> str:
+def _result_html(result: AnalysisResult, include_technical: bool) -> str:
     """Render the shared result report as compact, selectable rich text."""
 
     report = report_for(result)
@@ -103,8 +110,23 @@ def result_summary_html(result: AnalysisResult) -> str:
         parts.append("<h4>Warnings and review items</h4><ul>")
         parts.extend(f"<li>{escape(warning)}</li>" for warning in result.warnings)
         parts.append("</ul>")
-    parts.append("<h4>Technical details</h4><table cellspacing='4'>")
-    for key, value in report.technical_rows():
-        parts.append(f"<tr><td><b>{escape(key)}</b></td><td>{escape(value)}</td></tr>")
-    parts.append("</table>")
+    if include_technical:
+        parts.append("<h4>Technical details</h4><table cellspacing='4'>")
+        for key, value in report.technical_rows():
+            parts.append(
+                f"<tr><td><b>{escape(key)}</b></td><td>{escape(value)}</td></tr>"
+            )
+        parts.append("</table>")
     return "".join(parts)
+
+
+def result_summary_html(result: AnalysisResult) -> str:
+    """Render result highlights without reproduction metadata."""
+
+    return _result_html(result, include_technical=False)
+
+
+def result_details_html(result: AnalysisResult) -> str:
+    """Render the complete readable result and reproduction metadata."""
+
+    return _result_html(result, include_technical=True)

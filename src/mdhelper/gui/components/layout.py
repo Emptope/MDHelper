@@ -66,6 +66,9 @@ class ActionBar(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.title = QLabel(title)
         self.title.setVisible(bool(title))
+        self.leading_layout = QHBoxLayout()
+        self.leading_layout.setContentsMargins(0, 0, 0, 0)
+        self.leading_layout.setSpacing(8)
         self.action_layout = QHBoxLayout()
         self.action_layout.setContentsMargins(0, 0, 0, 0)
         self.action_layout.setSpacing(8)
@@ -77,6 +80,7 @@ class ActionBar(QFrame):
             controls.setContentsMargins(0, 0, 0, 0)
             controls.setSpacing(8)
             controls.addWidget(self.title)
+            controls.addLayout(self.leading_layout)
             controls.addStretch(1)
             controls.addLayout(self.action_layout)
             stacked_layout.addLayout(controls)
@@ -89,6 +93,7 @@ class ActionBar(QFrame):
             row_layout.setContentsMargins(0, 2, 0, 2)
             row_layout.setSpacing(8)
             row_layout.addWidget(self.title)
+            row_layout.addLayout(self.leading_layout)
             row_layout.addStretch(1)
             row_layout.addLayout(self.action_layout)
             self.widget_layout = self.action_layout
@@ -96,6 +101,10 @@ class ActionBar(QFrame):
     def add_button(self, button: QPushButton, primary: bool = False) -> None:
         configure_button(button, primary)
         self.action_layout.addWidget(button)
+
+    def add_leading_button(self, button: QPushButton, primary: bool = False) -> None:
+        configure_button(button, primary)
+        self.leading_layout.addWidget(button)
 
     def add_widget(self, widget: QWidget, stretch: int = 0) -> None:
         self.widget_layout.addWidget(widget, stretch)

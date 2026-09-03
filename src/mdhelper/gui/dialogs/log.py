@@ -8,7 +8,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication, QTextCursor
 from PySide6.QtWidgets import (
     QDialog,
-    QLabel,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
@@ -35,8 +34,10 @@ class JobLogDialog(QDialog):
         self._messages: tuple[str, ...] = ()
         self.copy_notice: QMessageBox | None = None
 
-        self.heading = QLabel()
+        self.header = ActionBar()
+        self.heading = self.header.title
         self.heading.setProperty("role", "heading")
+        self.heading.setVisible(True)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
@@ -49,7 +50,7 @@ class JobLogDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
-        layout.addWidget(self.heading)
+        layout.addWidget(self.header)
         layout.addWidget(self.log, 1)
         layout.addWidget(actions)
 

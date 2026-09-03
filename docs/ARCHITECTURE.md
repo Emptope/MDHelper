@@ -307,6 +307,12 @@ preserves position when the user scrolls up, and confirms clipboard copies witho
 Consecutive identical progress text is retained once because repeated callback values update
 progress state rather than representing distinct log events.
 
+The Result page keeps reproduction metadata out of its Overview. Details opens the complete
+readable report, including technical metadata. The viewer is non-modal, uses the current job or
+workflow name as its heading, and provides a Copy action below the content. Test sessions redirect
+diagnostic logging to temporary storage so expected error-path tests never modify a user's
+persistent log.
+
 Menu ordering is controlled by insertion order in `gui/menu.py`; analysis combo ordering is
 controlled by `addItem` order in `gui/components/parameters.py`; TUI menu ordering is controlled by
 option tuple order in each owning controller. Table sizing is controlled by `QHeaderView` resize modes and explicit

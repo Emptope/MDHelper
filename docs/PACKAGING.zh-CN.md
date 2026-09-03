@@ -104,8 +104,7 @@ PYTHON=.venv/bin/python ./packaging/linux/build.sh
 ```powershell
 $env:UV_PROJECT_ENVIRONMENT = ".venv-windows"
 uv sync --frozen --group dev
-.\packaging\windows\build.ps1 `
-  -Python ".venv-windows\Scripts\python.exe"
+.\packaging\windows\build.ps1 -Python ".venv-windows\Scripts\python.exe"
 ```
 
 产物为 `dist/windows/MDHelper-0.1.0-Windows-x64.zip`。构建会解压实际 ZIP，并验证
