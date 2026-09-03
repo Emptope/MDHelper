@@ -11,7 +11,7 @@
 
 ## 已完成
 
-- [x] [GUI] Result Details 和 Job Log 左侧显示 Copy，右侧显示 Close。
+- [x] [GUI] Remove the redundant Load button beside Saved results.
 
 ## 完成标准（每轮代码改动后需重新确认）
 

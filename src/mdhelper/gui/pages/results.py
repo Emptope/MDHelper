@@ -56,11 +56,7 @@ class ResultPanel(QWidget):
         self.project_results = QComboBox()
         self.project_results.setEnabled(False)
         self.project_results.activated.connect(self.load_requested)
-        self.load_button = QPushButton("Load")
-        self.load_button.setEnabled(False)
-        self.load_button.clicked.connect(self.load_requested)
         history.addWidget(self.project_results, 1)
-        history.addWidget(self.load_button)
         layout.addLayout(history)
 
         self.text = QTextBrowser()
@@ -136,7 +132,6 @@ class ResultPanel(QWidget):
             self.project_results.addItem(result_label(entry), analysis_id)
         available = self.project_results.count() > 0
         self.project_results.setEnabled(available)
-        self.load_button.setEnabled(available)
         if selected_id:
             index = self.project_results.findData(selected_id)
             if index >= 0:

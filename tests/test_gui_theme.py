@@ -405,6 +405,37 @@ def test_result_history_hides_missing_artifacts() -> None:
     window.close()
 
 
+def test_result_history_selection_requests_load_without_separate_action() -> None:
+    panel = ResultPanel()
+    entries = (
+        {
+            "analysis_id": "first-id",
+            "analysis_type": "rdf",
+            "committed_at": "2026-08-28T06:00:00+00:00",
+            "request": {"reference": "A", "selection": "B"},
+        },
+        {
+            "analysis_id": "second-id",
+            "analysis_type": "rdf",
+            "committed_at": "2026-08-28T07:00:00+00:00",
+            "request": {"reference": "A", "selection": "C"},
+        },
+    )
+    loaded: list[str | None] = []
+    panel.load_requested.connect(lambda: loaded.append(panel.current_id()))
+
+    panel.set_history(entries)
+    panel.project_results.setCurrentIndex(1)
+    selected = panel.current_id()
+    panel.project_results.activated.emit(1)
+
+    history = panel.layout().itemAt(0).layout()
+    assert loaded == [selected]
+    assert history is not None
+    assert history.count() == 2
+    panel.close()
+
+
 def test_ui_font_retains_the_native_family(monkeypatch: pytest.MonkeyPatch) -> None:
     application = _QT_APPLICATION
     native = QFont("Native UI")
