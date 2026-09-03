@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from .errors import InputError
 
-SPECIES_ROLES = ("cation", "anion", "solvent", "additive", "polymer", "surface", "other")
+SPECIES_ROLES = ("cation", "anion", "solvent")
 
 # Role labels are project metadata used to describe how a species is used in a
 # workflow. They never alter selections or the numerical analysis algorithm.
@@ -15,10 +15,6 @@ SPECIES_ROLE_DESCRIPTIONS: dict[str, str] = {
     "cation": "Positively charged species, commonly used as a central atom set.",
     "anion": "Negatively charged species, commonly used as a counterion set.",
     "solvent": "Neutral solvent component used to describe the chemical environment.",
-    "additive": "Neutral or minor component tracked separately from the solvent.",
-    "polymer": "Polymeric component or macromolecular environment.",
-    "surface": "Solid or interfacial component used as a structural reference.",
-    "other": "A confirmed component with no more specific domain role.",
 }
 
 SPECIES_ROLE_POLICY: dict[str, object] = {
@@ -60,7 +56,6 @@ def validate_species_roles(species_roles: dict[str, str]) -> None:
 @dataclass(frozen=True)
 class SpeciesRoleSuggestion:
     suggested_role: str | None
-    candidates: tuple[str, ...]
     method: str
     confidence: Literal["high", "medium", "low", "unavailable"]
     evidence: dict[str, Any]
@@ -77,16 +72,6 @@ class SpeciesRoleSuggestion:
             or self.suggested_role not in SPECIES_ROLES
         ):
             raise InputError(f"Unknown suggested species role: {self.suggested_role!r}.")
-        if (
-            not isinstance(self.candidates, tuple)
-            or not self.candidates
-            or any(role not in SPECIES_ROLES for role in self.candidates)
-        ):
-            raise InputError("A role suggestion must contain valid candidate roles.")
-        if len(set(self.candidates)) != len(self.candidates):
-            raise InputError("A role suggestion contains duplicate candidate roles.")
-        if self.suggested_role is not None and self.suggested_role not in self.candidates:
-            raise InputError("The suggested role must also appear in the candidate roles.")
         if not isinstance(self.method, str) or not self.method.strip():
             raise InputError("A role suggestion requires an explainable method.")
         if self.confidence not in {"high", "medium", "low", "unavailable"}:
@@ -104,34 +89,5 @@ class SpeciesRoleSuggestion:
         self.validate()
         return {
             **asdict(self),
-            "candidates": list(self.candidates),
             "available": self.available,
         }
-
-    def provenance_dict(self) -> dict[str, Any]:
-        """Return only per-species facts needed to audit a role choice."""
-        self.validate()
-        evidence = dict(self.evidence)
-        evidence.pop("charge_tolerance_e", None)
-        return {
-            "suggested_role": self.suggested_role,
-            "confidence": self.confidence,
-            "evidence": evidence,
-        }
-
-
-def role_decision(
-    selected_role: str,
-    suggestion: SpeciesRoleSuggestion,
-    source: str = "user",
-) -> dict[str, Any]:
-    """Build the auditable record for one explicit role confirmation."""
-
-    validate_species_roles({"species": selected_role})
-    suggestion.validate()
-    if not isinstance(source, str) or not source.strip():
-        raise InputError("A role decision requires a non-empty source.")
-    return {
-        "source": source,
-        **suggestion.provenance_dict(),
-    }

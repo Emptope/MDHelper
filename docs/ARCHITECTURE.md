@@ -126,8 +126,9 @@ diagnostics, provenance, warnings, identity, method version, and creation time. 
 unknown, missing, or inconsistent fields. Version 0.1.0 has no schema migration path.
 
 Adapters expose zero-based atom indices and frame ranges. Radial calculations store nm. Atom
-membership remains fixed during a run. Species roles add provenance but do not change selections
-or parameters.
+membership remains fixed during a run. Project `.itp` files provide advisory species-role evidence;
+suggestions remain session-only, while confirmed roles are stored in requests and project manifests.
+Roles do not change selections or parameters.
 
 Plot contracts live in `core/plotting/`. GUI preview and figure export consume the same plot model
 and state.
@@ -144,7 +145,8 @@ project/
 `-- cache/
 ```
 
-The manifest stores versions, input identities, species roles, result indexes, and plot state.
+The manifest stores versions, input identities, confirmed species roles, result indexes, and plot
+state.
 Full result JSON files own analysis data and provenance. SHA-256 identifies inputs, results, and
 integration streams. Derived paths must remain under the project root. Manifest and result writes
 use atomic replacement. `cache` contains rebuildable data only.

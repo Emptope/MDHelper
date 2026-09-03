@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
 
 from mdhelper.core.species import SpeciesRoleSuggestion
 
@@ -23,7 +21,7 @@ class InspectionState:
     phase: InspectionPhase = InspectionPhase.EMPTY
     pending_roles: dict[str, str] = field(default_factory=dict)
     suggestions: dict[str, SpeciesRoleSuggestion] = field(default_factory=dict)
-    provenance: dict[str, Any] = field(default_factory=dict)
+    role_sources: dict[str, str] = field(default_factory=dict)
 
     def schedule(self, roles: dict[str, str]) -> None:
         if self.phase is InspectionPhase.RUNNING:
@@ -39,39 +37,35 @@ class InspectionState:
     def complete(
         self,
         suggestions: dict[str, SpeciesRoleSuggestion],
-        provenance: dict[str, Any],
+        role_sources: dict[str, str],
     ) -> None:
         if self.phase is not InspectionPhase.RUNNING:
             raise RuntimeError("System inspection is not running.")
         self.suggestions = dict(suggestions)
-        self.provenance = dict(provenance)
+        self.role_sources = dict(role_sources)
         self.phase = InspectionPhase.READY
 
     def set_pending_roles(self, roles: dict[str, str]) -> None:
         self.pending_roles = dict(roles)
 
-    def edit_role(self, species: str, decision: object | None) -> None:
-        if decision is None:
-            self.provenance.pop(species, None)
+    def edit_role(self, species: str, source: str | None) -> None:
+        if source is None:
+            self.role_sources.pop(species, None)
             return
-        self.provenance[species] = decision
+        self.role_sources[species] = source
 
-    def apply_roles(
-        self,
-        decisions: Mapping[str, object],
-        roles: dict[str, str],
-    ) -> None:
-        self.provenance.update(decisions)
+    def apply_suggestions(self, species: set[str], roles: dict[str, str]) -> None:
+        self.role_sources.update(dict.fromkeys(species, "suggestion_batch"))
         self.set_pending_roles(roles)
 
     def cancel_roles(self, source: str) -> set[str]:
         species = {
             name
-            for name, decision in self.provenance.items()
-            if isinstance(decision, dict) and decision.get("source") == source
+            for name, current_source in self.role_sources.items()
+            if current_source == source
         }
         for name in species:
-            self.provenance.pop(name, None)
+            self.role_sources.pop(name, None)
         return species
 
     def fail(self) -> None:
@@ -83,4 +77,4 @@ class InspectionState:
         self.phase = InspectionPhase.EMPTY
         self.pending_roles.clear()
         self.suggestions.clear()
-        self.provenance.clear()
+        self.role_sources.clear()

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
@@ -20,7 +18,6 @@ from mdhelper.core.errors import InputError
 from mdhelper.core.species import (
     SPECIES_ROLES,
     SpeciesRoleSuggestion,
-    role_decision,
 )
 from mdhelper.core.system import SystemSummary
 from mdhelper.gui.components.layout import ActionBar
@@ -84,7 +81,7 @@ class SpeciesPanel(QGroupBox):
         if require_all and len(roles) != self.table.rowCount():
             raise InputError(
                 "At least one detected species has no confirmed role.",
-                "Select a role for every species; use 'other' when no domain role applies.",
+                "Review the automatic suggestions and select a role for every species.",
             )
         return roles
 
@@ -122,8 +119,8 @@ class SpeciesPanel(QGroupBox):
 
     def apply_suggestions(
         self, suggestions: dict[str, SpeciesRoleSuggestion]
-    ) -> dict[str, dict[str, Any]]:
-        decisions: dict[str, dict[str, Any]] = {}
+    ) -> set[str]:
+        applied: set[str] = set()
         for row in range(self.table.rowCount()):
             item = self.table.item(row, 0)
             role = self.table.cellWidget(row, 2)
@@ -134,10 +131,8 @@ class SpeciesPanel(QGroupBox):
             if suggestion.suggested_role is None or role.currentData():
                 continue
             role.setCurrentText(suggestion.suggested_role)
-            decisions[species] = role_decision(
-                suggestion.suggested_role, suggestion, "suggestion_batch"
-            )
-        return decisions
+            applied.add(species)
+        return applied
 
     def apply_roles(self, roles: dict[str, str]) -> None:
         for row in range(self.table.rowCount()):

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QCloseEvent, QDesktopServices
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
@@ -95,7 +93,6 @@ class MainWindow(QMainWindow):
             self.analysis,
             self.results,
             self.windows,
-            lambda: dict(self.role_provenance),
             self._project_ready,
             self._refresh_project_results,
             self._show_error,
@@ -157,14 +154,6 @@ class MainWindow(QMainWindow):
     @role_suggestions.setter
     def role_suggestions(self, value: dict[str, SpeciesRoleSuggestion]) -> None:
         self.system_actions.role_suggestions = value
-
-    @property
-    def role_provenance(self) -> dict[str, Any]:
-        return self.system_actions.role_provenance
-
-    @role_provenance.setter
-    def role_provenance(self, value: dict[str, Any]) -> None:
-        self.system_actions.role_provenance = value
 
     @property
     def _inspection_timer(self):

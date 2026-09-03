@@ -63,7 +63,6 @@ def role_suggestions_html(suggestions: Mapping[str, SpeciesRoleSuggestion]) -> s
             ("Confidence", item.confidence),
             ("Method", item.method),
             ("Reason", item.reason),
-            ("Candidates", ", ".join(item.candidates)),
         )
         parts.append(f"<h3>{escape(species)}</h3><table cellspacing='5'>")
         parts.extend(

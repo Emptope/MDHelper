@@ -6,7 +6,7 @@ from pathlib import Path
 
 from mdhelper.app import InputCandidates
 from mdhelper.core.errors import InputError
-from mdhelper.core.species import SPECIES_ROLES, role_decision
+from mdhelper.core.species import SPECIES_ROLES
 from mdhelper.core.trajectory import TOPOLOGY_SUFFIXES, TRAJECTORY_SUFFIXES
 from mdhelper.tui.controllers.base import ControllerContext
 from mdhelper.tui.formatting import roles_text, summary_text
@@ -76,28 +76,26 @@ class WorkspaceController(ControllerContext):
             self.workspace.trajectory,
             self.workspace.index_file,
             None if self.workspace.project is None else self.workspace.project.cache_dir,
+            None if self.workspace.project is None else self.workspace.project.root,
         )
         self.workspace.summary = summary
         species = set(summary.species)
         self.workspace.roles = {
             name: role for name, role in self.workspace.roles.items() if name in species
         }
-        self.workspace.role_decisions = {
-            name: value
-            for name, value in self.workspace.role_decisions.items()
-            if name in species
-        }
-        if self.workspace.project is not None:
-            for name, role in self.workspace.roles.items():
-                self.workspace.role_decisions.setdefault(
-                    name,
-                    role_decision(role, summary.role_suggestions[name], "project_manifest"),
-                )
         self.terminal.heading("System inspection")
         self.terminal.write(summary_text(summary))
         if set(self.workspace.roles) != set(summary.species):
             self.terminal.write("Choose a role for each species before running an analysis.")
             self._roles()
+            if (
+                self.workspace.project is not None
+                and set(self.workspace.roles) == set(summary.species)
+            ):
+                self.application.projects.set_species_roles(
+                    self.workspace.project,
+                    self.workspace.roles,
+                )
         elif self.workspace.project is not None:
             self.terminal.write("Species roles loaded from the project.")
 
@@ -186,7 +184,8 @@ class WorkspaceController(ControllerContext):
                 "No project is open.", "Create or open a project before saving roles."
             )
         self.application.projects.set_species_roles(
-            self.workspace.project, self.workspace.roles
+            self.workspace.project,
+            self.workspace.roles,
         )
         self.terminal.write("Confirmed species roles saved to the project.")
 
@@ -243,9 +242,6 @@ class WorkspaceController(ControllerContext):
             current,
         )
         self.workspace.roles[species] = role
-        self.workspace.role_decisions[species] = role_decision(
-            role, suggestion, "role_editor"
-        )
 
     def _apply_role_suggestions(self) -> None:
         assert self.workspace.summary is not None
@@ -268,9 +264,6 @@ class WorkspaceController(ControllerContext):
         for species, suggestion in suggestions.items():
             assert suggestion.suggested_role is not None
             self.workspace.roles[species] = suggestion.suggested_role
-            self.workspace.role_decisions[species] = role_decision(
-                suggestion.suggested_role, suggestion, "suggestion_batch"
-            )
 
     def _require_confirmed_roles(self) -> None:
         if not self.workspace.loaded or self.workspace.summary is None:
@@ -281,6 +274,6 @@ class WorkspaceController(ControllerContext):
         if missing:
             raise InputError(
                 "Every detected species needs an explicitly confirmed role.",
-                "Use the species-role menu; choose 'other' when no domain role applies.",
+                "Review the automatic suggestions in the species-role menu.",
                 {"unconfirmed_species": missing},
             )

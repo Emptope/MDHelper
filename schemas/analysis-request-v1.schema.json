@@ -34,7 +34,7 @@
         "frames": {"$ref": "#/$defs/frames"},
         "analysis_backend": {"enum": ["auto", "mdanalysis", "gromacs"]},
         "species_roles": {"$ref": "#/$defs/species_roles"},
-        "parameter_provenance": {"type": "object"},
+        "parameter_provenance": {"$ref": "#/$defs/parameter_provenance"},
         "schema_version": {"const": 1}
       }
     },
@@ -58,7 +58,7 @@
           "items": {"type": "string", "minLength": 1}
         },
         "analysis_backend": {"enum": ["auto", "mdanalysis", "gromacs"]},
-        "parameter_provenance": {"type": "object"},
+        "parameter_provenance": {"$ref": "#/$defs/parameter_provenance"},
         "schema_version": {"const": 1}
       }
     },
@@ -75,8 +75,12 @@
     "species_roles": {
       "type": "object",
       "additionalProperties": {
-        "enum": ["cation", "anion", "solvent", "additive", "polymer", "surface", "other"]
+        "enum": ["cation", "anion", "solvent"]
       }
+    },
+    "parameter_provenance": {
+      "type": "object",
+      "not": {"required": ["species_roles"]}
     }
   }
 }

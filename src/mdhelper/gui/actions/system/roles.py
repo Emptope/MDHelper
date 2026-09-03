@@ -4,13 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from PySide6.QtWidgets import QMainWindow, QMessageBox
 
 from mdhelper.app import ApplicationService
-from mdhelper.core.analysis import AnalysisRequest
-from mdhelper.core.species import SpeciesRoleSuggestion, role_decision
+from mdhelper.core.analysis import AnalysisRequest, RadialRequest
+from mdhelper.core.species import SpeciesRoleSuggestion
 from mdhelper.gui.actions.system.watching import FileWatchingActions
 from mdhelper.gui.controllers.session import ProjectSession
 from mdhelper.gui.pages.analysis import AnalysisPanel
@@ -49,23 +48,10 @@ class RoleActions(FileWatchingActions):
     def role_suggestions(self, suggestions: dict[str, SpeciesRoleSuggestion]) -> None:
         self.state.suggestions = dict(suggestions)
 
-    @property
-    def role_provenance(self) -> dict[str, Any]:
-        return self.state.provenance
-
-    @role_provenance.setter
-    def role_provenance(self, provenance: dict[str, Any]) -> None:
-        self.state.provenance = dict(provenance)
-
     def role_edited(self, species: str, role: str) -> None:
         if self.applying_roles:
             return
-        decision = (
-            None
-            if not role
-            else role_decision(role, self.state.suggestions[species], "role_editor")
-        )
-        self.state.edit_role(species, decision)
+        self.state.edit_role(species, "role_editor" if role else None)
 
     def apply_role_suggestions(self) -> None:
         if not any(suggestion.available for suggestion in self.state.suggestions.values()):
@@ -77,10 +63,10 @@ class RoleActions(FileWatchingActions):
             return
         self.applying_roles = True
         try:
-            decisions = self.load.species.apply_suggestions(self.state.suggestions)
+            applied = self.load.species.apply_suggestions(self.state.suggestions)
         finally:
             self.applying_roles = False
-        self.state.apply_roles(decisions, self.load.species.roles())
+        self.state.apply_suggestions(applied, self.load.species.roles())
         self.save_roles()
 
     def cancel_role_suggestions(self) -> None:
@@ -134,5 +120,5 @@ class RoleActions(FileWatchingActions):
         finally:
             self.suspend_auto_inspect = False
             self.applying_roles = False
-        decisions = request.parameter_provenance.get("species_roles", {})
-        self.state.provenance = dict(decisions) if isinstance(decisions, dict) else {}
+        roles = request.species_roles if isinstance(request, RadialRequest) else {}
+        self.state.role_sources = dict.fromkeys(roles, "request")

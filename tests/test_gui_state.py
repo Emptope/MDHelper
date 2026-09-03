@@ -98,11 +98,11 @@ def test_inspection_state_tracks_work_and_role_data() -> None:
     assert state.pending_roles == {"SOL": "solvent"}
 
     state.begin()
-    state.complete({"SOL": object()}, {"SOL": {"source": "project_manifest"}})
+    state.complete({"SOL": object()}, {"SOL": "project_manifest"})
 
     assert state.phase is InspectionPhase.READY
     assert set(state.suggestions) == {"SOL"}
-    assert set(state.provenance) == {"SOL"}
+    assert state.role_sources == {"SOL": "project_manifest"}
 
     state.schedule({})
     state.begin()
@@ -112,7 +112,7 @@ def test_inspection_state_tracks_work_and_role_data() -> None:
     state.reset()
     assert state.phase is InspectionPhase.EMPTY
     assert state.suggestions == {}
-    assert state.provenance == {}
+    assert state.role_sources == {}
 
 
 def test_project_session_state_has_explicit_transitions() -> None:

@@ -72,6 +72,11 @@ uv run mdhelper templates list
 向 `inspect` 或 `analyze` 传入 `--project analysis-project`，即可使用已校验的项目输入并提交
 结果。
 
+检查 Project 时会递归扫描所有子目录中的 `.itp` 文件。匹配的 `[ moleculetype ]` name 根据其
+`[ atoms ]` charge 加和提供角色建议。确认前可以检查或修改每条建议；找不到匹配的 `.itp` 定义
+时必须手动选择角色。只有确认后的角色会保存，建议详情只存在于当前 session。
+所有 species 均匹配时，如果推断的体系总电荷超出 `1e-6 e` 中性容差，GUI 还会弹出警告。
+
 ## GUI Workflow
 
 Workflow 保存有序的分析类型序列。序列中的项目共用 GUI 已加载的输入，但各自保留独立的参数

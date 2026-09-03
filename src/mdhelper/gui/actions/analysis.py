@@ -32,7 +32,6 @@ class AnalysisActions:
         analysis: AnalysisPanel,
         results: ResultPanel,
         windows: WindowManager,
-        role_provenance: Callable[[], dict[str, object]],
         project_ready: Callable[[str, bool], None],
         refresh_results: Callable[[str | None], None],
         show_error: Callable[[BaseException], None],
@@ -44,7 +43,6 @@ class AnalysisActions:
         self.analysis = analysis
         self.results = results
         self.windows = windows
-        self.role_provenance = role_provenance
         self.project_ready = project_ready
         self.refresh_results = refresh_results
         self.show_error = show_error
@@ -82,7 +80,6 @@ class AnalysisActions:
 
     def _common(self, parameters: ParameterPanel) -> dict[str, object]:
         return self.load.common(
-            self.role_provenance(),
             parameters.frame_range(),
             parameters.requires_selections(),
         )

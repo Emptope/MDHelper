@@ -23,7 +23,7 @@ schemas, tests, and documents without a migration branch.
 | G1 | A released analysis includes a method, contracts, backend support, application use case, interfaces, persistence, export, tests, and documentation. | An end-to-end run loads from a project and exports a validated result. |
 | G2 | Scientific formulas live in the analysis layer and versioned method documents. | Reference tests cover PBC, grids, normalization, and self exclusion; interfaces contain no formulas. |
 | G3 | Dependencies follow [Architecture](ARCHITECTURE.md). | `tests/test_architecture.py` passes. |
-| G4 | Selections, parameters, frame ranges, backends, and role decisions are explicit request data. | Validation and provenance account for each decision; no input-name special cases exist. |
+| G4 | Selections, parameters, frame ranges, backends, and confirmed roles are explicit request data. | Validation accounts for every stored value; role suggestions remain session-only and no input-name special cases exist. |
 | G5 | Suggestions expose evidence and never change source data or parameters. | Unavailable and low-confidence outcomes remain valid analysis results. |
 | G6 | Results are versioned, strict, and self-describing. | Runtime parsers and JSON schemas reject unknown, missing, or inconsistent fields. |
 | G7 | Results identify inputs, environment, selections, parameters, frames, and resolved backend. | Content changes and project relocation are detected by SHA-256. |
@@ -45,7 +45,7 @@ schemas, tests, and documents without a migration branch.
 | Backends | MDAnalysis and GROMACS are complete pipelines; GROMACS is optional. |
 | Selection | MDAnalysis uses NDX or static expressions; GROMACS uses NDX or native expressions. |
 | Parameters | Requests contain radial limits, bin width, frame range, and backend. |
-| Suggestions | Species roles and first-shell boundaries require confirmation and do not change calculations. |
+| Suggestions | ITP-derived species roles and first-shell boundaries require confirmation and do not change calculations. |
 | Project | A JSON manifest indexes hashed input and result files. |
 | Jobs | One worker is the default; cancellation is cooperative. |
 | Plotting | Residue-name and fixed colors are supported; plot state is persisted. |

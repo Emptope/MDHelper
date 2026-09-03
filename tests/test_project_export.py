@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema.exceptions import ValidationError
 from matplotlib import image as mpimg
 from referencing import Registry, Resource
 
@@ -47,6 +48,23 @@ def test_external_request_schema_uses_analysis_specific_fields() -> None:
     )
 
     _validate_schema(energy.to_dict(), "analysis-request-v1.schema.json")
+
+
+def test_external_request_schema_keeps_only_confirmed_species_roles() -> None:
+    request = RadialRequest(
+        analysis_type="rdf",
+        topology="topology.gro",
+        trajectory="trajectory.xtc",
+        reference="reference",
+        selection="selection",
+        species_roles={"SOL": "solvent"},
+    ).to_dict()
+
+    _validate_schema(request, "analysis-request-v1.schema.json")
+
+    request["parameter_provenance"] = {"species_roles": {"SOL": {}}}
+    with pytest.raises(ValidationError):
+        _validate_schema(request, "analysis-request-v1.schema.json")
 
 
 def test_project_result_commit_is_atomic_and_verified(
@@ -363,6 +381,7 @@ def test_project_input_discovery_is_direct_case_insensitive_and_sorted(
         "m.TRR",
         "n.tng",
         "groups.NDX",
+        "molecule.ITP",
         "z.XTC",
         "notes.txt",
         "backup.gro.bak",
@@ -371,6 +390,7 @@ def test_project_input_discovery_is_direct_case_insensitive_and_sorted(
     nested = tmp_path / "nested"
     nested.mkdir()
     (nested / "hidden.gro").write_text("input\n", encoding="ascii")
+    (nested / "hidden.itp").write_text("input\n", encoding="ascii")
 
     application = ApplicationService(UserConfig())
     candidates = application.projects.discover_inputs(tmp_path)
@@ -383,6 +403,10 @@ def test_project_input_discovery_is_direct_case_insensitive_and_sorted(
         "z.XTC",
     ]
     assert [path.name for path in candidates.index] == ["groups.NDX"]
+    assert [path.relative_to(tmp_path).as_posix() for path in candidates.itp] == [
+        "molecule.ITP",
+        "nested/hidden.itp",
+    ]
 
 
 @pytest.mark.parametrize("trajectory_name", ["run.xtc", "run.trr"])

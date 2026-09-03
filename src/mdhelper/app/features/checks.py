@@ -21,13 +21,14 @@ class CheckFeature:
         trajectory: str,
         index_file: str | None = None,
         cache_dir: str | Path | None = None,
+        project_root: str | Path | None = None,
     ) -> SystemSummary:
         with trajectory_cache(cache_dir):
             source = self.context.trajectory_loader(
                 topology, trajectory, "auto", None, None
             )
         try:
-            summary = summarize_source(source)
+            summary = summarize_source(source, project_root)
             if index_file:
                 summary = replace(
                     summary,

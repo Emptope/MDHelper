@@ -35,6 +35,13 @@ def test_request_validation_rejects_non_schema_values() -> None:
                 "parameter_provenance": {"decision": float("nan")},
             }
         ).validate()
+    with pytest.raises(InputError, match="Species-role suggestions"):
+        RadialRequest(
+            **{
+                **_request().__dict__,
+                "parameter_provenance": {"species_roles": {"A": {}}},
+            }
+        ).validate()
 
     value = _request().to_dict()
     value["unknown"] = True

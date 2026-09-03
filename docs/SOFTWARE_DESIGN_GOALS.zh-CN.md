@@ -22,7 +22,7 @@
 | G1 | 已发布分析包含方法、契约、Backend 支持、应用用例、界面、持久化、导出、测试和文档。 | 端到端运行可从项目加载并导出通过验证的结果。 |
 | G2 | 科学公式只位于分析层和带版本的方法文档。 | 参考测试覆盖 PBC、网格、归一化和 self exclusion；界面不包含公式。 |
 | G3 | 依赖遵循[架构](ARCHITECTURE.zh-CN.md)。 | `tests/test_architecture.py` 通过。 |
-| G4 | 选择、参数、帧范围、Backend 和角色决策是显式 request 数据。 | 校验和 provenance 覆盖每项决策；不存在输入名称特判。 |
+| G4 | 选择、参数、帧范围、Backend 和确认后的角色是显式 request 数据。 | 校验覆盖每个存储值；角色建议只存在于当前 session，且不存在输入名称特判。 |
 | G5 | 建议提供证据，且不修改源数据或参数。 | unavailable 和 low confidence 不影响主分析结果。 |
 | G6 | Result 带版本、严格且自描述。 | Runtime parser 和 JSON schema 拒绝未知、缺失或不一致字段。 |
 | G7 | Result 标识输入、环境、选择、参数、帧和实际 Backend。 | SHA-256 检测内容变化并支持项目重定位。 |
@@ -44,7 +44,7 @@
 | Backend | MDAnalysis 和 GROMACS 是完整管线；GROMACS 可选。 |
 | 选择 | MDAnalysis 使用 NDX 或静态 expression；GROMACS 使用 NDX 或原生 expression。 |
 | 参数 | Request 包含径向限制、bin width、帧范围和 Backend。 |
-| 建议 | 物种角色和第一壳层边界需要确认，且不修改计算。 |
+| 建议 | ITP 推断的物种角色和第一壳层边界需要确认，且不修改计算。 |
 | 项目 | JSON manifest 索引带 hash 的输入和 result 文件。 |
 | Job | 默认使用一个 worker；取消为协作式。 |
 | 绘图 | 支持 residue-name 和固定配色；plot state 持久化。 |

@@ -331,7 +331,6 @@ def _species_summary() -> SystemSummary:
     suggestions = {
         "alpha": SpeciesRoleSuggestion(
             "cation",
-            ("cation", "other"),
             "net charge",
             "high",
             {"net_charge_e": 1.0},
@@ -339,7 +338,6 @@ def _species_summary() -> SystemSummary:
         ),
         "beta": SpeciesRoleSuggestion(
             "anion",
-            ("anion", "other"),
             "net charge",
             "high",
             {"net_charge_e": -1.0},
@@ -374,7 +372,7 @@ def test_apply_role_suggestions_saves_and_cancel_clears(
     )
     manual = window.load.species.table.cellWidget(0, 2)
     assert isinstance(manual, QComboBox)
-    manual.setCurrentText("other")
+    manual.setCurrentText("solvent")
 
     window.load.species.apply_button.click()
 
@@ -382,15 +380,15 @@ def test_apply_role_suggestions_saves_and_cancel_clears(
         species: suggestion.suggested_role
         for species, suggestion in summary.role_suggestions.items()
     }
-    expected[window.load.species.table.item(0, 0).text()] = "other"
+    expected[window.load.species.table.item(0, 0).text()] = "solvent"
     assert window.load.species.roles() == expected
     assert saved[-1] == expected
 
     window.load.species.cancel_button.click()
 
-    assert window.load.species.roles() == {"alpha": "other"}
-    assert set(window.role_provenance) == {"alpha"}
-    assert saved[-1] == {"alpha": "other"}
+    assert window.load.species.roles() == {"alpha": "solvent"}
+    assert window.system_actions.state.role_sources == {"alpha": "role_editor"}
+    assert saved[-1] == {"alpha": "solvent"}
     window.close()
 
 
@@ -417,7 +415,6 @@ def test_selection_series_builds_requests_with_independent_parameters() -> None:
         "index_file": None,
         "frames": FrameRange(),
         "species_roles": {},
-        "parameter_provenance": {"species_roles": {}},
     }
 
     runs = panel.request_series(common)

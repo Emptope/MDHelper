@@ -9,6 +9,7 @@ from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
 from mdhelper.core.errors import InputFileError
 from mdhelper.core.plotting import PlotState
 from mdhelper.core.trajectory import TOPOLOGY_SUFFIXES, TRAJECTORY_SUFFIXES
+from mdhelper.io.itp import find_itp_files
 from mdhelper.project import Project
 from mdhelper.project.manifests import ManifestRepository
 
@@ -21,6 +22,7 @@ class InputCandidates:
     topology: tuple[Path, ...]
     trajectory: tuple[Path, ...]
     index: tuple[Path, ...]
+    itp: tuple[Path, ...] = ()
 
 
 def discover_inputs(root: str | Path) -> InputCandidates:
@@ -51,6 +53,7 @@ def discover_inputs(root: str | Path) -> InputCandidates:
         path for path in files if path.suffix.casefold() in TRAJECTORY_SUFFIXES
     )
     index = tuple(path for path in files if path.suffix.casefold() == INDEX_SUFFIX)
+    itp = find_itp_files(directory)
     missing = []
     if not topology:
         missing.append("topology")
@@ -67,7 +70,7 @@ def discover_inputs(root: str | Path) -> InputCandidates:
                 "trajectory_suffixes": TRAJECTORY_SUFFIXES,
             },
         )
-    return InputCandidates(directory, topology, trajectory, index)
+    return InputCandidates(directory, topology, trajectory, index, itp)
 
 
 class ProjectFeature:
@@ -100,6 +103,8 @@ class ProjectFeature:
         if ManifestRepository(project_root).path.is_file():
             project = Project.open(project_root)
             project.verify_input_set(topology, trajectory, index_file)
+            if species_roles is not None:
+                project.set_species_roles(species_roles)
             return project, False
         return (
             Project.create(

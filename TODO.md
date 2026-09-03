@@ -11,9 +11,7 @@
 
 ## 已完成
 
-- [x] [Fix] Workflow 面板左侧项目显示框太窄，项目名显示不完整，项目配置时无当前配置项目引导；
-- [x] [Fix] 把绘图中 Cumulative RDF 的 Legend 换成 CN；
-- [x] [Doc] 加入 Workflow 的相关使用说明。
+- [x] [Feature] Role 只保留 `cation` `anion` `solvent` 三种角色，程序实现：自动读取 Project 文件夹下的 `.itp` 文件，根据其中的 [ moleculetype ] 字段记载的残基名称与其中 [ atoms ] 字段记载的电荷加和，自动判断其是这三种角色中的哪个，`cation`: charge > 0, `anion`: charge < 0, `solvent`: charge = 0。
 
 ## 完成标准（每轮代码改动后需重新确认）
 

@@ -96,7 +96,16 @@ class SystemSummary:
     units: dict[str, str] = field(default_factory=lambda: {"coordinates": "nm", "time": "ps"})
     index_groups: dict[str, int] = field(default_factory=dict)
     role_suggestions: dict[str, SpeciesRoleSuggestion] = field(default_factory=dict)
+    system_charge_e: float | None = None
+    charge_tolerance_e: float = 1e-6
     schema_version: int = 1
+
+    @property
+    def has_net_charge(self) -> bool:
+        return (
+            self.system_charge_e is not None
+            and abs(self.system_charge_e) > self.charge_tolerance_e
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {

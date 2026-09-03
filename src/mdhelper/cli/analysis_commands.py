@@ -170,6 +170,7 @@ def inspect(args: Namespace, app: ApplicationService) -> int:
             trajectory,
             index_file,
             None if project is None else project.cache_dir,
+            None if project is None else project.root,
         ).to_dict()
     )
     return 0

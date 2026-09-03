@@ -120,8 +120,9 @@ MDAnalysis 对象不离开对应适配器。GROMACS 命令经过 `integrations` 
 provenance、警告、身份、方法版本和创建时间。解析器拒绝未知、缺失或不一致的字段。0.1.0
 不提供 schema 迁移。
 
-适配器输出零基原子索引和帧范围。径向计算存储 nm。分析期间原子成员不变。物种角色只增加
-provenance，不修改选择或参数。
+适配器输出零基原子索引和帧范围。径向计算存储 nm。分析期间原子成员不变。Project `.itp`
+文件提供物种角色参考证据；建议只存在于当前 session，确认后的角色存入 request 和 project
+manifest。角色不修改选择或参数。
 
 绘图契约位于 `core/plotting/`。GUI 预览和图片导出使用同一绘图模型和状态。
 
@@ -137,9 +138,9 @@ project/
 `-- cache/
 ```
 
-Manifest 保存版本、输入身份、物种角色、结果索引和绘图状态。完整 result JSON 保存分析数据
-和 provenance。输入、结果和 Integration stream 使用 SHA-256 标识。派生路径必须位于项目
-根目录。Manifest 和 result 使用原子替换。`cache` 只保存可重建数据。
+Manifest 保存版本、输入身份、确认后的物种角色、结果索引和绘图状态。完整 result JSON 保存
+分析数据和 provenance。输入、结果和 Integration stream 使用 SHA-256 标识。派生路径必须位于
+项目根目录。Manifest 和 result 使用原子替换。`cache` 只保存可重建数据。
 
 `jobs` 管理 pending、running、completed、failed 和 cancelled 状态。帧处理、文件 hash 和
 进程轮询支持协作取消。GUI worker 把状态交回 Qt 线程。

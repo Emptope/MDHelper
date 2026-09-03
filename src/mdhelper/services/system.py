@@ -7,16 +7,16 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
 from threading import Event
-from typing import cast
 
 from mdhelper.backends.trajectory import load_trajectory
 from mdhelper.core.errors import BackendError
 from mdhelper.core.progress import ProgressCallback
-from mdhelper.core.species import SpeciesRoleSuggestion
 from mdhelper.core.system import Atom, SystemSummary
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.integrations.gromacs import frame_progress, output_message
 from mdhelper.integrations.manager import IntegrationManager
+
+from .species import CHARGE_ZERO_TOLERANCE_E, inspect_species_roles
 
 _TRAJECTORY_CACHE: ContextVar[str | Path | None] = ContextVar(
     "mdhelper_trajectory_cache", default=None
@@ -98,7 +98,10 @@ def load_source(
     )
 
 
-def summarize_source(source: TrajectorySource) -> SystemSummary:
+def summarize_source(
+    source: TrajectorySource,
+    project_root: str | Path | None = None,
+) -> SystemSummary:
     molecules_by_species: dict[str, dict[str, list[Atom]]] = {}
     atom_names: Counter[str] = Counter()
     for atom in source.atoms:
@@ -106,93 +109,24 @@ def summarize_source(source: TrajectorySource) -> SystemSummary:
             atom.molecule_id, []
         ).append(atom)
         atom_names[atom.name] += 1
+    species = {
+        key: len(value) for key, value in sorted(molecules_by_species.items())
+    }
+    inspection = inspect_species_roles(
+        Path(source.trajectory_path).expanduser().resolve().parent
+        if project_root is None
+        else project_root,
+        species,
+    )
     return SystemSummary(
         topology=str(source.topology_path),
         trajectory=str(source.trajectory_path),
         n_atoms=len(source.atoms),
         n_frames=source.n_frames,
-        species={key: len(value) for key, value in sorted(molecules_by_species.items())},
+        species=species,
         atom_names=dict(sorted(atom_names.items())),
         backend=source.backend_name,
-        role_suggestions=_role_suggestions(molecules_by_species),
+        role_suggestions=inspection.suggestions,
+        system_charge_e=inspection.system_charge_e,
+        charge_tolerance_e=CHARGE_ZERO_TOLERANCE_E,
     )
-
-
-def _role_suggestions(
-    molecules_by_species: dict[str, dict[str, list[Atom]]],
-) -> dict[str, SpeciesRoleSuggestion]:
-    """Build explainable role suggestions without residue-name special cases."""
-
-    tolerance = 0.25
-    suggestions: dict[str, SpeciesRoleSuggestion] = {}
-    neutral: list[tuple[str, int]] = []
-    records: dict[str, dict[str, object]] = {}
-    for species, molecules in sorted(molecules_by_species.items()):
-        sizes = sorted({len(atoms) for atoms in molecules.values()})
-        charges: list[float] = []
-        complete = True
-        for atoms in molecules.values():
-            if any(atom.charge_e is None for atom in atoms):
-                complete = False
-                break
-            charges.append(sum(cast(float, atom.charge_e) for atom in atoms))
-        evidence: dict[str, object] = {
-            "molecule_count": len(molecules),
-            "atoms_per_molecule": sizes,
-            "complete_topology_charges": complete,
-            "charge_tolerance_e": tolerance,
-        }
-        if complete and charges:
-            evidence["molecule_charge_range_e"] = [min(charges), max(charges)]
-            evidence["mean_molecule_charge_e"] = sum(charges) / len(charges)
-        records[species] = evidence
-        if complete and charges and all(charge > tolerance for charge in charges):
-            suggestions[species] = SpeciesRoleSuggestion(
-                "cation", ("cation",), "consistent topology-derived molecular net-charge sign",
-                "high", evidence,
-                reason="Every molecule has a positive net charge above the stated tolerance.",
-            )
-        elif complete and charges and all(charge < -tolerance for charge in charges):
-            suggestions[species] = SpeciesRoleSuggestion(
-                "anion", ("anion",), "consistent topology-derived molecular net-charge sign",
-                "high", evidence,
-                reason="Every molecule has a negative net charge below the stated tolerance.",
-            )
-        elif complete and charges and all(abs(charge) <= tolerance for charge in charges):
-            neutral.append((species, len(molecules)))
-        else:
-            suggestions[species] = SpeciesRoleSuggestion(
-                None,
-                ("cation", "anion", "solvent", "additive", "polymer", "surface", "other"),
-                "topology composition and molecular net-charge assessment",
-                "unavailable",
-                evidence,
-                reason=(
-                    "The topology does not provide complete, consistently signed molecular "
-                    "charges, so a role cannot be inferred safely."
-                ),
-            )
-    if neutral:
-        largest_count = max(count for _, count in neutral)
-        largest = [species for species, count in neutral if count == largest_count]
-        for species, _ in neutral:
-            evidence = records[species]
-            if len(largest) == 1 and species == largest[0]:
-                suggestions[species] = SpeciesRoleSuggestion(
-                    "solvent", ("solvent", "additive", "other"),
-                    "neutral-species population dominance heuristic", "low", evidence,
-                    reason=(
-                        "This is the most populous neutral species, but population alone cannot "
-                        "distinguish solvent, additive, or another neutral component."
-                    ),
-                )
-            else:
-                suggestions[species] = SpeciesRoleSuggestion(
-                    None, ("solvent", "additive", "polymer", "surface", "other"),
-                    "neutral-species population assessment", "unavailable", evidence,
-                    reason=(
-                        "A neutral species role cannot be determined uniquely from topology and "
-                        "population evidence."
-                    ),
-                )
-    return suggestions

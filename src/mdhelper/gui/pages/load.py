@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QSplitter, QWidget
 
@@ -47,17 +45,15 @@ class LoadPanel(QWidget):
 
     def common(
         self,
-        role_provenance: dict[str, Any],
         frames: object,
         require_selections: bool = True,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         return {
             "topology": self.inputs.topology.edit.text().strip(),
             "trajectory": self.inputs.trajectory.edit.text().strip(),
             "index_file": self.inputs.index_value(),
             "frames": frames,
             "species_roles": self.species.roles(require_all=require_selections),
-            "parameter_provenance": {"species_roles": dict(role_provenance)},
         }
 
     def apply_request(self, request: AnalysisRequest, preserve_inputs: bool = False) -> None:

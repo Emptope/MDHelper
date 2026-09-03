@@ -12,7 +12,6 @@ from mdhelper.backends.gromacs import GroTrajectorySource
 from mdhelper.backends.mdanalysis import MDAnalysisTrajectorySource
 from mdhelper.backends.trajectory import load_trajectory
 from mdhelper.core.errors import FormatError, InputError, TopologyError, TrajectoryError
-from mdhelper.core.species import role_decision
 from mdhelper.core.system import Atom, FrameRange
 from mdhelper.services.system import summarize_source
 
@@ -80,12 +79,17 @@ def test_auto_and_explicit_in_process_loading_use_mdanalysis(
     assert frame.time_ps == 0.0
 
 
-def test_species_role_suggestions_use_topology_evidence_not_names() -> None:
+def test_species_role_suggestions_use_project_itp_evidence_not_names(tmp_path: Path) -> None:
+    from test_itp import _write_itp
+
+    _write_itp(tmp_path / "positive.itp", "alpha", ("1.0",))
+    _write_itp(tmp_path / "negative.itp", "beta", ("-1.0",))
+    _write_itp(tmp_path / "neutral.itp", "gamma", ("0.0",))
     atoms = (
-        Atom(0, "X", "X", "alpha", 1, "alpha:1", 1.0),
-        Atom(1, "Y", "Y", "beta", 2, "beta:2", -1.0),
-        Atom(2, "Z", "Z", "gamma", 3, "gamma:3", 0.0),
-        Atom(3, "Z", "Z", "gamma", 4, "gamma:4", 0.0),
+        Atom(0, "X", "X", "alpha", 1, "alpha:1", -1.0),
+        Atom(1, "Y", "Y", "beta", 2, "beta:2", 1.0),
+        Atom(2, "Z", "Z", "gamma", 3, "gamma:3", 1.0),
+        Atom(3, "Z", "Z", "gamma", 4, "gamma:4", 1.0),
         Atom(4, "Q", "Q", "delta", 5, "delta:5"),
     )
     source = SimpleNamespace(
@@ -96,12 +100,12 @@ def test_species_role_suggestions_use_topology_evidence_not_names() -> None:
         backend_name="test",
     )
 
-    summary = summarize_source(source)
+    summary = summarize_source(source, tmp_path)
 
     assert summary.role_suggestions["alpha"].suggested_role == "cation"
     assert summary.role_suggestions["beta"].suggested_role == "anion"
     assert summary.role_suggestions["gamma"].suggested_role == "solvent"
-    assert summary.role_suggestions["gamma"].confidence == "low"
+    assert summary.role_suggestions["gamma"].confidence == "high"
     assert not summary.role_suggestions["delta"].available
     assert all(
         suggestion.requires_user_confirmation
@@ -116,28 +120,13 @@ def test_species_role_suggestions_use_topology_evidence_not_names() -> None:
         "numerical algorithms",
     ]
     assert serialized["role_definitions"]["solvent"]
-    decision = role_decision("other", summary.role_suggestions["alpha"], "test")
-    assert decision == {
-        "source": "test",
-        "suggested_role": "cation",
-        "confidence": "high",
-        "evidence": {
-            "molecule_count": 1,
-            "atoms_per_molecule": [1],
-            "complete_topology_charges": True,
-            "molecule_charge_range_e": [1.0, 1.0],
-            "mean_molecule_charge_e": 1.0,
-        },
+    assert summary.role_suggestions["alpha"].evidence == {
+        "atom_count": 1,
+        "molecule_charge_e": 1.0,
+        "zero_tolerance_e": 1e-6,
+        "source_file": "positive.itp",
     }
-    assert not {
-        "available",
-        "candidates",
-        "decision",
-        "method",
-        "reason",
-        "requires_user_confirmation",
-        "selected_role",
-    } & set(decision)
+    assert "candidates" not in serialized["role_suggestions"]["alpha"]
 
 
 def test_mdanalysis_xdr_offsets_are_stored_in_cache(tmp_path: Path) -> None:

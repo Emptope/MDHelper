@@ -28,6 +28,7 @@ from mdhelper.app import InputCandidates
 from mdhelper.core.analysis import AnalysisResult, RadialRequest, analysis_label
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.integrations import IntegrationConfig, IntegrationStatus
+from mdhelper.core.system import SystemSummary
 from mdhelper.gui.components.choices import choice_enabled
 from mdhelper.gui.dialogs.projects import NewProjectDialog
 from mdhelper.gui.dialogs.tools import MakeIndexHelpDialog
@@ -324,7 +325,7 @@ def test_gui_completes_cumulative_rdf_on_generic_system(tmp_path: Path) -> None:
     for row in range(window.load.species.table.rowCount()):
         role = window.load.species.table.cellWidget(row, 2)
         assert isinstance(role, QComboBox)
-        role.setCurrentText("other")
+        role.setCurrentText("solvent")
     window.analysis.parameters.frames.stop.setText("1")
 
     window.analysis.parameters.analysis_choice.setCurrentText(
@@ -355,6 +356,38 @@ def test_gui_completes_cumulative_rdf_on_generic_system(tmp_path: Path) -> None:
         "cumulative_rdf"
     }
     window.job_controller.shutdown()
+    window.close()
+
+
+def test_gui_warns_when_inspected_system_has_net_charge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = MainWindow()
+    charged = SystemSummary(
+        topology="topology",
+        trajectory="trajectory",
+        n_atoms=1,
+        n_frames=1,
+        species={},
+        atom_names={},
+        backend="test",
+        system_charge_e=0.5,
+    )
+    warnings: list[bool] = []
+    monkeypatch.setattr(
+        window.application.checks,
+        "inspect_system",
+        lambda *_args, **_kwargs: charged,
+    )
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        lambda *_args, **_kwargs: warnings.append(True),
+    )
+
+    window.system_actions.inspect({})
+
+    assert warnings == [True]
     window.close()
 
 
@@ -432,9 +465,10 @@ def test_gui_backend_does_not_reload_system_or_control_species_detection(
         trajectory: str,
         index_file: str | None,
         cache_dir: str | Path | None,
+        project_root: str | Path | None,
     ) -> object:
         inspections.append(True)
-        return inspect_system(topology, trajectory, index_file, cache_dir)
+        return inspect_system(topology, trajectory, index_file, cache_dir, project_root)
 
     monkeypatch.setattr(
         window.application.checks,
@@ -480,7 +514,7 @@ def test_gui_derives_selection_inputs_from_index_file() -> None:
     assert not parameters.rdf.inputs.hint_button.isHidden()
 
     window.load.inputs.index_file.edit.setText("missing.ndx")
-    assert window.load.common({}, object(), require_selections=False)["index_file"] == "missing.ndx"
+    assert window.load.common(object(), require_selections=False)["index_file"] == "missing.ndx"
     assert parameters.rdf.reference.currentWidget() is parameters.rdf.reference.group
     assert parameters.rdf.reference.group.count() == 1
     assert parameters.rdf.reference.group.currentData() is None
@@ -488,7 +522,7 @@ def test_gui_derives_selection_inputs_from_index_file() -> None:
     assert parameters.rdf.inputs.hint_button.isHidden()
 
     window.load.inputs.index_file.edit.clear()
-    assert window.load.common({}, object(), require_selections=False)["index_file"] is None
+    assert window.load.common(object(), require_selections=False)["index_file"] is None
     assert parameters.rdf.reference.currentWidget() is parameters.rdf.reference.expression
     assert not parameters.rdf.inputs.hint_button.isHidden()
     window.job_controller.shutdown()

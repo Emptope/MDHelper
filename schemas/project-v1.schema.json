@@ -31,7 +31,7 @@
     "species_roles": {
       "type": "object",
       "additionalProperties": {
-        "enum": ["cation", "anion", "solvent", "additive", "polymer", "surface", "other"]
+        "enum": ["cation", "anion", "solvent"]
       }
     },
     "plot": {

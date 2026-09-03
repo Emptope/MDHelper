@@ -32,6 +32,10 @@ def summary_text(summary: SystemSummary) -> str:
         "Species:",
     ]
     lines.extend(f"  {name}: {count} molecule(s)" for name, count in summary.species.items())
+    if summary.system_charge_e is not None:
+        lines.append(f"System charge: {summary.system_charge_e:.12g} e")
+        if summary.has_net_charge:
+            lines.append("Warning: the inferred system net charge is outside tolerance.")
     if summary.index_groups:
         lines.append(f"Index groups: {len(summary.index_groups)} loaded")
     return "\n".join(lines)

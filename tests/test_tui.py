@@ -10,7 +10,6 @@ import mdhelper.bootstrap.portable as portable
 import mdhelper.bootstrap.windows_console as windows_console
 from mdhelper.app import ApplicationService
 from mdhelper.core.integrations import IntegrationStatus
-from mdhelper.core.species import role_decision
 from mdhelper.core.system import FrameRange
 from mdhelper.gui.main import tui_command
 from mdhelper.services.config import UserConfig
@@ -692,11 +691,7 @@ def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(
     tui.workspace.trajectory = str(synthetic_path)
     tui.workspace.index_file = str(index_path)
     tui.workspace.summary = summary
-    tui.workspace.roles = dict.fromkeys(summary.species, "other")
-    tui.workspace.role_decisions = {
-        species: role_decision("other", suggestion, "test")
-        for species, suggestion in summary.role_suggestions.items()
-    }
+    tui.workspace.roles = dict.fromkeys(summary.species, "solvent")
     draft = AnalysisDraft(
         "rdf",
         analysis_backend="mdanalysis",

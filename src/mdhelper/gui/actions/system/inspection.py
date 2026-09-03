@@ -6,10 +6,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QMainWindow, QMessageBox
 
 from mdhelper.app import ApplicationService
-from mdhelper.core.species import role_decision
 from mdhelper.gui.controllers.session import ProjectSession
 from mdhelper.gui.controllers.system_state import InspectionState
 from mdhelper.gui.pages.analysis import AnalysisPanel
@@ -86,6 +85,7 @@ class SystemInspectionActions:
                 self.load.inputs.trajectory.edit.text().strip(),
                 self.load.inputs.index_value(),
                 None if project is None else project.cache_dir,
+                None if project is None else project.root,
             )
         except Exception as exc:
             self.state.fail()
@@ -97,22 +97,18 @@ class SystemInspectionActions:
                 )
             return
         if source:
-            provenance = {
-                species: role_decision(
-                    role,
-                    summary.role_suggestions[species],
-                    "project_manifest",
-                )
-                for species, role in existing_roles.items()
+            role_sources = {
+                species: "project_manifest"
+                for species in existing_roles
                 if species in summary.role_suggestions
             }
         else:
-            provenance = {
-                species: decision
-                for species, decision in self.state.provenance.items()
+            role_sources = {
+                species: current_source
+                for species, current_source in self.state.role_sources.items()
                 if species in summary.role_suggestions
             }
-        self.state.complete(dict(summary.role_suggestions), provenance)
+        self.state.complete(dict(summary.role_suggestions), role_sources)
         self.applying_roles = True
         try:
             self.load.species.set_summary(summary, existing_roles)
@@ -129,6 +125,13 @@ class SystemInspectionActions:
             f"Loaded {summary.n_atoms} atoms; backend: {summary.backend}{group_text}",
             10000,
         )
+        if summary.has_net_charge:
+            assert summary.system_charge_e is not None
+            QMessageBox.warning(
+                self.parent,
+                "Non-neutral System",
+                f"The inferred system net charge is {summary.system_charge_e:.12g} e.",
+            )
 
     def reset(self) -> None:
         self.timer.stop()

@@ -375,7 +375,7 @@ def test_gromacs_rdf_uses_native_commands_and_frame_range(
         bin_width_nm=0.05,
         frames=FrameRange(0, 5, 2),
         analysis_backend="gromacs",
-        species_roles={"REF": "other", "LIGA": "other", "LIGB": "other"},
+        species_roles={"REF": "solvent", "LIGA": "solvent", "LIGB": "solvent"},
     )
 
     result = application.analyses.run(
@@ -471,7 +471,7 @@ def test_gromacs_pipeline_uses_its_own_input_and_expression_processing(
             r_max_nm=0.5,
             bin_width_nm=0.05,
             analysis_backend="gromacs",
-            species_roles={"REF": "other", "LIGA": "other", "LIGB": "other"},
+            species_roles={"REF": "solvent", "LIGA": "solvent", "LIGB": "solvent"},
         ),
         lambda current, total, message: progress.append((current, total, message)),
     )

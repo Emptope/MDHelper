@@ -114,7 +114,7 @@ def _common(path: Path) -> _Common:
         "reference": "resname REF",
         "frames": FrameRange(stop=1),
         "analysis_backend": "mdanalysis",
-        "species_roles": {"REF": "other", "LIGA": "other", "LIGB": "other"},
+        "species_roles": {"REF": "solvent", "LIGA": "solvent", "LIGB": "solvent"},
     }
 
 
@@ -132,7 +132,7 @@ def test_hand_checkable_rdf_and_cumulative_rdf(
         "selection": "sel",
         "frames": FrameRange(stop=2),
         "analysis_backend": "mdanalysis",
-        "species_roles": {"REF": "other", "LIGA": "other", "LIGB": "other"},
+        "species_roles": {"REF": "solvent", "LIGA": "solvent", "LIGB": "solvent"},
     }
     rdf = application.analyses.run(
         RadialRequest(
@@ -272,6 +272,32 @@ def test_system_inspection_always_uses_auto_trajectory_reader(
     assert calls == [(str(synthetic_path), str(synthetic_path), "auto")]
 
 
+def test_system_inspection_reads_role_suggestions_from_project_directory(
+    synthetic_path: Path,
+    tmp_path: Path,
+) -> None:
+    from test_itp import _write_itp
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    _write_itp(project_root / "reference.itp", "REF", ("0.8",))
+    _write_itp(project_root / "first.itp", "LIGA", ("-0.8",))
+    _write_itp(project_root / "second.itp", "LIGB", ("0.1", "-0.1"))
+
+    summary = ApplicationService(UserConfig()).checks.inspect_system(
+        str(synthetic_path),
+        str(synthetic_path),
+        project_root=project_root,
+    )
+
+    assert {
+        name: suggestion.suggested_role
+        for name, suggestion in summary.role_suggestions.items()
+    } == {"LIGA": "anion", "LIGB": "solvent", "REF": "cation"}
+    assert summary.system_charge_e == pytest.approx(0)
+    assert not summary.has_net_charge
+
+
 def test_analysis_algorithm_is_replaceable_behind_application_contract(
     synthetic_path: Path,
 ) -> None:
@@ -333,7 +359,7 @@ def test_analysis_algorithm_is_replaceable_behind_application_contract(
         r_max_nm=0.5,
         bin_width_nm=0.05,
         frames=FrameRange(stop=2),
-        species_roles={"REF": "other", "LIGA": "other", "LIGB": "other"},
+        species_roles={"REF": "solvent", "LIGA": "solvent", "LIGB": "solvent"},
     )
 
     assert application.analyses.run(request).data == {"marker": 1}
@@ -479,7 +505,7 @@ def test_cli_completes_all_analyses_and_project_round_trip(
         "--analysis-backend",
         "mdanalysis",
         "--roles",
-        '{"REF":"other","LIGA":"other","LIGB":"other"}',
+        '{"REF":"solvent","LIGA":"solvent","LIGB":"solvent"}',
         "--stop",
         "1",
         "--figures",
@@ -496,7 +522,7 @@ def test_cli_completes_all_analyses_and_project_round_trip(
             "--trajectory",
             str(synthetic_path),
             "--roles",
-            '{"REF":"other","LIGA":"other","LIGB":"other"}',
+            '{"REF":"solvent","LIGA":"solvent","LIGB":"solvent"}',
         ]
     ) == 0
     capsys.readouterr()

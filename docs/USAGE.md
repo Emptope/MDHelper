@@ -72,6 +72,13 @@ uv run mdhelper templates list
 Pass `--project analysis-project` to `inspect` or `analyze` to use verified project inputs and
 commit the result.
 
+Project inspection recursively scans all subdirectories for `.itp` files. A matching
+`[ moleculetype ]` name provides an advisory role from the sum of its `[ atoms ]` charges. Review
+or change every suggestion before confirmation. When no matching `.itp` definition is found, select
+the role manually. Only confirmed roles are saved; suggestion details remain in the current session.
+When all species are matched, GUI inspection also warns if the inferred system net charge lies
+outside the `1e-6 e` neutrality tolerance.
+
 ## GUI workflows
 
 A workflow stores an ordered sequence of analysis types. It reuses the inputs loaded in the GUI,

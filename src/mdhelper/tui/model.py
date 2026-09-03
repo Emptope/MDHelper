@@ -92,10 +92,7 @@ class AnalysisDraft:
             frames=self.frames,
             analysis_backend=cast(RadialBackend, self.analysis_backend),
             species_roles=dict(workspace.roles),
-            parameter_provenance={
-                **self.parameter_provenance,
-                "species_roles": dict(workspace.role_decisions),
-            },
+            parameter_provenance=dict(self.parameter_provenance),
         )
         radial_request.validate()
         return radial_request
@@ -109,7 +106,6 @@ class Workspace:
     project: Project | None = None
     summary: SystemSummary | None = None
     roles: dict[str, str] = field(default_factory=dict)
-    role_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     drafts: dict[AnalysisType, AnalysisDraft] = field(default_factory=dict)
     rdf_cn_draft: AnalysisDraft | None = None
     result: AnalysisResult | None = None
@@ -134,7 +130,6 @@ class Workspace:
         self.project = None
         self.summary = None
         self.roles.clear()
-        self.role_decisions.clear()
         self.drafts.clear()
         self.rdf_cn_draft = None
         self.result = None

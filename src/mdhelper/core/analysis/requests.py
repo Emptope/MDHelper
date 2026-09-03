@@ -53,6 +53,11 @@ class AnalysisRequest(ABC):
         issue = json_issue(self.parameter_provenance, "parameter_provenance")
         if issue:
             raise InputError(issue)
+        if "species_roles" in self.parameter_provenance:
+            raise InputError(
+                "Species-role suggestions cannot be stored in parameter_provenance.",
+                "Store only confirmed roles in species_roles.",
+            )
 
     @abstractmethod
     def to_dict(self) -> dict[str, Any]:
