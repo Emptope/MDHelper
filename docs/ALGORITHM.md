@@ -118,16 +118,17 @@ peak prominence floor = max(0.05, 0.05 * max(smoothed_rdf))
 minimum prominence floor = max(0.02, peak_floor / 2)
 ```
 
-Peak-to-minimum contrast gives high confidence at `>= 0.5`, medium at `>= 0.2`, and low otherwise.
-Every available boundary requires user confirmation. Missing or low-confidence results add a
-warning and do not change `r_max` or another result.
+The first eligible peak and its following minimum define the suggested boundary. Results without
+both features are unavailable and add a warning. Every available boundary requires user
+confirmation and does not change `r_max` or another result.
 
 Species are grouped by residue name and molecule ID. Recursively discovered `.itp` files in the project
 directory provide role evidence: `[ moleculetype ]` names are matched to residue names and the
 seventh field of each `[ atoms ]` record is summed with decimal arithmetic. Net charge above
 `+1e-6 e` suggests cation, below `-1e-6 e` suggests anion, and values within that roundoff tolerance
-suggest solvent. Missing definitions remain unavailable. Suggestions require confirmation and may
-be changed; roles do not change selections or parameters.
+suggest solvent. A complete matching definition produces a role suggestion; a missing definition
+does not. Suggestions require confirmation and may be changed; roles do not change selections or
+parameters.
 
 If every species is matched, the system charge is the sum of each molecular charge multiplied by
 the detected molecule count. An absolute system charge above `1e-6 e` produces a user warning.

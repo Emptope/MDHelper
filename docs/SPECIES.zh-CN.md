@@ -15,7 +15,7 @@
 所有检测到的 species 都有匹配定义时，检查流程将每种 molecular charge 乘以 molecule 数量后
 加和。体系总电荷的绝对值超过 `1e-6 e` 时，GUI 会弹出警告；任一定义缺失时不执行不完整判断。
 
-检查结果包含源文件、molecular charge、confidence、reason 和 confirmation 状态。
+检查结果包含源文件、molecular charge、reason 和 confirmation 状态。
 自动识别只作为参考：CLI 接受 `--roles '{LI: cation, SOL: solvent}'`，TUI 和 GUI 允许逐项检查
 和修改建议。建议仅存在于当前检查 session，不写入 schema；只有用户确认的角色会存入
 `request.species_roles` 和 project manifest。`mdhelper project set-roles` 替换项目映射。可用角色

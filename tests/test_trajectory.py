@@ -105,7 +105,6 @@ def test_species_role_suggestions_use_project_itp_evidence_not_names(tmp_path: P
     assert summary.role_suggestions["alpha"].suggested_role == "cation"
     assert summary.role_suggestions["beta"].suggested_role == "anion"
     assert summary.role_suggestions["gamma"].suggested_role == "solvent"
-    assert summary.role_suggestions["gamma"].confidence == "high"
     assert not summary.role_suggestions["delta"].available
     assert all(
         suggestion.requires_user_confirmation
@@ -114,6 +113,14 @@ def test_species_role_suggestions_use_project_itp_evidence_not_names(tmp_path: P
     serialized = summary.to_dict()
     assert serialized["schema_version"] == 1
     assert serialized["role_suggestions"]["alpha"]["available"]
+    assert set(serialized["role_suggestions"]["alpha"]) == {
+        "available",
+        "evidence",
+        "method",
+        "reason",
+        "requires_user_confirmation",
+        "suggested_role",
+    }
     assert serialized["role_policy"]["does_not_affect"] == [
         "atom selections",
         "analysis parameters",
@@ -127,8 +134,6 @@ def test_species_role_suggestions_use_project_itp_evidence_not_names(tmp_path: P
         "source_file": "positive.itp",
     }
     assert "candidates" not in serialized["role_suggestions"]["alpha"]
-
-
 def test_mdanalysis_xdr_offsets_are_stored_in_cache(tmp_path: Path) -> None:
     import MDAnalysis as mda
 

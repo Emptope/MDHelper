@@ -50,11 +50,7 @@ def roles_text(workspace: Workspace) -> str:
     ]
     for species, count in workspace.summary.species.items():
         suggestion = workspace.summary.role_suggestions[species]
-        suggested = (
-            f"{suggestion.suggested_role} ({suggestion.confidence})"
-            if suggestion.available
-            else f"unavailable ({suggestion.confidence})"
-        )
+        suggested = suggestion.suggested_role or "unavailable"
         lines.append(
             f"{species[:23]:<24} {count:>9}  {workspace.roles.get(species, 'not set'):<14}"
             f" {suggested}"

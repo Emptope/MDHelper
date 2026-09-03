@@ -332,14 +332,12 @@ def _species_summary() -> SystemSummary:
         "alpha": SpeciesRoleSuggestion(
             "cation",
             "net charge",
-            "high",
             {"net_charge_e": 1.0},
             reason="Positive molecular charge.",
         ),
         "beta": SpeciesRoleSuggestion(
             "anion",
             "net charge",
-            "high",
             {"net_charge_e": -1.0},
             reason="Negative molecular charge.",
         ),

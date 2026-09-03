@@ -113,14 +113,14 @@ peak prominence floor = max(0.05, 0.05 * max(smoothed_rdf))
 minimum prominence floor = max(0.02, peak_floor / 2)
 ```
 
-峰谷差 `>= 0.5` 为 high，`>= 0.2` 为 medium，其余为 low。可用边界都需要用户确认。缺失或
-低置信度结果产生警告，不修改 `r_max` 或其他结果。
+第一个合格峰及其后的第一个最小值定义建议边界。无法同时识别两者时结果不可用并产生警告。
+可用边界都需要用户确认，且不修改 `r_max` 或其他结果。
 
 Species 按 residue name 分组，molecule 按 molecule ID 分组。程序递归发现 Project 目录中的 `.itp`
 文件提供角色证据：程序将 `[ moleculetype ]` name 与 residue name 匹配，并用 decimal arithmetic
 累加每条 `[ atoms ]` record 的第 7 个字段。Net charge 大于 `+1e-6 e` 时建议 cation，小于
-`-1e-6 e` 时建议 anion，舍入误差范围内则建议 solvent。定义缺失时返回 unavailable。建议需要
-用户确认且可以修改；角色不修改选择或参数。
+`-1e-6 e` 时建议 anion，舍入误差范围内则建议 solvent。完整匹配定义会产生角色建议，定义缺失
+时不产生建议。建议需要用户确认且可以修改；角色不修改选择或参数。
 
 所有 species 均匹配时，体系总电荷为每种 molecular charge 与检测到的 molecule 数量乘积之和。
 体系总电荷的绝对值超过 `1e-6 e` 时产生用户警告。

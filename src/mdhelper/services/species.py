@@ -41,7 +41,6 @@ def inspect_species_roles(
             suggestions[name] = SpeciesRoleSuggestion(
                 None,
                 "project include-topology molecular net charge",
-                "unavailable",
                 {
                     "project_directory": str(root),
                     "matched_molecule_type": False,
@@ -57,7 +56,6 @@ def inspect_species_roles(
         suggestions[name] = SpeciesRoleSuggestion(
             role,
             "project include-topology molecular net charge",
-            "high",
             {
                 "atom_count": record.atom_count,
                 "molecule_charge_e": record.charge_e,

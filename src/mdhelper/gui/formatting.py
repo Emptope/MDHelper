@@ -60,7 +60,6 @@ def role_suggestions_html(suggestions: Mapping[str, SpeciesRoleSuggestion]) -> s
     for species, item in suggestions.items():
         fields = (
             ("Suggested role", item.suggested_role or "Unavailable"),
-            ("Confidence", item.confidence),
             ("Method", item.method),
             ("Reason", item.reason),
         )

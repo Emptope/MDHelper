@@ -23,7 +23,7 @@
 | G2 | 科学公式只位于分析层和带版本的方法文档。 | 参考测试覆盖 PBC、网格、归一化和 self exclusion；界面不包含公式。 |
 | G3 | 依赖遵循[架构](ARCHITECTURE.zh-CN.md)。 | `tests/test_architecture.py` 通过。 |
 | G4 | 选择、参数、帧范围、Backend 和确认后的角色是显式 request 数据。 | 校验覆盖每个存储值；角色建议只存在于当前 session，且不存在输入名称特判。 |
-| G5 | 建议提供证据，且不修改源数据或参数。 | unavailable 和 low confidence 不影响主分析结果。 |
+| G5 | 建议提供证据，且不修改源数据或参数。 | unavailable 建议不影响主分析结果。 |
 | G6 | Result 带版本、严格且自描述。 | Runtime parser 和 JSON schema 拒绝未知、缺失或不一致字段。 |
 | G7 | Result 标识输入、环境、选择、参数、帧和实际 Backend。 | SHA-256 检测内容变化并支持项目重定位。 |
 | G8 | 项目持久化具有失败原子性。 | 写入失败后旧项目仍可读，且不发布部分结果。 |

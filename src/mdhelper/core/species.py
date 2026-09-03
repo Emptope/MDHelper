@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Literal
+from typing import Any
 
 from .errors import InputError
 
@@ -57,7 +57,6 @@ def validate_species_roles(species_roles: dict[str, str]) -> None:
 class SpeciesRoleSuggestion:
     suggested_role: str | None
     method: str
-    confidence: Literal["high", "medium", "low", "unavailable"]
     evidence: dict[str, Any]
     requires_user_confirmation: bool = True
     reason: str = ""
@@ -74,10 +73,6 @@ class SpeciesRoleSuggestion:
             raise InputError(f"Unknown suggested species role: {self.suggested_role!r}.")
         if not isinstance(self.method, str) or not self.method.strip():
             raise InputError("A role suggestion requires an explainable method.")
-        if self.confidence not in {"high", "medium", "low", "unavailable"}:
-            raise InputError("A role suggestion has an invalid confidence level.")
-        if (self.suggested_role is None) != (self.confidence == "unavailable"):
-            raise InputError("Role availability and confidence are inconsistent.")
         if not isinstance(self.evidence, dict):
             raise InputError("A role suggestion requires structured evidence.")
         if not isinstance(self.reason, str) or not self.reason.strip():

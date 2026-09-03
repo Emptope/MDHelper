@@ -50,8 +50,8 @@ selection、PBC、grid 和 endpoint 由 GROMACS 决定。帧处理和 provenance
 RDF 输出，查找第一峰和随后最小值，再将不小于该 radius 的第一个累计 sample 报告为
 `coordination_number`。
 
-无法识别最小值时，coordination 为 unavailable，累计曲线仍有效。诊断需要用户确认且不修改
-曲线。该规则采用电解液分析中的第一最小值约定，参见 DOI `10.3390/molecules30020230` 和
+无法识别最小值时 coordination 不可用，累计曲线仍有效。该诊断需要用户确认且不修改曲线。
+该规则采用电解液分析中的第一最小值约定，参见 DOI `10.3390/molecules30020230` 和
 `10.1038/s41598-024-60063-0`。
 
 ## 输出与统计

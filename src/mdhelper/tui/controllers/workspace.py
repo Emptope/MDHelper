@@ -228,10 +228,7 @@ class WorkspaceController(ControllerContext):
         suggestion = self.workspace.summary.role_suggestions[species]
         self.terminal.heading(f"Choose role: {species}")
         self.terminal.write(f"Numbers:  {self.workspace.summary.species[species]}")
-        self.terminal.write(
-            f"Suggestion: {suggestion.suggested_role or 'unavailable'} "
-            f"({suggestion.confidence} confidence)"
-        )
+        self.terminal.write(f"Suggestion: {suggestion.suggested_role or 'unavailable'}")
         self.terminal.write(f"Method:     {suggestion.method}")
         if suggestion.reason:
             self.terminal.write(f"Reason:     {suggestion.reason}")
@@ -256,8 +253,7 @@ class WorkspaceController(ControllerContext):
         self.terminal.write("Suggestions to apply:")
         for species, suggestion in suggestions.items():
             self.terminal.write(
-                f"  {species}: {suggestion.suggested_role} "
-                f"({suggestion.confidence}; {suggestion.method})"
+                f"  {species}: {suggestion.suggested_role} ({suggestion.method})"
             )
         if not self.terminal.confirm("Apply these suggestions?"):
             return

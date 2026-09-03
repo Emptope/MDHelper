@@ -6,7 +6,7 @@
   center-of-mass, slab, orientational, dynamic, intermolecular-only, and site-exclusion variants.
 - RDF methods do not estimate equilibration, autocorrelation, convergence, uncertainty, or
   effective sample size.
-- First-shell detection can be unavailable or low-confidence and never changes a curve.
+- First-shell detection can be unavailable and never changes a curve.
 - Species-role suggestions require unambiguous project `.itp` molecule definitions. The
   parser does not evaluate preprocessor-dependent `[ moleculetype ]` or `[ atoms ]` sections.
 - In-process format support follows the bundled MDAnalysis version. TNG is unsupported in 0.1.0.

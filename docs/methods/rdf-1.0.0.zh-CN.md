@@ -55,8 +55,8 @@ Request 记录选择、输入来源、`r_max_nm`、`bin_width_nm`、帧范围和
 
 ## 诊断与输出
 
-第一壳层诊断平滑 RDF 副本，查找第一个显著峰和随后最小值，并以 high、medium 或 low
-confidence 报告边界。该值始终需要用户确认，且不修改曲线或 `r_max_nm`。阈值见
+第一壳层诊断平滑 RDF 副本，查找第一个显著峰和随后最小值，并报告识别到的边界。无法识别
+边界时结果不可用。每个可用边界都需要用户确认，且不修改曲线或 `r_max_nm`。检测规则见
 [算法说明](../ALGORITHM.zh-CN.md)。
 
 JSON 和 CSV 最多使用 15 位有效数字。基础结果不含 block size、standard error 或 uncertainty

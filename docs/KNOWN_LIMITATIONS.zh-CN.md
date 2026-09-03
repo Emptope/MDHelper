@@ -5,7 +5,7 @@
 - RDF 支持三维周期 bulk 体系中的静态原子选择，不支持质心、slab、取向、动态、仅分子间或
   site-exclusion 变体。
 - RDF 方法不估计平衡、自相关、收敛、不确定度或有效样本量。
-- 第一壳层检测可能不可用或置信度低，且不修改曲线。
+- 第一壳层检测可能不可用，且不修改曲线。
 - 物种角色建议需要 project 中存在无歧义的 `.itp` molecule 定义；解析器不处理依赖
   preprocessor 的 `[ moleculetype ]` 或 `[ atoms ]` section。
 - 进程内格式支持取决于内置 MDAnalysis。0.1.0 不支持 TNG。

@@ -24,7 +24,7 @@ schemas, tests, and documents without a migration branch.
 | G2 | Scientific formulas live in the analysis layer and versioned method documents. | Reference tests cover PBC, grids, normalization, and self exclusion; interfaces contain no formulas. |
 | G3 | Dependencies follow [Architecture](ARCHITECTURE.md). | `tests/test_architecture.py` passes. |
 | G4 | Selections, parameters, frame ranges, backends, and confirmed roles are explicit request data. | Validation accounts for every stored value; role suggestions remain session-only and no input-name special cases exist. |
-| G5 | Suggestions expose evidence and never change source data or parameters. | Unavailable and low-confidence outcomes remain valid analysis results. |
+| G5 | Suggestions expose evidence and never change source data or parameters. | Unavailable suggestion outcomes remain valid analysis results. |
 | G6 | Results are versioned, strict, and self-describing. | Runtime parsers and JSON schemas reject unknown, missing, or inconsistent fields. |
 | G7 | Results identify inputs, environment, selections, parameters, frames, and resolved backend. | Content changes and project relocation are detected by SHA-256. |
 | G8 | Project persistence is failure-atomic. | Failed writes leave the prior project readable and do not publish partial results. |

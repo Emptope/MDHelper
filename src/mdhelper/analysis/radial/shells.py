@@ -6,6 +6,14 @@ import numpy as np
 from numpy.typing import NDArray
 
 
+def _unavailable(reason: str, **evidence: object) -> dict[str, object]:
+    return {
+        "available": False,
+        "reason": reason,
+        **evidence,
+    }
+
+
 def first_shell(
     radii: NDArray[np.float64],
     rdf: NDArray[np.float64],
@@ -13,7 +21,7 @@ def first_shell(
     """Resolve the first RDF peak and its following minimum."""
 
     if len(rdf) < 11 or not np.any(np.isfinite(rdf)):
-        return {"available": False, "reason": "insufficient_data"}
+        return _unavailable("insufficient_data")
     finite = np.nan_to_num(rdf, nan=0.0, posinf=0.0, neginf=0.0)
     window = min(11, len(finite) if len(finite) % 2 else len(finite) - 1)
     window = max(window, 5)
@@ -22,23 +30,18 @@ def first_shell(
     peaks, prominences = _prominent_peaks(smooth, prominence_floor)
     eligible = np.nonzero(peaks >= max(2, window // 2))[0]
     if not len(eligible):
-        return {"available": False, "reason": "no_resolved_first_peak"}
+        return _unavailable("no_resolved_first_peak")
     peak_position = int(eligible[0])
     peak_index = int(peaks[peak_position])
     minima, _ = _prominent_peaks(-smooth, max(0.02, prominence_floor / 2.0))
     minima = minima[minima > peak_index + 1]
     if not len(minima):
-        return {
-            "available": False,
-            "reason": "no_resolved_minimum_after_peak",
-            "first_peak_index": peak_index,
-            "first_peak_nm": float(radii[peak_index]),
-        }
+        return _unavailable(
+            "no_resolved_minimum_after_peak",
+            first_peak_index=peak_index,
+            first_peak_nm=float(radii[peak_index]),
+        )
     minimum_index = int(minima[0])
-    peak_value = float(smooth[peak_index])
-    minimum_value = float(smooth[minimum_index])
-    contrast = peak_value - minimum_value
-    confidence = "high" if contrast >= 0.5 else "medium" if contrast >= 0.2 else "low"
     return {
         "available": True,
         "method": "Savitzky-Golay smoothing + first prominent peak/minimum",
@@ -49,16 +52,11 @@ def first_shell(
         "first_minimum_index": minimum_index,
         "first_minimum_nm": float(radii[minimum_index]),
         "first_minimum_g_r": float(rdf[minimum_index]),
-        "confidence": confidence,
         "requires_user_confirmation": True,
     }
 
 
 def first_shell_warnings(shell: dict[str, object]) -> list[str]:
-    if shell.get("confidence") == "low":
-        return [
-            "The RDF first-shell boundary has low confidence; inspect the RDF before use."
-        ]
     if not shell.get("available"):
         return [
             "No reliable RDF first minimum was found; no first-shell boundary was reported."

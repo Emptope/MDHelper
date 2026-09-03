@@ -98,9 +98,6 @@ def _shell_rows(value: object) -> list[tuple[str, str]]:
             rows.append(
                 (label, f"g(r) = {number(height)} at {_angstrom(radius)} {ANGSTROM_SYMBOL}")
             )
-    confidence = value.get("confidence")
-    if confidence:
-        rows.append(("First-shell confidence", f"{confidence}; review required"))
     return rows
 
 
@@ -124,9 +121,6 @@ def _coordination_rows(value: object) -> list[tuple[str, str]]:
             f"{_angstrom(radius)} {ANGSTROM_SYMBOL} (first RDF minimum)",
         ),
     ]
-    confidence = value.get("confidence")
-    if confidence:
-        rows.append(("Cutoff confidence", f"{confidence}; review required"))
     return rows
 
 

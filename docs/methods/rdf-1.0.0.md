@@ -58,9 +58,9 @@ version, outputs, and frames. XVG precision can produce small differences from i
 ## Diagnostic and output
 
 The first-shell diagnostic smooths a copy of the RDF, finds the first prominent peak and following
-minimum, and reports the boundary with high, medium, or low confidence. It always requires user
-confirmation and never changes the curve or `r_max_nm`. [Algorithm](../ALGORITHM.md) defines its
-thresholds.
+minimum, and reports the resolved boundary. An unresolved boundary is unavailable. Every available
+boundary requires user confirmation and never changes the curve or `r_max_nm`.
+[Algorithm](../ALGORITHM.md) defines the detection rules.
 
 JSON and CSV use at most 15 significant digits. Base results contain no block size, standard error,
 or uncertainty band. The method does not estimate equilibration, autocorrelation, convergence, or

@@ -92,11 +92,7 @@ class SpeciesPanel(QGroupBox):
             self.table.setItem(row, 0, QTableWidgetItem(species))
             self.table.setItem(row, 1, QTableWidgetItem(str(count)))
             suggestion = summary.role_suggestions[species]
-            text = (
-                f"{suggestion.suggested_role} ({suggestion.confidence})"
-                if suggestion.available
-                else f"No safe suggestion ({suggestion.confidence})"
-            )
+            text = suggestion.suggested_role or "No safe suggestion"
             item = QTableWidgetItem(text)
             item.setData(Qt.ItemDataRole.UserRole, suggestion)
             self.table.setItem(row, 3, item)

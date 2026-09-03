@@ -30,7 +30,6 @@ def _rdf_result() -> AnalysisResult:
                 "first_peak_g_r": 3.0,
                 "first_minimum_nm": 0.3,
                 "first_minimum_g_r": 1.0,
-                "confidence": "high",
             },
         },
         provenance={},
