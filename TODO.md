@@ -11,8 +11,7 @@
 
 ## 已完成
 
-- [x] [Fix] GUI Result 页 `Advanced` 按钮改成 `Advanced...`
-- [x] [Feature] 增设一个功能：Tools 最下方增设 `Make Index File...` 选项，实现逻辑：当用户未配置 GROMACS 时，打开信息页，告诉用户如何用 `gmx make_ndx` 制作 index file，并附上 https://manual.gromacs.org/documentation/current/onlinehelp/gmx-make_ndx.html ；当用户配置 GROMACS 时，打开外部终端，调用 GROMACS 执行 `<gmx_executable> make_ndx -f <.gro> -o index.ndx` 命令。
+- [x] [Refactor] 重构 GUI，拆分 actions、状态机、页面与组合根，精简窗口和结果页。
 
 ## 完成标准（每轮代码改动后需重新确认）
 

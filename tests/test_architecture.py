@@ -21,7 +21,16 @@ GUI_ROOT_MODULES = {
     "window.py",
     "windows.py",
 }
-GUI_SUBPACKAGES = {"components", "controllers", "dialogs", "pages"}
+GUI_SUBPACKAGES = {"actions", "components", "controllers", "dialogs", "pages"}
+GUI_ACTION_MODULES = {"__init__.py", "analysis.py", "project.py", "results.py", "system.py"}
+GUI_PAGE_MODULES = {
+    "__init__.py",
+    "analysis.py",
+    "load.py",
+    "plot.py",
+    "results.py",
+    "workspace.py",
+}
 TUI_ROOT_MODULES = {
     "__init__.py",
     "__main__.py",
@@ -34,10 +43,10 @@ TUI_ROOT_MODULES = {
 TUI_SUBPACKAGES = {"controllers"}
 JOB_MODULES = {"__init__.py", "models.py", "runner.py"}
 GUI_FORBIDDEN_IMPORTS = {
-    "components": ("controllers", "dialogs", "pages"),
-    "controllers": ("components", "dialogs", "pages"),
-    "dialogs": ("controllers", "pages"),
-    "pages": ("controllers",),
+    "components": ("actions", "controllers", "dialogs", "pages"),
+    "controllers": ("actions", "components", "dialogs", "pages"),
+    "dialogs": ("actions", "controllers", "pages"),
+    "pages": ("actions", "controllers"),
 }
 CODE_SUFFIXES = {".py", ".pyi", ".ps1", ".sh", ".spec", ".toml", ".yaml", ".yml"}
 
@@ -149,6 +158,16 @@ def test_gui_modules_follow_the_presentation_package_layout() -> None:
         if path.is_dir() and (path / "__init__.py").is_file()
     }
     assert packages == GUI_SUBPACKAGES
+
+
+def test_gui_actions_have_focused_module_layout() -> None:
+    root = SOURCE_ROOT / "gui" / "actions"
+    assert {path.name for path in root.glob("*.py")} == GUI_ACTION_MODULES
+
+
+def test_gui_pages_have_focused_module_layout() -> None:
+    root = SOURCE_ROOT / "gui" / "pages"
+    assert {path.name for path in root.glob("*.py")} == GUI_PAGE_MODULES
 
 
 def test_non_modal_window_presentation_is_centralized() -> None:

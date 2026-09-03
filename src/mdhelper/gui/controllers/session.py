@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from mdhelper.app import ApplicationService
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.plotting import PlotState
+from mdhelper.gui.controllers.session_state import SessionState
 from mdhelper.project import Project
 
 
@@ -18,11 +19,13 @@ class ProjectSession:
     project: Project | None = None
     request: AnalysisRequest | None = None
     result: AnalysisResult | None = None
+    state: SessionState = field(default_factory=SessionState)
 
     def reset(self) -> None:
         self.project = None
         self.request = None
         self.result = None
+        self.state.reset()
 
     def create(
         self,
@@ -38,6 +41,7 @@ class ProjectSession:
         self.project = project
         self.request = None
         self.result = None
+        self.state.ready()
         return project
 
     def open(self, root: str | Path) -> tuple[Project, dict[str, Path]]:
@@ -46,6 +50,7 @@ class ProjectSession:
         self.project = project
         self.request = None
         self.result = None
+        self.state.ready()
         return project, inputs
 
     def ensure(
@@ -62,17 +67,25 @@ class ProjectSession:
         self.project = project
         self.request = None
         self.result = None
+        self.state.ready()
         return project, created
 
     def start(self, request: AnalysisRequest) -> None:
+        self.state.start()
         self.request = request
         self.result = None
 
     def complete(self, result: AnalysisResult) -> Path | None:
+        output = None
+        if self.project is not None and self.request is not None:
+            output = self.application.projects.commit_result(self.project, self.request, result)
         self.result = result
-        if self.project is None or self.request is None:
-            return None
-        return self.application.projects.commit_result(self.project, self.request, result)
+        self.state.complete()
+        return output
+
+    def abort(self) -> None:
+        self.result = None
+        self.state.abort(self.project is not None)
 
     def set_species_roles(self, species_roles: dict[str, str]) -> None:
         if self.project is None:
@@ -109,6 +122,7 @@ class ProjectSession:
         if loaded:
             self.result = loaded[-1]
             self.request = AnalysisRequest.from_dict(self.result.request)
+            self.state.restore()
         return tuple(loaded)
 
     def list_results(self) -> tuple[dict[str, object], ...]:
@@ -123,4 +137,5 @@ class ProjectSession:
         request = AnalysisRequest.from_dict(result.request)
         self.request = request
         self.result = result
+        self.state.restore()
         return request, result

@@ -288,11 +288,15 @@ parsing or GUI widgets. `tui/controller.py` owns only top-level navigation and e
 focused controllers under `tui/controllers/` own workspace, analysis setup, execution, results, and
 tools workflows.
 
-GUI separates widgets, application calls, and result formatting. `gui/window.py` coordinates use
-cases and composes four focused subpackages: `components` owns reusable widgets, `pages` owns the
-workspace views, `dialogs` owns floating windows, and `controllers` owns session and background-job
-coordination. `components/parameters.py` builds requests; `pages/results.py` renders result text and
-core plot models; `components/species.py` handles role confirmation. Both interactive frontends
+GUI separates widgets, state, user actions, application calls, and result formatting.
+`gui/window.py` is the composition root. `components` owns reusable widgets, `pages` owns workspace
+views, `dialogs` owns floating windows, `controllers` owns widget-independent state machines and
+background adapters, and `actions` connects those boundaries for system, analysis, project, and
+result operations. Analysis batches transition explicitly through idle, running, and cancelling;
+system inspection and project sessions have separate explicit state machines.
+`components/parameters.py` builds requests; `pages/results.py` renders result history and summary;
+`pages/plot.py` owns plot-series editing and renders core plot models; `components/species.py`
+handles role confirmation. Both interactive frontends
 expose Backend under Analysis, not
 Load. Energy remains available through MDAnalysis; GROMACS RDF/CN requires `rdf`, frame subsets
 additionally require `trjconv` and `check`, and GROMACS Energy requires

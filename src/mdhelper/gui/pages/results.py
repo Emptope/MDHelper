@@ -1,9 +1,8 @@
-"""Result history, plot, and export controls for the desktop GUI."""
+"""Result history, summary, and export controls for the desktop GUI."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -13,39 +12,16 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QSplitter,
-    QTableWidgetItem,
-    QTableWidgetSelectionRange,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
-from mdhelper.core.analysis import (
-    AnalysisRequest,
-    AnalysisResult,
-    EnergyRequest,
-    RadialRequest,
-    analysis_label,
-)
-from mdhelper.core.errors import ConfigurationError
-from mdhelper.core.plotting import (
-    PLOT_COLORS,
-    PlotAppearance,
-    PlotLimits,
-    PlotModel,
-    PlotSelection,
-    PlotSize,
-    PlotState,
-    results_plots,
-)
-from mdhelper.gui.components.choices import NoWheelComboBox
+from mdhelper.core.analysis import AnalysisResult, analysis_label
+from mdhelper.core.plotting import PlotAppearance, PlotLimits, PlotModel, PlotSize, PlotState
 from mdhelper.gui.components.layout import ActionBar, page_layout
-from mdhelper.gui.components.plot_controls import PlotControls
-from mdhelper.gui.formatting import (
-    result_analysis_label,
-    result_label,
-    result_summary_html,
-)
+from mdhelper.gui.formatting import result_analysis_label, result_label, result_summary_html
+from mdhelper.gui.pages.plot import PlotPanel
 from mdhelper.gui.windows import WindowManager
 
 if TYPE_CHECKING:
@@ -53,11 +29,6 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
     from mdhelper.gui.dialogs.plot import PlotWindow
-
-_RESULT_ROLE = int(Qt.ItemDataRole.UserRole)
-_SERIES_ROLE = _RESULT_ROLE + 1
-_GROUP_ROLE = _RESULT_ROLE + 2
-_TITLE_ROLE = _RESULT_ROLE + 3
 
 
 class ResultPanel(QWidget):
@@ -76,14 +47,9 @@ class ResultPanel(QWidget):
         super().__init__(parent)
         self._windows = windows or WindowManager(self)
         self.result: AnalysisResult | None = None
-        self._results: dict[str, AnalysisResult] = {}
         self._context_names: dict[str, str] = {}
-        self._limits = PlotLimits()
-        self._appearance = PlotAppearance()
-        self._plot_rows: tuple[tuple[int, ...], ...] = ()
-        self._plot_titles: tuple[str, ...] = ()
-        self._restoring = False
         self.project_available = False
+
         layout = page_layout(self)
         history = QHBoxLayout()
         history.addWidget(QLabel("Saved results"))
@@ -96,6 +62,7 @@ class ResultPanel(QWidget):
         history.addWidget(self.project_results, 1)
         history.addWidget(self.load_button)
         layout.addLayout(history)
+
         self.text = QTextBrowser()
         self.text.setReadOnly(True)
         self.text.setOpenExternalLinks(False)
@@ -107,65 +74,60 @@ class ResultPanel(QWidget):
         self.details_button = QPushButton("Details")
         self.details_button.setEnabled(False)
         self.details_button.clicked.connect(self.details_requested)
-        result_actions = ActionBar()
-        result_actions.add_button(self.details_button)
-        summary_layout.addWidget(result_actions)
-        self.result_action_bar = result_actions
-        controls = PlotControls()
-        self.combine_series_button = controls.combine_button
-        self.combine_series_button.clicked.connect(self.combine_selected_series)
-        self.separate_series_button = controls.separate_button
-        self.separate_series_button.clicked.connect(self.separate_selected_series)
-        self.remove_series_button = controls.remove_button
-        self.remove_series_button.clicked.connect(self.remove_selected_series)
-        self.clear_series_button = controls.clear_button
-        self.clear_series_button.clicked.connect(self.clear_series)
-        self.plot_series = controls.series
-        self.plot_series.itemChanged.connect(self._plot_changed)
-        self.plot_series.itemSelectionChanged.connect(self._plot_selection_changed)
-        self.plot_title = controls.title
-        self.plot_title.editingFinished.connect(self._apply_title)
-        self.color_scheme = controls.scheme
-        self.color_scheme.currentIndexChanged.connect(self._coloring_changed)
-        self.x_min = controls.x_min
-        self.x_max = controls.x_max
-        self.y_min = controls.y_min
-        self.y_max = controls.y_max
-        self.y2_min = controls.y2_min
-        self.y2_max = controls.y2_max
-        for edit in controls.limit_edits():
-            edit.editingFinished.connect(self._apply_limits)
-        self.open_plot_button = controls.open_button
-        self.open_plot_button.clicked.connect(self.open_plot_window)
-        self.advanced_plot_button = controls.advanced_button
-        self.advanced_plot_button.clicked.connect(self.advanced_plot_requested)
-        self.plot_settings = controls.settings
-        sections = QSplitter(Qt.Orientation.Horizontal)
-        sections.setChildrenCollapsible(False)
-        sections.addWidget(self.summary_box)
-        sections.addWidget(controls)
-        sections.setStretchFactor(0, 2)
-        sections.setStretchFactor(1, 3)
-        sections.setSizes((320, 480))
-        layout.addWidget(sections, 1)
-        self.sections = sections
-        self.plot_panel = controls
-        self.plot_controls = controls
+        self.result_action_bar = ActionBar()
+        self.result_action_bar.add_button(self.details_button)
+        summary_layout.addWidget(self.result_action_bar)
+
+        plots = PlotPanel(self._windows)
+        plots.result_selected.connect(self._show_selected_result)
+        plots.results_changed.connect(self._retain_context)
+        plots.state_changed.connect(self.state_changed)
+        plots.message.connect(self.show_message)
+        plots.advanced_button.clicked.connect(self.advanced_plot_requested)
+        self.plot_panel = plots
+        self.plot_controls = plots
+        self.combine_series_button = plots.combine_button
+        self.separate_series_button = plots.separate_button
+        self.remove_series_button = plots.remove_button
+        self.clear_series_button = plots.clear_button
+        self.plot_series = plots.series
+        self.plot_title = plots.title
+        self.color_scheme = plots.scheme
+        self.x_min = plots.x_min
+        self.x_max = plots.x_max
+        self.y_min = plots.y_min
+        self.y_max = plots.y_max
+        self.y2_min = plots.y2_min
+        self.y2_max = plots.y2_max
+        self.open_plot_button = plots.open_button
+        self.advanced_plot_button = plots.advanced_button
+        self.plot_settings = plots.settings
+
+        self.sections = QSplitter(Qt.Orientation.Horizontal)
+        self.sections.setChildrenCollapsible(False)
+        self.sections.addWidget(self.summary_box)
+        self.sections.addWidget(plots)
+        self.sections.setStretchFactor(0, 2)
+        self.sections.setStretchFactor(1, 3)
+        self.sections.setSizes((320, 480))
+        layout.addWidget(self.sections, 1)
+
         self.project_button = QPushButton("Save Plot")
         self.project_button.setEnabled(False)
         self.project_button.clicked.connect(self.save_project_requested)
         self.export_button = QPushButton("Export...")
         self.export_button.setEnabled(False)
         self.export_button.clicked.connect(self.export_requested)
-        actions = ActionBar()
-        actions.add_button(self.open_plot_button)
-        actions.add_button(self.project_button)
-        actions.add_button(self.export_button, primary=True)
-        layout.addWidget(actions)
-        self.action_bar = actions
+        self.action_bar = ActionBar()
+        self.action_bar.add_button(self.open_plot_button)
+        self.action_bar.add_button(self.project_button)
+        self.action_bar.add_button(self.export_button, primary=True)
+        layout.addWidget(self.action_bar)
 
     def set_history(
-        self, entries: tuple[dict[str, object], ...], selected_id: str | None = None
+        self,
+        entries: tuple[dict[str, object], ...],
+        selected_id: str | None = None,
     ) -> None:
         self.project_results.clear()
         usable = [entry for entry in entries if entry.get("available", True) is not False]
@@ -197,28 +159,20 @@ class ResultPanel(QWidget):
         elif result.analysis_id not in self._context_names:
             name = analysis_label(result.analysis_type)
             self._context_names[result.analysis_id] = f"{name}: {label}" if label else name
-        if result.analysis_id not in self._results:
-            self._results[result.analysis_id] = result
-            self._append_series(result, label)
-        else:
-            self._results[result.analysis_id] = result
-        self._redraw()
+        self.plot_panel.add_result(result, label)
         self.state_changed.emit()
         self.export_button.setEnabled(True)
         self.project_button.setEnabled(self.project_available)
-        self.open_plot_button.setEnabled(True)
         self.details_button.setEnabled(True)
 
     def begin_batch(self, analysis_type: str) -> None:
-        """Announce a batch without discarding stored plot representations."""
-
         self.result = None
         self.text.setPlainText(
             f"Running {result_analysis_label(analysis_type)} plot series..."
         )
         self.export_button.setEnabled(False)
         self.project_button.setEnabled(False)
-        self.open_plot_button.setEnabled(bool(self._results))
+        self.open_plot_button.setEnabled(self.plot_panel.has_results)
         self.details_button.setEnabled(False)
 
     def context_name(self) -> str:
@@ -229,201 +183,34 @@ class ResultPanel(QWidget):
             analysis_label(self.result.analysis_type),
         )
 
-    def open_plot_window(self) -> None:
-        """Show each independent plot in its own standalone window."""
-
-        if not self._results:
-            return
-        self._redraw()
-        from mdhelper.gui.dialogs.plot import PlotWindow
-
-        self._windows.show_all(PlotWindow)
-
-    @property
-    def plot_window(self) -> PlotWindow:
-        windows = self._plot_window_items()
-        if not windows:
-            self._resize_plot_windows(1)
-            windows = self._plot_window_items()
-        return windows[0]
-
-    @property
-    def figure(self) -> Figure:
-        return self.plot_window.figure
-
-    @property
-    def canvas(self) -> FigureCanvasQTAgg:
-        return self.plot_window.canvas
-
-    @property
-    def plot_windows(self) -> tuple[PlotWindow, ...]:
-        windows = self._plot_window_items()
-        if not windows:
-            self._resize_plot_windows(1)
-            windows = self._plot_window_items()
-        return windows
-
-    def close_plot_windows(self) -> None:
-        from mdhelper.gui.dialogs.plot import PlotWindow
-
-        self._windows.close(PlotWindow)
-
-    def _plot_window_items(self) -> tuple[PlotWindow, ...]:
-        from mdhelper.gui.dialogs.plot import PlotWindow
-
-        return self._windows.items(PlotWindow)
-
-    def plot_results(self) -> tuple[AnalysisResult, ...]:
-        return tuple(item[0] for item in self._visible_series())
-
-    def plot_labels(self) -> tuple[str | None, ...]:
-        return tuple(item[1] for item in self._visible_series())
-
-    def plot_color_ids(self) -> tuple[int, ...]:
-        return tuple(item[2] for item in self._visible_series())
-
-    def plot_series_keys(self) -> tuple[str | None, ...]:
-        return tuple(item[3] or None for item in self._visible_series())
-
-    def plot_group_ids(self) -> tuple[str | None, ...]:
-        return tuple(item[4] or None for item in self._visible_series())
-
-    def plot_titles(self) -> tuple[str | None, ...]:
-        return tuple(item[5] or None for item in self._visible_series())
-
-    def plot_models(self) -> tuple[PlotModel, ...]:
-        visible = self._visible_series()
-        if not visible:
-            return ()
-        return results_plots(
-            tuple(item[0] for item in visible),
-            tuple(item[1] for item in visible),
-            tuple(item[2] for item in visible),
-            tuple(item[3] or None for item in visible),
-            tuple(item[4] or None for item in visible),
-            tuple(item[5] or None for item in visible),
-        )
-
-    def plot_scheme(self) -> str:
-        return str(self.color_scheme.currentData())
-
-    def plot_limits(self) -> PlotLimits:
-        return self._limits
-
-    def plot_appearance(self) -> PlotAppearance:
-        return self._appearance
-
-    def plot_size(self) -> PlotSize:
-        width, height = self.figure.get_size_inches()
-        return PlotSize(float(width), float(height))
-
-    def plot_sizes(self) -> tuple[PlotSize, ...]:
-        return tuple(
-            PlotSize(*(float(value) for value in window.figure.get_size_inches()))
-            for window in self.plot_windows
-        )
-
-    def plot_state(self) -> PlotState:
-        selections: list[PlotSelection] = []
-        for row in range(self.plot_series.rowCount()):
-            shown = self.plot_series.item(row, 0)
-            legend = self.plot_series.item(row, 2)
-            color = self.plot_series.cellWidget(row, 3)
-            if shown is None:
-                continue
-            selections.append(
-                PlotSelection(
-                    str(shown.data(_RESULT_ROLE)),
-                    "" if legend is None else legend.text().strip(),
-                    shown.checkState() == Qt.CheckState.Checked,
-                    int(color.currentData()) if isinstance(color, QComboBox) else 0,
-                    str(shown.data(_SERIES_ROLE) or ""),
-                    str(shown.data(_GROUP_ROLE) or ""),
-                    str(shown.data(_TITLE_ROLE) or ""),
-                )
-            )
-        return PlotState(
-            tuple(selections),
-            self.plot_scheme(),
-            self._limits,
-            self._appearance,
-        )
-
     def restore_state(
         self,
         state: PlotState,
         results: tuple[AnalysisResult, ...],
     ) -> None:
         state.validate()
-        available = {result.analysis_id: result for result in results}
-        self._restoring = True
-        try:
-            self.result = results[-1] if results else None
-            self._results.clear()
-            self._context_names.clear()
-            self.plot_series.setRowCount(0)
-            for selection in state.selections:
-                result = available.get(selection.result_id)
-                if result is None:
-                    continue
-                self._results[result.analysis_id] = result
-                self._context_names[result.analysis_id] = analysis_label(
-                    result.analysis_type
-                )
-                self._append_series(
-                    result,
-                    selection.label or None,
-                    selection.visible,
-                    selection.color_id,
-                    selection.series or None,
-                    selection.group,
-                    selection.title,
-                )
-            scheme_index = self.color_scheme.findData(state.scheme)
-            if scheme_index >= 0:
-                self.color_scheme.setCurrentIndex(scheme_index)
-            self._limits = state.limits
-            self._appearance = state.appearance
-            self._show_limits(state.limits)
-            if self.result is not None:
-                self.text.setHtml(result_summary_html(self.result))
-            else:
-                self.text.clear()
-            self.export_button.setEnabled(self.result is not None)
-            self.project_button.setEnabled(
-                self.project_available and self.result is not None
-            )
-            self.open_plot_button.setEnabled(bool(self._results))
-            self.details_button.setEnabled(self.result is not None)
-            self._update_color_controls()
-            self._normalize_plot_groups()
-            self._update_plot_groups()
-            self._update_series_actions()
-            self._redraw()
-        finally:
-            self._restoring = False
+        self.plot_panel.restore_state(state, results)
+        self.result = results[-1] if results else None
+        self._context_names = {
+            result.analysis_id: analysis_label(result.analysis_type) for result in results
+        }
+        if self.result is None:
+            self.text.clear()
+        else:
+            self.text.setHtml(result_summary_html(self.result))
+        available = self.result is not None
+        self.export_button.setEnabled(available)
+        self.project_button.setEnabled(self.project_available and available)
+        self.details_button.setEnabled(available)
 
     def clear_result(self) -> None:
         self.result = None
-        self._results.clear()
         self._context_names.clear()
-        self.plot_series.blockSignals(True)
-        self.plot_series.setRowCount(0)
-        self.plot_series.blockSignals(False)
+        self.plot_panel.clear()
         self.text.clear()
-        windows = self._plot_window_items()
-        self.close_plot_windows()
-        if windows:
-            self._resize_plot_windows(1)
-            self.plot_window.clear_plot()
         self.export_button.setEnabled(False)
         self.project_button.setEnabled(False)
-        self.open_plot_button.setEnabled(False)
         self.details_button.setEnabled(False)
-        self._plot_rows = ()
-        self._plot_titles = ()
-        self._update_title_control()
-        self._update_series_actions()
 
     def set_project(self, available: bool) -> None:
         self.project_available = available
@@ -432,422 +219,96 @@ class ResultPanel(QWidget):
     def show_message(self, text: str) -> None:
         self.text.setPlainText(text)
 
+    def open_plot_window(self) -> None:
+        self.plot_panel.open_plot_window()
+
+    @property
+    def plot_window(self) -> PlotWindow:
+        return self.plot_panel.plot_window
+
+    @property
+    def figure(self) -> Figure:
+        return self.plot_panel.figure
+
+    @property
+    def canvas(self) -> FigureCanvasQTAgg:
+        return self.plot_panel.canvas
+
+    @property
+    def plot_windows(self) -> tuple[PlotWindow, ...]:
+        return self.plot_panel.plot_windows
+
+    def close_plot_windows(self) -> None:
+        self.plot_panel.close_plot_windows()
+
+    def plot_results(self) -> tuple[AnalysisResult, ...]:
+        return self.plot_panel.plot_results()
+
+    def plot_labels(self) -> tuple[str | None, ...]:
+        return self.plot_panel.plot_labels()
+
+    def plot_color_ids(self) -> tuple[int, ...]:
+        return self.plot_panel.plot_color_ids()
+
+    def plot_series_keys(self) -> tuple[str | None, ...]:
+        return self.plot_panel.plot_series_keys()
+
+    def plot_group_ids(self) -> tuple[str | None, ...]:
+        return self.plot_panel.plot_group_ids()
+
+    def plot_titles(self) -> tuple[str | None, ...]:
+        return self.plot_panel.plot_titles()
+
+    def plot_models(self) -> tuple[PlotModel, ...]:
+        return self.plot_panel.plot_models()
+
+    def plot_scheme(self) -> str:
+        return self.plot_panel.plot_scheme()
+
+    def plot_limits(self) -> PlotLimits:
+        return self.plot_panel.plot_limits()
+
+    def plot_appearance(self) -> PlotAppearance:
+        return self.plot_panel.plot_appearance()
+
+    def plot_size(self) -> PlotSize:
+        return self.plot_panel.plot_size()
+
+    def plot_sizes(self) -> tuple[PlotSize, ...]:
+        return self.plot_panel.plot_sizes()
+
+    def plot_state(self) -> PlotState:
+        return self.plot_panel.plot_state()
+
     def clear_limits(self) -> None:
-        for edit in (
-            self.x_min,
-            self.x_max,
-            self.y_min,
-            self.y_max,
-            self.y2_min,
-            self.y2_max,
-        ):
-            edit.clear()
-        self._limits = PlotLimits()
-        self._redraw()
-        self.state_changed.emit()
+        self.plot_panel.clear_limits()
+
+    def _apply_limits(self) -> None:
+        self.plot_panel._apply_limits()
 
     def apply_plot_appearance(self, appearance: PlotAppearance) -> None:
-        appearance.validate()
-        self._appearance = appearance
-        self._redraw()
-        self.state_changed.emit()
+        self.plot_panel.apply_plot_appearance(appearance)
 
     def remove_selected_series(self) -> None:
-        rows = sorted(
-            {index.row() for index in self.plot_series.selectedIndexes()}, reverse=True
-        )
-        self.plot_series.blockSignals(True)
-        try:
-            for row in rows:
-                self.plot_series.removeRow(row)
-        finally:
-            self.plot_series.blockSignals(False)
-        used = {
-            str(item.data(_RESULT_ROLE))
-            for row in range(self.plot_series.rowCount())
-            if (item := self.plot_series.item(row, 0)) is not None
-        }
-        self._results = {
-            result_id: result
-            for result_id, result in self._results.items()
-            if result_id in used
-        }
-        self._context_names = {
-            result_id: name
-            for result_id, name in self._context_names.items()
-            if result_id in used
-        }
-        self.open_plot_button.setEnabled(bool(self._results))
-        self._normalize_plot_groups()
-        self._update_plot_groups()
-        self._update_series_actions()
-        self._redraw()
-        self.state_changed.emit()
+        self.plot_panel.remove_selected_series()
 
     def clear_series(self) -> None:
-        self._results.clear()
-        self._context_names.clear()
-        self.plot_series.blockSignals(True)
-        self.plot_series.setRowCount(0)
-        self.plot_series.blockSignals(False)
-        windows = self._plot_window_items()
-        self.close_plot_windows()
-        if windows:
-            self._resize_plot_windows(1)
-            self.plot_window.clear_plot()
-        self.open_plot_button.setEnabled(False)
-        self._plot_rows = ()
-        self._plot_titles = ()
-        self._update_title_control()
-        self._update_series_actions()
-        self.state_changed.emit()
+        self.plot_panel.clear_series()
 
     def combine_selected_series(self) -> None:
-        rows = self._selected_plot_rows()
-        if len(rows) < 2 or not all(self._is_energy_row(row) for row in rows):
-            return
-        group = f"energy-{uuid4()}"
-        current = self.plot_series.currentRow()
-        title_rows = (current, *rows) if current in rows else rows
-        title = next(
-            (
-                str(item.data(_TITLE_ROLE) or "")
-                for row in title_rows
-                if (item := self.plot_series.item(row, 0)) is not None
-                and item.data(_TITLE_ROLE)
-            ),
-            "",
-        )
-        blocked = self.plot_series.blockSignals(True)
-        try:
-            for row in rows:
-                shown = self.plot_series.item(row, 0)
-                if shown is not None:
-                    shown.setData(_GROUP_ROLE, group)
-                    shown.setData(_TITLE_ROLE, title)
-        finally:
-            self.plot_series.blockSignals(blocked)
-        self._normalize_plot_groups()
-        self._update_plot_groups()
-        self._update_series_actions()
-        self._redraw()
-        self.state_changed.emit()
+        self.plot_panel.combine_selected_series()
 
     def separate_selected_series(self) -> None:
-        rows = self._selected_plot_rows()
-        if not rows:
-            return
-        blocked = self.plot_series.blockSignals(True)
-        try:
-            for row in rows:
-                shown = self.plot_series.item(row, 0)
-                if shown is not None:
-                    shown.setData(_GROUP_ROLE, "")
-        finally:
-            self.plot_series.blockSignals(blocked)
-        self._normalize_plot_groups()
-        self._update_plot_groups()
-        self._update_series_actions()
-        self._redraw()
-        self.state_changed.emit()
+        self.plot_panel.separate_selected_series()
 
-    def _selected_plot_rows(self) -> tuple[int, ...]:
-        return tuple(sorted({index.row() for index in self.plot_series.selectedIndexes()}))
-
-    def _is_energy_row(self, row: int) -> bool:
-        shown = self.plot_series.item(row, 0)
-        if shown is None or not str(shown.data(_SERIES_ROLE) or ""):
-            return False
-        result = self._results.get(str(shown.data(_RESULT_ROLE)))
-        return result is not None and result.analysis_type == "energy"
-
-    def _row_group(self, row: int) -> str:
-        shown = self.plot_series.item(row, 0)
-        return "" if shown is None else str(shown.data(_GROUP_ROLE) or "")
-
-    def _normalize_plot_groups(self) -> None:
-        counts: dict[str, int] = {}
-        for row in range(self.plot_series.rowCount()):
-            shown = self.plot_series.item(row, 0)
-            group = "" if shown is None else str(shown.data(_GROUP_ROLE) or "")
-            if group:
-                counts[group] = counts.get(group, 0) + 1
-        blocked = self.plot_series.blockSignals(True)
-        try:
-            for row in range(self.plot_series.rowCount()):
-                shown = self.plot_series.item(row, 0)
-                if shown is None:
-                    continue
-                group = str(shown.data(_GROUP_ROLE) or "")
-                if group and counts.get(group) == 1:
-                    shown.setData(_GROUP_ROLE, "")
-        finally:
-            self.plot_series.blockSignals(blocked)
-
-    def _update_plot_groups(self) -> None:
-        positions: dict[str, int] = {}
-        blocked = self.plot_series.blockSignals(True)
-        try:
-            for row in range(self.plot_series.rowCount()):
-                shown = self.plot_series.item(row, 0)
-                plot = self.plot_series.item(row, 5)
-                if shown is None or plot is None:
-                    continue
-                series = str(shown.data(_SERIES_ROLE) or "")
-                if not series:
-                    plot.setText("Automatic")
-                    continue
-                group = str(shown.data(_GROUP_ROLE) or "")
-                key = group or f"row-{row}"
-                if key not in positions:
-                    positions[key] = len(positions) + 1
-                suffix = " - Combined" if group else ""
-                plot.setText(f"Plot {positions[key]}{suffix}")
-        finally:
-            self.plot_series.blockSignals(blocked)
-
-    def _update_series_actions(self) -> None:
-        rows = self._selected_plot_rows()
-        energy = bool(rows) and all(self._is_energy_row(row) for row in rows)
-        self.combine_series_button.setEnabled(energy and len(rows) >= 2)
-        self.separate_series_button.setEnabled(
-            energy
-            and any(bool(self._row_group(row)) for row in rows)
-        )
-
-    def _append_series(
-        self,
-        result: AnalysisResult,
-        label: str | None,
-        visible: bool = True,
-        color_id: int | None = None,
-        series_key: str | None = None,
-        group: str = "",
-        title: str = "",
-    ) -> None:
-        request = AnalysisRequest.from_dict(result.request)
-        if isinstance(request, RadialRequest):
-            result_default = f"{request.reference}-{request.selection}"
-        elif isinstance(request, EnergyRequest):
-            result_default = ", ".join(request.energy_terms)
-        else:
-            return
-        keys: tuple[str, ...]
-        if result.analysis_type == "energy":
-            values = result.data.get("series")
-            if not isinstance(values, dict):
-                return
-            available = tuple(str(key) for key in values)
-            keys = available if series_key is None else (series_key,)
-            if any(key not in available for key in keys):
-                return
-        else:
-            keys = ("",)
-        first_row = self.plot_series.rowCount()
-        self.plot_series.blockSignals(True)
-        try:
-            for key in keys:
-                row = self.plot_series.rowCount()
-                default = key or result_default
-                selected_label = label
-                if label and len(keys) > 1:
-                    selected_label = f"{label}: {key}"
-                self.plot_series.insertRow(row)
-                shown = QTableWidgetItem()
-                shown.setFlags(
-                    Qt.ItemFlag.ItemIsEnabled
-                    | Qt.ItemFlag.ItemIsSelectable
-                    | Qt.ItemFlag.ItemIsUserCheckable
-                )
-                shown.setCheckState(
-                    Qt.CheckState.Checked if visible else Qt.CheckState.Unchecked
-                )
-                shown.setData(_RESULT_ROLE, result.analysis_id)
-                shown.setData(_SERIES_ROLE, key)
-                shown.setData(_GROUP_ROLE, group)
-                shown.setData(_TITLE_ROLE, title)
-                analysis = QTableWidgetItem(result_analysis_label(result.analysis_type))
-                analysis.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
-                legend = QTableWidgetItem(selected_label or default)
-                color = NoWheelComboBox()
-                for item in PLOT_COLORS:
-                    color.addItem(f"{item.color_id}: {item.label}", item.color_id)
-                selected_color = row % len(PLOT_COLORS) if color_id is None else color_id
-                color.setCurrentIndex(color.findData(selected_color))
-                color.currentIndexChanged.connect(self._plot_changed)
-                selection = QTableWidgetItem(default)
-                selection.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
-                plot = QTableWidgetItem()
-                plot.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
-                self.plot_series.setItem(row, 0, shown)
-                self.plot_series.setItem(row, 1, analysis)
-                self.plot_series.setItem(row, 2, legend)
-                self.plot_series.setCellWidget(row, 3, color)
-                self.plot_series.setItem(row, 4, selection)
-                self.plot_series.setItem(row, 5, plot)
-                color.setEnabled(self.plot_scheme() == "fixed")
-        finally:
-            self.plot_series.blockSignals(False)
-        if keys:
-            self.plot_series.clearSelection()
-            self.plot_series.setRangeSelected(
-                QTableWidgetSelectionRange(
-                    first_row,
-                    0,
-                    self.plot_series.rowCount() - 1,
-                    self.plot_series.columnCount() - 1,
-                ),
-                True,
-            )
-        self._update_plot_groups()
-        self._update_series_actions()
-
-    def _visible_series(
-        self,
-    ) -> tuple[tuple[AnalysisResult, str | None, int, str, str, str, int], ...]:
-        visible: list[
-            tuple[AnalysisResult, str | None, int, str, str, str, int]
-        ] = []
-        for row in range(self.plot_series.rowCount()):
-            shown = self.plot_series.item(row, 0)
-            legend = self.plot_series.item(row, 2)
-            color = self.plot_series.cellWidget(row, 3)
-            if shown is None or shown.checkState() != Qt.CheckState.Checked:
-                continue
-            result = self._results.get(str(shown.data(_RESULT_ROLE)))
-            if result is None:
-                continue
-            text = "" if legend is None else legend.text().strip()
-            color_id = int(color.currentData()) if isinstance(color, QComboBox) else 0
-            visible.append(
-                (
-                    result,
-                    text or None,
-                    color_id,
-                    str(shown.data(_SERIES_ROLE) or ""),
-                    str(shown.data(_GROUP_ROLE) or ""),
-                    str(shown.data(_TITLE_ROLE) or ""),
-                    row,
-                )
-            )
-        return tuple(visible)
-
-    def _plot_selection_changed(self) -> None:
-        self._show_selected_series()
-        self._update_series_actions()
-        self._update_title_control()
-
-    def _show_selected_series(self) -> None:
-        row = self.plot_series.currentRow()
-        if row < 0:
-            return
-        shown = self.plot_series.item(row, 0)
-        if shown is None:
-            return
-        result = self._results.get(str(shown.data(_RESULT_ROLE)))
-        if result is None:
-            return
+    def _show_selected_result(self, result: AnalysisResult) -> None:
         self.result = result
         self.text.setHtml(result_summary_html(result))
         self.details_button.setEnabled(True)
 
-    def _apply_limits(self) -> None:
-        try:
-            limits = self.plot_controls.limits()
-            limits.validate()
-        except (ConfigurationError, ValueError, TypeError) as exc:
-            self.show_message(f"Invalid plot range: {exc}")
-            return
-        self._limits = limits
-        self._redraw()
-        self.state_changed.emit()
-
-    def _show_limits(self, limits: PlotLimits) -> None:
-        self.plot_controls.set_limits(limits)
-
-    def _current_plot_index(self) -> int | None:
-        row = self.plot_series.currentRow()
-        return next(
-            (index for index, rows in enumerate(self._plot_rows) if row in rows),
-            None,
-        )
-
-    def _update_title_control(self) -> None:
-        index = self._current_plot_index()
-        blocked = self.plot_title.blockSignals(True)
-        try:
-            if index is None:
-                self.plot_title.clear()
-                self.plot_title.setEnabled(False)
-            else:
-                self.plot_title.setEnabled(True)
-                self.plot_title.setText(self._plot_titles[index])
-        finally:
-            self.plot_title.blockSignals(blocked)
-
-    def _apply_title(self) -> None:
-        index = self._current_plot_index()
-        if index is None:
-            return
-        title = self.plot_title.text().strip()
-        blocked = self.plot_series.blockSignals(True)
-        try:
-            for row in self._plot_rows[index]:
-                shown = self.plot_series.item(row, 0)
-                if shown is not None:
-                    shown.setData(_TITLE_ROLE, title)
-        finally:
-            self.plot_series.blockSignals(blocked)
-        self._redraw()
-        if not self._restoring:
-            self.state_changed.emit()
-
-    def _plot_changed(self, _value: object = None) -> None:
-        self._redraw()
-        if not self._restoring:
-            self.state_changed.emit()
-
-    def _coloring_changed(self, _value: object = None) -> None:
-        self._update_color_controls()
-        self._plot_changed()
-
-    def _update_color_controls(self) -> None:
-        enabled = self.plot_scheme() == "fixed"
-        for row in range(self.plot_series.rowCount()):
-            color = self.plot_series.cellWidget(row, 3)
-            if isinstance(color, QComboBox):
-                color.setEnabled(enabled)
-
-    def _redraw(self, _item: QTableWidgetItem | None = None) -> None:
-        visible = self._visible_series()
-        windows = self._plot_window_items()
-        windows_open = any(window.isVisible() for window in windows)
-        models = self.plot_models()
-        self._plot_rows = tuple(
-            tuple(visible[source][6] for source in model.source_indices)
-            for model in models
-        )
-        self._plot_titles = tuple(model.title for model in models)
-        if models or windows:
-            self._resize_plot_windows(max(1, len(models)))
-        windows = self._plot_window_items()
-        for index, window in enumerate(windows):
-            if index < len(models):
-                window.draw(
-                    models[index],
-                    self.plot_scheme(),
-                    self._limits,
-                    self._appearance,
-                )
-            else:
-                window.clear_plot()
-        self._update_title_control()
-        if windows_open:
-            from mdhelper.gui.dialogs.plot import PlotWindow
-
-            self._windows.show_all(PlotWindow, activate=False)
-
-    def _resize_plot_windows(self, count: int) -> None:
-        from mdhelper.gui.dialogs.plot import PlotWindow
-
-        self._windows.resize(PlotWindow, count)
+    def _retain_context(self, identifiers: set[str]) -> None:
+        self._context_names = {
+            result_id: name
+            for result_id, name in self._context_names.items()
+            if result_id in identifiers
+        }

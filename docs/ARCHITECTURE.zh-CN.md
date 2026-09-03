@@ -463,21 +463,31 @@ EDR 后通过 App 用例按所选 Backend
 
 ### 13.3 GUI
 
-GUI 采用薄视图加会话控制器分工，Qt 只在 GUI 包内惰性导入，Linux CLI/TUI 测试不需
-安装或初始化 Qt。
+GUI 分离视图、状态、用户操作和应用调用。Qt 只在 GUI 包内惰性导入，Linux CLI/TUI
+测试不需安装或初始化 Qt。`window.py` 只负责组合；`controllers` 保存不依赖页面的状态机
+与后台适配器；`actions` 连接页面、对话框、控制器和应用用例。
 
 | 文件 | 职责 |
 | --- | --- |
 | `main.py` | GUI 入口、Qt 应用创建和顶层异常边界。 |
-| `window.py` | 主窗口编排器，连接 load、analysis、job、result 和 menu 子模块。 |
+| `window.py` | GUI 组合根，创建页面、actions、控制器和菜单。 |
 | `windows.py` | 按类型统一管理可复用非模态窗口和可变数量的绘图窗口，负责展示、聚焦与关闭。 |
-| `controllers/session.py` | 保存当前输入、系统摘要、项目、分析草稿和展示状态。 |
-| `controllers/analysis_jobs.py` | 将后台 `JobHandle` 映射为进度条、取消按钮和完成回调。 |
+| `controllers/analysis_state.py` | 定义分析批次的 idle、running 和 cancelling 状态转换。 |
+| `controllers/system_state.py` | 定义系统检查及物种角色状态转换。 |
+| `controllers/session_state.py` | 定义项目会话状态转换。 |
+| `controllers/session.py` | 保存当前项目、请求和结果，并执行项目会话状态转换。 |
+| `controllers/analysis_jobs.py` | 轮询单个后台 `JobHandle` 并发出状态信号。 |
+| `controllers/analysis_runs.py` | 按状态机顺序提交分析批次并提交项目结果。 |
 | `controllers/integration_detection.py` | 在非 GUI 线程执行外部工具检测。 |
+| `actions/system.py` | 处理输入检查、物种角色、Energy terms 和 Backend 可用性操作。 |
+| `actions/analysis.py` | 处理运行、取消、批次进度和分析结果展示操作。 |
+| `actions/project.py` | 处理项目打开、重置、结果历史和绘图状态持久化操作。 |
+| `actions/results.py` | 处理结果详情、绘图设置、项目图片保存和结果导出操作。 |
 | `pages/workspace.py` | 固定主工作区页面的构造和标签顺序。 |
 | `pages/load.py` | 轨迹/拓扑/index 加载流程和加载后状态更新。 |
 | `pages/analysis.py` | 分析类型切换、请求构造和运行编排。 |
-| `pages/results.py` | 结果页、概览、详情入口和项目结果加载。 |
+| `pages/results.py` | 结果历史、概览、详情入口和项目结果加载。 |
+| `pages/plot.py` | 绘图序列、分组、范围、外观和绘图窗口同步。 |
 | `components/inputs.py` | 输入控件构造、路径读取和启用状态。 |
 | `components/species.py` | 角色建议、确认和用户选择界面。 |
 | `components/parameters.py` | `r_max`、bin width、cutoff 和帧采样等显式参数控件。 |
@@ -508,7 +518,7 @@ Analysis 页使用 Type、Backend 和 Progress 标签，Progress 区域按 Cance
 日志保留，每次 callback 仍正常更新进度状态。
 
 Result 页的 Overview 不显示复现所需的技术元数据。Details 打开包含技术元数据的完整可读
-报告；该窗口为非模态窗口，顶栏显示当前 job 或 workflow 名称，内容下方提供 Copy 操作。
+报告；该窗口为非模态窗口，顶栏显示当前 job 或 analysis 名称，内容下方提供 Copy 操作。
 测试会话将诊断日志重定向至临时目录，错误路径测试产生的预期日志不会写入用户的持久日志。
 Plot Settings 内联保留常用的标题、配色和范围控件，右下角 Advanced 打开单实例非模态外观编辑器；
 控件编辑只改变草稿，Apply 会重绘已打开的绘图窗口并更新图片导出使用的项目状态但不关闭

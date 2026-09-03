@@ -931,7 +931,7 @@ def _species_summary() -> SystemSummary:
     )
 
 
-def test_species_actions_separate_help_from_suggestion_workflow() -> None:
+def test_species_actions_separate_help_from_suggestion_actions() -> None:
     panel = SpeciesPanel()
     panel.resize(760, 360)
     panel.set_summary(_species_summary(), {})
@@ -1723,20 +1723,24 @@ def test_gui_analysis_initializes_project_in_trajectory_directory(
         reference="A",
         selection="B",
     )
-    submitted: list[bool] = []
+    submitted: list[tuple[RadialRequest, str]] = []
     monkeypatch.setattr(window.load, "common", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         window.analysis,
         "request_series",
         lambda *_args, **_kwargs: ((request, ""),),
     )
-    monkeypatch.setattr(window, "_submit_next", lambda: submitted.append(True))
+    monkeypatch.setattr(
+        window.analysis_actions.controller,
+        "start",
+        lambda items: submitted.extend(items),
+    )
 
     window._run()
 
     assert window.session.project is not None
     assert window.session.project.root == tmp_path.resolve()
-    assert submitted == [True]
+    assert submitted == [(request, "")]
     assert (tmp_path / "mdhelper-project.json").is_file()
     assert (tmp_path / "results").is_dir()
     assert (tmp_path / "figures").is_dir()
