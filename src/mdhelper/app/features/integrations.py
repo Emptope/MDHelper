@@ -1,4 +1,4 @@
-"""External software integration use cases."""
+"""External software integration feature."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from mdhelper.integrations.models import (
 from mdhelper.project import Project
 
 
-class IntegrationUseCases:
+class IntegrationFeature:
     def __init__(self, context: ApplicationContext):
         self.context = context
         self._configured: set[str] = set()

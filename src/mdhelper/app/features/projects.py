@@ -1,4 +1,4 @@
-"""Project creation, persistence, and result-history use cases."""
+"""Project creation, persistence, and result-history feature."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def discover_inputs(root: str | Path) -> InputCandidates:
     return InputCandidates(directory, topology, trajectory, index)
 
 
-class ProjectUseCases:
+class ProjectFeature:
     def exists(self, root: str | Path) -> bool:
         directory = Path(root).expanduser().resolve()
         return ManifestRepository(directory).path.is_file()

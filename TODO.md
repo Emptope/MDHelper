@@ -3,7 +3,7 @@
 ## IMPORTANT!
 
 - 阅读并遵守 `AGENTS.md` 。
-- 阅读并遵守 `docs/ARCHITECTURE.md` 的依赖：GUI/TUI/CLI -> App -> Analysis/Services -> Core。
+- 阅读并遵守 `docs/ARCHITECTURE.md` 的依赖结构。
 
 ## 紧急任务（重要性由高到低）
 
@@ -11,7 +11,7 @@
 
 ## 已完成
 
-- [x] [Tests] Remove redundant implementation snapshots and UI-content assertions.
+- [x] [Refactor] Group application features under a focused package.
 
 ## 完成标准（每轮代码改动后需重新确认）
 

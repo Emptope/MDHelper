@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-import mdhelper.app.analysis.exports as exports_module
-from mdhelper.app.analysis import export_bundle, plot_exports, save_plots
+import mdhelper.app.features.analysis.exports as exports_module
+from mdhelper.app import export_bundle, plot_exports, save_plots
 from mdhelper.core.analysis import (
     AnalysisResult,
     AnalysisType,

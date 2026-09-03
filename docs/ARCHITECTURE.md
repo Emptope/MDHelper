@@ -83,7 +83,7 @@ The enforced boundaries are:
 | --- | --- |
 | `bootstrap` | Public entry-point dispatch and portable configuration activation |
 | `cli`, `tui`, `gui` | Input collection, presentation state, and result rendering |
-| `app` | `ApplicationService`, use-case orchestration, export plans, and readable reports |
+| `app` | `ApplicationService`, feature orchestration, export plans, and readable reports |
 | `jobs` | Synchronous and threaded execution, progress, status, and cancellation |
 | `core` | Requests, results, domain records, protocols, errors, units, and plot models |
 | `analysis` | Complete `mdanalysis/` and `gromacs/` pipelines plus shared pipeline contracts and radial diagnostics |
@@ -108,10 +108,12 @@ colocated `config.toml` unless `MDHELPER_CONFIG` already selects another file.
 
 `app/facade.py` is the application composition root. `ApplicationService` constructs the shared
 configuration, integration manager, analysis registry, and trajectory loader, then exposes grouped
-use cases for inspection, analysis, export, projects, integrations, and templates. Registries and
-loaders are injectable, so tests exercise this boundary without a GUI or external executable.
+features for inspection, analysis, export, projects, integrations, and templates. Concrete feature
+groups live under `app/features/`, while readable result renderers live under `app/reports/`.
+Registries and loaders are injectable, so tests exercise this boundary without a GUI or external
+executable.
 
-Presentation packages build core requests and call application use cases. Shared support packages
+Presentation packages build core requests and call application features. Shared support packages
 provide job execution, project session state, and integration status, while numerical engines stay
 behind the application boundary.
 
@@ -208,10 +210,10 @@ fingerprints.
 ## 9. Change impact
 
 A new analysis type changes the core request/result contract, JSON schemas, method definition,
-supporting complete backend adapters, application use cases, exports, presentation adapters, and
+supporting complete backend adapters, application features, exports, presentation adapters, and
 their tests. A new backend implements one complete `BackendAdapter` and adds one registry entry. A
 new external tool adds an integration adapter while process management remains in `runtime`. A new
-presentation adapter consumes application use cases and `core` without importing analysis
+presentation adapter consumes application features and `core` without importing analysis
 engines.
 
 The test suite covers contracts, numerical behavior, application orchestration, persistence,

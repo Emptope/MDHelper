@@ -1,4 +1,4 @@
-"""System inspection use cases."""
+"""System inspection feature."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from mdhelper.services.selection import index_group_sizes
 from mdhelper.services.system import summarize_source, trajectory_cache
 
 
-class CheckUseCases:
+class CheckFeature:
     def __init__(self, context: ApplicationContext):
         self.context = context
 

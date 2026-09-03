@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mdhelper.app.analysis import result_exports
+from mdhelper.app import result_exports
 from mdhelper.core.analysis import AnalysisResult, EnergyRequest, RadialRequest
 
 

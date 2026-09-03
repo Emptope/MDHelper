@@ -1,4 +1,4 @@
-"""Analysis execution use cases."""
+"""Analysis execution feature."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ from mdhelper.services.provenance import analysis_provenance, input_provenance
 from mdhelper.services.system import trajectory_cache
 
 
-class AnalysisUseCases:
+class AnalysisFeature:
     def __init__(self, context: ApplicationContext):
         self.context = context
 

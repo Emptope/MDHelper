@@ -1,4 +1,4 @@
-"""Bundled text-template use cases."""
+"""Bundled text-template feature."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from mdhelper.core.templates import TemplateRegistry, TextTemplate
 from mdhelper.services.templates import load_templates, write_template
 
 
-class TemplateUseCases:
+class TemplateFeature:
     def __init__(self, registry: TemplateRegistry | None = None):
         self.registry = load_templates() if registry is None else registry
 

@@ -46,7 +46,7 @@ _QT_APPLICATION = QApplication.instance() or QApplication([])
 @pytest.fixture(autouse=True)
 def _immediate_integration_detection(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "mdhelper.app.integrations.IntegrationUseCases.detect",
+        "mdhelper.app.features.integrations.IntegrationFeature.detect",
         lambda _self, name, _override=None, _config=None: IntegrationStatus(
             name,
             False,

@@ -1,4 +1,4 @@
-"""Result and figure export use cases."""
+"""Result and figure export feature."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ from .plans import (
 )
 
 
-class ExportUseCases:
+class ExportFeature:
     def export(
         self,
         result: AnalysisResult,

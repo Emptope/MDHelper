@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mdhelper.app.analysis import default_plot_exports
+from mdhelper.app import default_plot_exports
 from mdhelper.core.analysis import AnalysisResult
 from mdhelper.core.errors import InputError
 from mdhelper.tui.controllers.execution import AnalysisExecutionController

@@ -40,7 +40,7 @@ gui_main_module = import_module("mdhelper.gui.main")
 @pytest.fixture(autouse=True)
 def _immediate_integration_detection(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "mdhelper.app.integrations.IntegrationUseCases.detect",
+        "mdhelper.app.features.integrations.IntegrationFeature.detect",
         lambda _self, name, _override=None, _config=None: IntegrationStatus(
             name,
             False,
@@ -71,7 +71,7 @@ def test_gui_detects_integrations_outside_the_main_thread(
         return IntegrationStatus(name, False)
 
     monkeypatch.setattr(
-        "mdhelper.app.integrations.IntegrationUseCases.detect",
+        "mdhelper.app.features.integrations.IntegrationFeature.detect",
         detect,
     )
     main_thread = get_ident()
@@ -103,7 +103,7 @@ def test_gui_does_not_detect_unconfigured_gromacs(
         return IntegrationStatus(name, False)
 
     monkeypatch.setattr(
-        "mdhelper.app.integrations.IntegrationUseCases.detect",
+        "mdhelper.app.features.integrations.IntegrationFeature.detect",
         detect,
     )
 
@@ -119,7 +119,7 @@ def test_gui_requires_check_for_sampled_gromacs_rdf(
 ) -> None:
     QApplication.instance() or QApplication([])
     monkeypatch.setattr(
-        "mdhelper.app.integrations.IntegrationUseCases.is_configured",
+        "mdhelper.app.features.integrations.IntegrationFeature.is_configured",
         lambda _self, _name: True,
     )
     window = MainWindow()
@@ -208,11 +208,11 @@ def test_make_index_uses_loaded_topology_for_configured_command(
     source.write_text("structure", encoding="ascii")
     calls: list[tuple[str, list[str], Path, tuple[str, ...]]] = []
     monkeypatch.setattr(
-        "mdhelper.app.integrations.IntegrationUseCases.is_configured",
+        "mdhelper.app.features.integrations.IntegrationFeature.is_configured",
         lambda _self, _name: True,
     )
     monkeypatch.setattr(
-        "mdhelper.app.integrations.IntegrationUseCases.open_terminal",
+        "mdhelper.app.features.integrations.IntegrationFeature.open_terminal",
         lambda _self, name, arguments, cwd, required_capabilities=(): calls.append(
             (name, arguments, Path(cwd), required_capabilities)
         )
@@ -245,7 +245,7 @@ def test_make_index_loads_output_after_the_file_is_complete(
     _write_trajectory(source)
     output.write_text("[ Original ]\n1\n", encoding="ascii")
     monkeypatch.setattr(
-        "mdhelper.app.integrations.IntegrationUseCases.is_configured",
+        "mdhelper.app.features.integrations.IntegrationFeature.is_configured",
         lambda _self, _name: True,
     )
 
@@ -254,7 +254,7 @@ def test_make_index_loads_output_after_the_file_is_complete(
         return "command"
 
     monkeypatch.setattr(
-        "mdhelper.app.integrations.IntegrationUseCases.open_terminal",
+        "mdhelper.app.features.integrations.IntegrationFeature.open_terminal",
         launch,
     )
     window = MainWindow()

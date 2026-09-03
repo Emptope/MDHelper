@@ -1,4 +1,4 @@
-"""Application dependency composition shared by all use cases."""
+"""Application dependency composition shared by all features."""
 
 from __future__ import annotations
 

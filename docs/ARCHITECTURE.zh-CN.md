@@ -80,7 +80,7 @@ flowchart TB
 | --- | --- |
 | `bootstrap` | 公共入口分派和便携配置激活 |
 | `cli`、`tui`、`gui` | 输入收集、表现层状态和结果呈现 |
-| `app` | `ApplicationService`、用例编排、导出计划和可读报告 |
+| `app` | `ApplicationService`、功能编排、导出计划和可读报告 |
 | `jobs` | 同步和线程执行、进度、状态及取消 |
 | `core` | 请求、结果、领域记录、协议、错误、单位和绘图模型 |
 | `analysis` | 完整的 `mdanalysis/` 与 `gromacs/` 管线，以及共享管线契约和径向诊断 |
@@ -103,10 +103,11 @@ flowchart TB
 优先级。
 
 `app/facade.py` 是应用装配根。`ApplicationService` 构造共享配置、Integration manager、
-分析注册表和轨迹加载器，并按系统检查、分析、导出、项目、Integration 和模板暴露用例。
-注册表和加载器支持注入，因此测试可以在没有 GUI 或外部程序的环境验证应用边界。
+分析注册表和轨迹加载器，并按系统检查、分析、导出、项目、Integration 和模板暴露功能。
+具体功能组位于 `app/features/`，可读结果渲染器位于 `app/reports/`。注册表和加载器支持
+注入，因此测试可以在没有 GUI 或外部程序的环境验证应用边界。
 
-表现层构造 Core request 并调用应用用例。共享支持包提供 Job 执行、项目会话状态和
+表现层构造 Core request 并调用应用功能。共享支持包提供 Job 执行、项目会话状态和
 Integration 状态，数值引擎保持在应用边界之后。
 
 ## 5. 分析链路
@@ -192,9 +193,9 @@ Worker 把状态返回 Qt 线程，不直接修改 Widget。
 ## 9. 变更影响
 
 新增分析类型会改变 Core request/result 契约、JSON schema、方法定义、支持该类型的完整
-Backend、应用用例、导出、表现层和相关测试。新增 Backend 会实现一个完整
+Backend、应用功能、导出、表现层和相关测试。新增 Backend 会实现一个完整
 `BackendAdapter`，并产生一个注册表条目。新增外部工具会产生一个 Integration adapter，
-进程管理仍保留在 `runtime`。新增表现层会消费应用用例与 Core 契约，不导入分析引擎。
+进程管理仍保留在 `runtime`。新增表现层会消费应用功能与 Core 契约，不导入分析引擎。
 
 测试覆盖契约、数值行为、应用编排、持久化、导出、表现层、包边界和平台启动。Ruff、mypy、
 完整 Linux 测试和完整 Windows 测试构成仓库完成标准。

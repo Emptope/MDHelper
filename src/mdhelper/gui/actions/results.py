@@ -6,8 +6,7 @@ from collections.abc import Callable
 
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox
 
-from mdhelper.app import ApplicationService
-from mdhelper.app.analysis import PlotExport, plot_exports, result_exports
+from mdhelper.app import ApplicationService, PlotExport, plot_exports, result_exports
 from mdhelper.core.plotting import PlotSize
 from mdhelper.gui.controllers.session import ProjectSession
 from mdhelper.gui.dialogs.results import ResultDetailsDialog

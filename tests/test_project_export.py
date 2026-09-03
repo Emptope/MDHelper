@@ -328,7 +328,7 @@ def test_figure_export_preserves_requested_plot_size(tmp_path: Path) -> None:
     assert pdf.read_bytes().startswith(b"%PDF")
 
 
-def test_project_use_cases_ensure_in_place_without_weakening_create(
+def test_project_feature_ensures_in_place_without_weakening_create(
     tmp_path: Path,
 ) -> None:
     topology = tmp_path / "topology.dat"

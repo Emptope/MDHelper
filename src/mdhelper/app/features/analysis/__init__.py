@@ -1,7 +1,7 @@
-"""Analysis execution and export use cases."""
+"""Analysis execution and export features."""
 
-from .execution import AnalysisUseCases
-from .exports import ExportUseCases, export_bundle, save_plots
+from .execution import AnalysisFeature
+from .exports import ExportFeature, export_bundle, save_plots
 from .plans import (
     PlotExport,
     ResultExport,
@@ -12,8 +12,8 @@ from .plans import (
 )
 
 __all__ = [
-    "AnalysisUseCases",
-    "ExportUseCases",
+    "AnalysisFeature",
+    "ExportFeature",
     "PlotExport",
     "ResultExport",
     "default_plot_exports",
