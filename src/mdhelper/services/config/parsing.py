@@ -6,6 +6,7 @@ import math
 from pathlib import Path
 from typing import Any, cast
 
+from mdhelper.core.analysis import ANALYSIS_LABELS, AnalysisType
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.integrations import IntegrationConfig
 from mdhelper.services.config.contracts import (
@@ -148,6 +149,31 @@ def _integration(
     )
 
 
+def _workflows(raw: object, path: Path) -> dict[str, tuple[AnalysisType, ...]]:
+    table = _mapping(raw, "workflows", path)
+    workflows: dict[str, tuple[AnalysisType, ...]] = {}
+    for name, value in table.items():
+        if not isinstance(name, str) or not name.strip() or name != name.strip():
+            raise ConfigurationError(
+                "Every workflow must have a non-empty name without surrounding whitespace.",
+                details={"path": str(path), "name": name},
+            )
+        field = f"workflows.{name}"
+        if not isinstance(value, list) or not value:
+            raise ConfigurationError(
+                f"Configuration field {field!r} must contain at least one analysis project.",
+                details={"path": str(path), "field": field, "value": value},
+            )
+        if any(not isinstance(project, str) or project not in ANALYSIS_LABELS for project in value):
+            raise ConfigurationError(
+                f"Configuration field {field!r} must contain supported analysis project names.",
+                "Choose from: " + ", ".join(ANALYSIS_LABELS),
+                {"path": str(path), "field": field, "value": value},
+            )
+        workflows[name] = cast(tuple[AnalysisType, ...], tuple(value))
+    return workflows
+
+
 def parse_config(raw: dict[str, Any], path: Path) -> UserConfig:
     """Validate parsed TOML data without reading or writing the filesystem."""
 
@@ -158,7 +184,12 @@ def parse_config(raw: dict[str, Any], path: Path) -> UserConfig:
             f"This release supports schema_version = {SCHEMA_VERSION}.",
             {"path": str(path)},
         )
-    _reject_unknown(raw, {"schema_version", "gui", "integrations"}, "", path)
+    _reject_unknown(
+        raw,
+        {"schema_version", "gui", "integrations", "workflows"},
+        "",
+        path,
+    )
     gui = _mapping(raw.get("gui"), "gui", path)
     integrations = _mapping(raw.get("integrations"), "integrations", path)
     _reject_unknown(gui, {"theme", "font_size"}, "gui", path)
@@ -182,4 +213,5 @@ def parse_config(raw: dict[str, Any], path: Path) -> UserConfig:
             font_size=_font_size(gui, path),
         ),
         integrations=parsed_integrations,
+        workflows=_workflows(raw.get("workflows"), path),
     )

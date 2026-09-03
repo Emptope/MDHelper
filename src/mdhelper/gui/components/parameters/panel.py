@@ -183,6 +183,9 @@ class ParameterPanel(QGroupBox):
     def analysis_type_value(self) -> AnalysisType:
         return self._analysis_type()
 
+    def set_analysis_type(self, analysis_type: AnalysisType) -> None:
+        self._set_analysis(analysis_type)
+
     def requires_selections(self) -> bool:
         return self._analysis_type() != "energy"
 

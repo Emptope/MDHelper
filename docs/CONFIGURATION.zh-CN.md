@@ -25,6 +25,19 @@ font_size = 11.0 # 6 到 32 pt
 
 **View > Appearance** 应用并保存这些字段。`system` 跟随操作系统配色。
 
+## Workflow
+
+命名 workflow 包含有序的分析项目标识：
+
+```toml
+[workflows]
+radial = ["rdf", "cumulative_rdf"]
+full = ["rdf", "cumulative_rdf", "energy"]
+```
+
+支持 `rdf`、`cumulative_rdf` 和 `energy`，同一项目可以重复出现。**Tools > Run Workflow...**
+按照配置顺序打开每个项目供用户审查，然后通过标准分析队列提交完整序列。
+
 ## 分析 Backend
 
 每个 request 选择 `auto`、`mdanalysis` 或 `gromacs`。该值属于 request，不是全局设置。它固定

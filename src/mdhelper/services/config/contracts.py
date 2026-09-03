@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
+from mdhelper.core.analysis import AnalysisType
 from mdhelper.core.integrations import IntegrationConfig
 
 SCHEMA_VERSION = 1
@@ -28,6 +29,7 @@ class UserConfig:
             "vmd": IntegrationConfig(),
         }
     )
+    workflows: dict[str, tuple[AnalysisType, ...]] = field(default_factory=dict)
 
     def integration(self, name: str) -> IntegrationConfig:
         return self.integrations.get(name.casefold(), IntegrationConfig())
@@ -38,5 +40,8 @@ class UserConfig:
             "gui": asdict(self.gui),
             "integrations": {
                 name: asdict(config) for name, config in sorted(self.integrations.items())
+            },
+            "workflows": {
+                name: list(projects) for name, projects in sorted(self.workflows.items())
             },
         }

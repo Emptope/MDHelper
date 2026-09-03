@@ -27,6 +27,20 @@ font_size = 11.0 # 6 through 32 points
 **View > Appearance** applies and saves these fields. `system` follows the operating-system color
 scheme.
 
+## Workflows
+
+Named workflows contain an ordered list of analysis project identifiers:
+
+```toml
+[workflows]
+radial = ["rdf", "cumulative_rdf"]
+full = ["rdf", "cumulative_rdf", "energy"]
+```
+
+Supported identifiers are `rdf`, `cumulative_rdf`, and `energy`. A project may appear more than
+once. **Tools > Run Workflow...** opens every project for review in configured order, then submits
+the complete sequence through the standard analysis queue.
+
 ## Analysis backend
 
 Each request selects `auto`, `mdanalysis`, or `gromacs`. This value is request data, not a global

@@ -30,6 +30,7 @@ from mdhelper.gui.menu import install_menu
 from mdhelper.gui.pages.workspace import WorkspaceTabs
 from mdhelper.gui.theme import theme_controller
 from mdhelper.gui.windows import WindowManager
+from mdhelper.gui.workflows import WorkflowActions
 from mdhelper.jobs import JobHandle
 from mdhelper.runtime.logging import configure_logging, record_error
 from mdhelper.services.config import ThemeMode, save_config
@@ -99,6 +100,15 @@ class MainWindow(QMainWindow):
             self._refresh_project_results,
             self._show_error,
         )
+        self.workflow_actions = WorkflowActions(
+            self,
+            application,
+            self.load,
+            self.analysis_actions,
+            self.backend_actions,
+            self.windows,
+            self._open_settings,
+        )
         self.project_actions = ProjectActions(
             self,
             application,
@@ -129,10 +139,12 @@ class MainWindow(QMainWindow):
             self._integrations,
             self._templates,
             self._open_terminal,
+            self._run_workflow,
             self._make_index_file,
             self._open_settings,
             application.config.gui.theme,
             self._set_theme,
+            self._open_document,
         )
         self.backend_actions.detect_gromacs()
 
@@ -248,6 +260,9 @@ class MainWindow(QMainWindow):
             "The terminal interface could not be started.",
         )
 
+    def _run_workflow(self) -> None:
+        self.workflow_actions.open()
+
     def _integrations(self) -> None:
         IntegrationsDialog(self.application, self).exec()
         self.backend_actions.detect_gromacs()
@@ -270,6 +285,16 @@ class MainWindow(QMainWindow):
             self._show_error(exc)
             return
         self.statusBar().showMessage(f"Opened configuration: {path}", 10000)
+
+    def _open_document(self, url: str) -> None:
+        try:
+            if not QDesktopServices.openUrl(QUrl(url)):
+                raise ConfigurationError(
+                    f"Could not open documentation: {url}",
+                    "Configure a default web browser and try again.",
+                )
+        except Exception as exc:
+            self._show_error(exc)
 
     def _set_theme(self, mode: ThemeMode) -> None:
         previous = self.application.config.gui.theme

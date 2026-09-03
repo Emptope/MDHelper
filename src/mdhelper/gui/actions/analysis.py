@@ -8,7 +8,8 @@ from pathlib import Path
 from PySide6.QtWidgets import QMainWindow, QTabWidget
 
 from mdhelper.app import ApplicationService
-from mdhelper.core.analysis import RadialRequest
+from mdhelper.core.analysis import AnalysisRequest, RadialRequest
+from mdhelper.gui.components.parameters import ParameterPanel
 from mdhelper.gui.controllers.analysis_jobs import AnalysisJobController
 from mdhelper.gui.controllers.analysis_runs import AnalysisRunController, RunCompletion
 from mdhelper.gui.controllers.session import ProjectSession
@@ -68,14 +69,31 @@ class AnalysisActions:
     def run(self) -> None:
         parameters = self.analysis.parameters
         try:
-            items = self.analysis.request_series(
-                self.load.common(
-                    self.role_provenance(),
-                    parameters.frame_range(),
-                    parameters.requires_selections(),
-                )
+            items = self.analysis.request_series(self._common(parameters))
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        self.start(items)
+
+    def request_items(
+        self, parameters: ParameterPanel
+    ) -> tuple[tuple[AnalysisRequest, str], ...]:
+        return parameters.request_series(self._common(parameters))
+
+    def _common(self, parameters: ParameterPanel) -> dict[str, object]:
+        return self.load.common(
+            self.role_provenance(),
+            parameters.frame_range(),
+            parameters.requires_selections(),
+        )
+
+    def start(self, items: tuple[tuple[AnalysisRequest, str], ...]) -> None:
+        try:
+            request = next(
+                (item[0] for item in items if isinstance(item[0], RadialRequest)),
+                items[0][0],
             )
-            self._ensure_project(items[0][0])
+            self._ensure_project(request)
             self.controller.start(items)
         except Exception as exc:
             self.show_error(exc)

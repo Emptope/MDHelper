@@ -31,6 +31,7 @@ from mdhelper.core.integrations import IntegrationConfig, IntegrationStatus
 from mdhelper.gui.components.choices import choice_enabled
 from mdhelper.gui.dialogs.projects import NewProjectDialog
 from mdhelper.gui.dialogs.tools import MakeIndexHelpDialog
+from mdhelper.gui.menu import DOCUMENT_LINKS
 from mdhelper.gui.window import MainWindow
 from mdhelper.services.config import UserConfig, config_path, save_config
 
@@ -183,6 +184,42 @@ def test_gui_menu_opens_tui_through_the_unified_process(monkeypatch) -> None:
 
     assert calls == [True]
     window.job_controller.shutdown()
+    window.close()
+
+
+def test_help_documents_open_registered_https_targets(monkeypatch) -> None:
+    QApplication.instance() or QApplication([])
+    opened: list[str] = []
+    monkeypatch.setattr(
+        window_module.QDesktopServices,
+        "openUrl",
+        lambda url: opened.append(url.toString()) or True,
+    )
+    window = MainWindow()
+
+    for name in DOCUMENT_LINKS:
+        window.menu_actions.documents[name].trigger()
+
+    assert set(window.menu_actions.documents) == set(DOCUMENT_LINKS)
+    assert all(url.startswith("https://") for url in DOCUMENT_LINKS.values())
+    assert opened == list(DOCUMENT_LINKS.values())
+    window.close()
+
+
+def test_help_document_reports_browser_failure(monkeypatch) -> None:
+    QApplication.instance() or QApplication([])
+    errors: list[tuple[str, str]] = []
+    monkeypatch.setattr(window_module.QDesktopServices, "openUrl", lambda _url: False)
+    monkeypatch.setattr(
+        QMessageBox,
+        "critical",
+        lambda _parent, title, message: errors.append((title, message)),
+    )
+    window = MainWindow()
+
+    next(iter(window.menu_actions.documents.values())).trigger()
+
+    assert len(errors) == 1
     window.close()
 
 

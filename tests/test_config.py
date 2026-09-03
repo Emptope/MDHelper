@@ -36,6 +36,41 @@ def test_gui_theme_defaults_to_system_and_round_trips(tmp_path: Path) -> None:
     assert load_config(path).gui.font_size == 12.5
 
 
+def test_workflows_round_trip_in_project_order(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    config = UserConfig(
+        workflows={
+            "radial": ("rdf", "cumulative_rdf"),
+            "full": ("rdf", "energy", "cumulative_rdf"),
+        }
+    )
+
+    save_config(config, path)
+
+    assert load_config(path).workflows == config.workflows
+
+
+@pytest.mark.parametrize(
+    "value, message",
+    [
+        ("[]", "at least one"),
+        ('["unknown"]', "supported analysis project"),
+        ('["rdf", 1]', "supported analysis project"),
+    ],
+)
+def test_invalid_workflow_project_reports_field(
+    tmp_path: Path, value: str, message: str
+) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text(
+        f'schema_version=1\n[workflows]\nexample={value}\n',
+        encoding="ascii",
+    )
+
+    with pytest.raises(ConfigurationError, match=message):
+        load_config(path)
+
+
 def test_invalid_gui_theme_reports_field(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
     path.write_text('schema_version=1\n[gui]\ntheme="sepia"\n', encoding="utf-8")

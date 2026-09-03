@@ -23,6 +23,10 @@ theme = "system"
 # GUI font size in points (6-32).
 font_size = 11.0
 
+[workflows]
+# Values are ordered analysis projects: rdf, cumulative_rdf, or energy.
+# standard = ["rdf", "cumulative_rdf", "energy"]
+
 [integrations.gromacs]
 enabled = true
 # Full executable path, for example C:/Program Files/GROMACS/bin/gmx.exe
