@@ -8,6 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6", reason="GUI dependencies are not installed")
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from mdhelper.core.analysis import RadialRequest
@@ -85,6 +86,34 @@ def test_workflow_review_stays_on_invalid_project() -> None:
 
     assert dialog.current_index == 0
     assert errors == [error]
+
+
+def test_workflow_review_shows_complete_names_and_current_project() -> None:
+    app = QApplication.instance() or QApplication([])
+    dialog = WorkflowDialog()
+    font = dialog.steps.font()
+    font.setPointSizeF(font.pointSizeF() * 2)
+    dialog.steps.setFont(font)
+    dialog.configure(
+        {"workflow": ("rdf", "cumulative_rdf", "energy")},
+        lambda _panel: None,
+        lambda _panel: (),
+    )
+    dialog.show()
+    app.processEvents()
+
+    assert dialog.steps.wordWrap()
+    assert dialog.steps.textElideMode() == Qt.TextElideMode.ElideNone
+    assert not dialog.steps.horizontalScrollBar().isVisible()
+    assert dialog.steps.width() * 3 <= dialog.content.width()
+    assert dialog.stack.width() >= dialog.stack.minimumSizeHint().width()
+    assert dialog.steps.currentRow() == dialog.current_index
+    assert dialog.steps.currentItem().isSelected()
+
+    dialog.next_button.click()
+
+    assert dialog.steps.currentRow() == dialog.current_index
+    assert dialog.steps.currentItem().isSelected()
 
 
 def test_workflow_selection_rebuilds_the_ordered_review() -> None:

@@ -72,6 +72,31 @@ uv run mdhelper templates list
 Pass `--project analysis-project` to `inspect` or `analyze` to use verified project inputs and
 commit the result.
 
+## GUI workflows
+
+A workflow stores an ordered sequence of analysis types. It reuses the inputs loaded in the GUI,
+while keeping separate parameters and plot series for every project in the sequence.
+
+1. Open **Settings** and add a named sequence to `config.toml`:
+
+   ```toml
+   [workflows]
+   standard = ["rdf", "cumulative_rdf", "energy"]
+   ```
+
+2. Save the file and restart MDHelper so the updated configuration is loaded. See
+   [Configuration](CONFIGURATION.md#workflows) for the supported identifiers and validation rules.
+3. In the **Load Input** tab, select the inputs shared by the workflow. Inspect an index file first
+   when its groups should be available in the selection controls.
+4. Choose **Tools > Run Workflow...**, then select the named workflow.
+5. Review each project with the sidebar or **Back** and **Next**. For a radial project, enter one
+   selection pair or add multiple configured series. **Next** validates the current project.
+6. Select **Run** on the final project. MDHelper validates every project again and submits all
+   enabled series to the standard analysis queue in workflow order.
+
+The workflow dialog cannot open while another analysis is running. Repeated analysis identifiers
+are separate projects and may use different parameters or series.
+
 ## Development checks
 
 ```bash

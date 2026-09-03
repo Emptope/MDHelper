@@ -113,7 +113,7 @@ def result_plot(result: AnalysisResult) -> PlotModel:
                     y,
                     selection,
                     None,
-                    "Cumulative RDF",
+                    "CN",
                     color_key=selection,
                     residue_name_key=residue_key,
                 ),

@@ -132,10 +132,11 @@ def test_results_plots_apply_custom_title_to_its_combined_plot() -> None:
         results_plots((_result(),), titles=("First", "Second"))
 
 
-def test_cumulative_rdf_plot_uses_gromacs_y_label() -> None:
+def test_cumulative_rdf_plot_uses_coordination_number_labels() -> None:
     model = result_plot(_cumulative_rdf_result())
 
     assert model.y_label == "number"
+    assert [series.quantity for series in model.series] == ["CN"]
 
 
 def test_draw_plot_uses_selected_scheme_legend_and_user_limits() -> None:

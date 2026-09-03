@@ -280,7 +280,7 @@ def test_export_bundle_rebuilds_standalone_radial_plots(
     ]
     rdf_export, cn_export = exported
     assert [series.quantity for series in rdf_export[2].series] == ["g(r)"]
-    assert [series.quantity for series in cn_export[2].series] == ["Cumulative RDF"]
+    assert [series.quantity for series in cn_export[2].series] == ["CN"]
     assert {series.axis for series in rdf_export[2].series} == {"primary"}
     assert {series.axis for series in cn_export[2].series} == {"primary"}
     assert rdf_export[2].title == "Pair comparison"

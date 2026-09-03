@@ -72,6 +72,31 @@ uv run mdhelper templates list
 向 `inspect` 或 `analyze` 传入 `--project analysis-project`，即可使用已校验的项目输入并提交
 结果。
 
+## GUI Workflow
+
+Workflow 保存有序的分析类型序列。序列中的项目共用 GUI 已加载的输入，但各自保留独立的参数
+和绘图 series。
+
+1. 打开 **Settings**，在 `config.toml` 中加入命名序列：
+
+   ```toml
+   [workflows]
+   standard = ["rdf", "cumulative_rdf", "energy"]
+   ```
+
+2. 保存文件并重启 MDHelper，使更新后的配置生效。支持的标识和校验规则见
+   [配置说明](CONFIGURATION.zh-CN.md#workflow)。
+3. 在 **Load Input** 标签页选择 Workflow 共用的输入。如需在选择控件中使用 index group，先检查
+   index 文件。
+4. 选择 **Tools > Run Workflow...**，再选择已命名的 Workflow。
+5. 通过左侧项目列表或 **Back** 和 **Next** 逐项审查。径向项目可以输入一个 selection pair，
+   也可以加入多组 configured series。**Next** 会校验当前项目。
+6. 在最后一个项目选择 **Run**。MDHelper 会再次校验全部项目，并按照 Workflow 顺序将所有启用
+   的 series 提交到标准分析队列。
+
+其他分析正在运行时不能打开 Workflow 面板。重复的分析标识表示相互独立的项目，可以使用不同
+的参数或 series。
+
 ## 开发检查
 
 ```bash

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSplitter,
     QStackedWidget,
+    QStyle,
     QVBoxLayout,
     QWidget,
 )
@@ -51,8 +52,13 @@ class WorkflowDialog(QDialog):
 
         self.steps = QListWidget()
         self.steps.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.steps.setSelectionMode(QListWidget.SelectionMode.NoSelection)
-        self.steps.setMaximumWidth(290)
+        self.steps.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self.steps.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.steps.setWordWrap(True)
+        self.steps.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.steps.currentRowChanged.connect(self._select)
         self.stack = QStackedWidget()
         self.content = QSplitter()
         self.content.setChildrenCollapsible(False)
@@ -142,8 +148,21 @@ class WorkflowDialog(QDialog):
             self.steps.addItem(f"{number}. {analysis_label(project)}")
         self.panels = tuple(panels)
         if panels:
+            self._fit_steps()
             self._select(0)
         self._sync_buttons()
+
+    def _fit_steps(self) -> None:
+        item_width = max(0, self.steps.sizeHintForColumn(0))
+        frame_width = self.steps.frameWidth() * 2
+        scroll_width = self.steps.style().pixelMetric(
+            QStyle.PixelMetric.PM_ScrollBarExtent
+        )
+        natural_width = item_width + frame_width + scroll_width
+        width = min(natural_width, max(1, self.content.width() // 3))
+        self.steps.setMinimumWidth(width)
+        self.content.setSizes((width, max(1, self.content.width() - width)))
+        self.resize(self.size().expandedTo(self.sizeHint()))
 
     def _clear_panels(self) -> None:
         self.panels = ()
