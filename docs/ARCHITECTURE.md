@@ -2,373 +2,227 @@
 
 [English](ARCHITECTURE.md) | [Simplified Chinese](ARCHITECTURE.zh-CN.md)
 
-This document describes the current repository for engineers who modify, review, test, package,
-or release MDHelper. Analysis behavior and deterministic engineering rules are centralized in
-[Algorithm specification](ALGORITHM.md); released method definitions and evidence are under
-[methods](methods/README.md) and [validation](validation/).
+This document describes the current code structure, dependency boundaries, and runtime data flow.
+Algorithm definitions live in [ALGORITHM.md](ALGORITHM.md), while user workflows and release
+details live in the other documents linked at the end.
 
 ## 1. System boundary
 
-MDHelper is a Python 3.12 molecular-dynamics analysis application. Version 0.1.0 provides RDF,
-GROMACS-style cumulative RDF and EDR energy extraction. Native, MDAnalysis, and GROMACS are
-complete analysis pipelines. Each pipeline owns its input reader, selection rules, frame handling,
-and numerical or external analysis implementation.
+MDHelper is a local Python 3.12 application for molecular-dynamics analysis. It exposes the same
+application capabilities through CLI, TUI, and Qt GUI adapters. The current release supports RDF,
+cumulative coordination number, and EDR energy extraction.
 
-The application has three presentation adapters:
+Each analysis runs through one complete backend:
 
-- TUI: guided terminal interaction and the fallback when GUI startup is unavailable;
-- CLI: non-interactive automation;
-- GUI: the preferred argument-free interface when Qt and a display are available.
+| Backend | RDF | Cumulative RDF | Energy | Execution model |
+| --- | --- | --- | --- | --- |
+| Native | yes | yes | no | In-process GRO reader and numerical analysis |
+| MDAnalysis | yes | yes | yes | In-process library adapters and numerical analysis |
+| GROMACS | yes | yes | yes | Local GROMACS commands through the integration boundary |
 
-All three interfaces use the same application services and contracts. GROMACS is optional; an
-explicit `gromacs` request uses GROMACS input processing and GROMACS analysis commands throughout.
+GROMACS is optional. A backend attempt owns input loading, selection semantics, frame handling,
+and analysis execution as one unit. Components from different backends are never combined in one
+attempt.
 
-## 2. Dependency direction
+## 2. Dependency structure
 
-```text
-CLI / TUI / GUI
-        |
-        v
-ApplicationService facade
-        |
-        v
-app use cases --------------------------> jobs
-        |                                  |
-        +--> analysis                      |
-        +--> services --> backends         |
-        +--> project                       |
-        +--> io                            |
-        +--> integrations --> runtime      |
-        |                                  |
-        +----------------------------------+
-                         |
-                         v
-                        core
+An arrow points from a package to its dependency. The diagram shows the primary request and
+execution dependencies rather than every utility import:
+
+```mermaid
+flowchart TB
+    Bootstrap[bootstrap] --> CLI
+    Bootstrap --> TUI
+    Bootstrap --> GUI
+
+    CLI --> App[app / ApplicationService]
+    TUI --> App
+    GUI --> App
+    CLI --> Jobs[jobs / JobRunner]
+    TUI --> Jobs
+    GUI --> Jobs
+    Jobs --> App
+
+    App --> Analysis[analysis]
+    App --> Services[services]
+    App --> Project[project]
+    App --> IO[io]
+    App --> Integrations[integrations]
+
+    Analysis --> Services
+    Analysis --> Integrations
+    Services --> Backends[backends]
+    Services --> Integrations
+    Integrations --> Runtime[runtime / process]
+
+    App --> Core[core]
+    Jobs --> Core
+    Analysis --> Core
+    Services --> Core
+    Project --> Core
+    IO --> Core
+    Integrations --> Core
+    Backends --> Core
+    Runtime --> Core
 ```
 
-`core` is the innermost package and cannot import another MDHelper package. Presentation packages
-cannot import each other or bypass `app` to call `analysis` or `backends`. Static checks in
-`tests/test_architecture.py` enforce these boundaries, forbid presentation files outside their
-packages, and keep compatibility shells out of the package root.
+The enforced boundaries are:
 
-## 3. Package map
+- `core` has no dependency on another MDHelper package.
+- `cli`, `tui`, and `gui` do not import each other or import `analysis` and `backends` directly.
+- `bootstrap` is the only package that composes presentation adapters.
+- Qt imports remain inside `gui`, and GUI state modules remain independent of Qt.
+- `analysis` and `backends` do not execute subprocesses or import `runtime` directly.
+- Analysis computation does not depend on plotting.
+- Focused subpackages use an explicit inward module order without circular dependencies.
+
+`tests/test_architecture.py` checks these boundaries and the package layouts.
+
+## 3. Package responsibilities
 
 | Package | Responsibility |
 | --- | --- |
-| `bootstrap` | unified interface dispatch and portable configuration bootstrap |
-| `core` | shared contracts, protocols, errors, units, and plotting models |
-| `app` | use-case orchestration and the public facade used by all frontends |
-| `analysis` | pipeline contracts and registry, RDF, cumulative RDF, energy extraction, PBC, and shared numerical work |
-| `services` | configuration, system inspection, selection, provenance, and templates |
-| `backends` | native GRO, MDAnalysis, and GROMACS trajectory/selection adapters |
-| `io` | NDX parsing and data/figure export |
-| `project` | strict manifest, input identity, results, and atomic storage |
-| `jobs` | job state, background execution, progress, and cancellation |
-| `workflow` | reserved boundary for future user-authored workflows |
-| `integrations` | domain adapters for optional external executables |
-| `runtime` | subprocess, detection, environment, and logging infrastructure |
-| `cli`, `tui`, `gui` | presentation-only adapters |
-| `resources` | packaged read-only templates |
+| `bootstrap` | Public entry-point dispatch and portable configuration activation |
+| `cli`, `tui`, `gui` | Input collection, presentation state, and result rendering |
+| `app` | `ApplicationService`, use-case orchestration, export plans, and readable reports |
+| `jobs` | Synchronous and threaded execution, progress, status, and cancellation |
+| `core` | Requests, results, domain records, protocols, errors, units, and plot models |
+| `analysis` | Complete backend registry and RDF, cumulative RDF, and energy implementations |
+| `backends` | Trajectory readers and selection adapters that produce core objects |
+| `services` | Configuration, system inspection, selection, provenance, run streams, and templates |
+| `integrations` | External-tool adapters, capability status, and execution coordination |
+| `runtime` | Process lifecycle, detection primitives, environment filtering, and logging |
+| `project` | Manifest, input identity, result repository, run archive, and atomic storage |
+| `io` | NDX parsing plus structured-data and figure export adapters |
+| `resources` | Packaged read-only templates |
+| `workflow` | Reserved package for future user-authored orchestration; currently empty |
 
-The `mdhelper/` root contains only `__init__.py`, `__main__.py`, and `version.py`.
+The `mdhelper` package root contains only public entry points and version metadata. Larger features
+reside in focused packages and subpackages.
 
-## 4. Composition root
+## 4. Startup and composition
 
-`bootstrap/portable.py` sends an argument-free `mdhelper` invocation to GUI when available and
-falls back to TUI. Explicit `gui`, `tui`, and `cli` modes remain presentation-separated; other
-arguments go to CLI. Every frozen distribution selects its colocated `config.toml` unless the user
-explicitly selected another configuration. The Windows build contains one console-subsystem
-launcher so PowerShell and other shells wait for terminal modes and keep their standard streams
-connected. GUI startup creates an independent detached application process and then ends the
-console launcher, allowing a temporary Windows Terminal host to close before the Qt main window
-continues. Terminal modes keep their inherited console or allocate one when needed.
+`bootstrap/portable.py` owns the `mdhelper` entry point. An argument-free invocation starts the GUI
+when Qt and a display are available and otherwise starts the TUI. Explicit `gui`, `tui`, and `cli`
+modes select one adapter, while other arguments are handled by the CLI. Frozen distributions use a
+colocated `config.toml` unless `MDHELPER_CONFIG` already selects another file.
 
-`app/facade.py` is the composition root. `ApplicationService` creates the context and exposes
-analysis, inspection, project, integration, and template use cases. Readers and registries are injectable,
-which lets tests exercise the application boundary without a real GUI or external executable.
-`app/reports/` defines the shared readable result-report hierarchy consumed by both GUI and TUI.
-`Report` owns common sections and technical metadata; RDF, CN, and energy subclasses own
-their distinct result and configuration rows. Adapters only render a Report as HTML or terminal
-text. `app/analysis/` separates backend execution, readable export plans, and export execution.
-`AnalysisUseCases` runs analyses while `ExportUseCases` writes results and figures through the I/O
-boundary.
+`app/facade.py` is the application composition root. `ApplicationService` constructs the shared
+configuration, integration manager, analysis registry, and trajectory loader, then exposes grouped
+use cases for inspection, analysis, export, projects, integrations, and templates. Registries and
+loaders are injectable, so tests exercise this boundary without a GUI or external executable.
 
-## 5. Core contracts
+Presentation packages build core requests and call application use cases. Shared support packages
+provide job execution, project session state, and integration status, while numerical engines stay
+behind the application boundary.
 
-`core/analysis/` separates shared JSON validation, request contracts, and the result contract.
-`requests.py` defines the `AnalysisRequest` boundary plus disjoint `RadialRequest` and
-`EnergyRequest` records; `results.py` validates `AnalysisResult` without adding request fields.
-Every frontend must build the matching request before an analysis runs; analysis code never reads
-presentation state. Arrays are stored in result `data`, explanation in `diagnostics`, and
-reproduction information in `provenance`. Schema-1 parsing is strict: missing fields, unknown
-fields, old identifiers, invalid enums, and inconsistent arrays fail. Version 0.1.0 has no
-data-migration branch.
+## 5. Analysis flow
 
-Internal radial data use nm, while plotting converts distance to angstrom without rewriting the
-result. The stable cumulative RDF contract is:
-
-- `analysis_type = "cumulative_rdf"`;
-- request roles `reference` and `selection`;
-- curve field `cumulative_number`;
-- first-shell scalar diagnostic `coordination_number`.
-
-`core/system.py` defines atoms, frames, frame ranges, boxes, and system summaries.
-`core/trajectory.py` defines the narrow stream protocol consumed by analysis. `core/selection.py`
-defines selection engines. `core/species.py` defines descriptive roles; roles cannot select atoms or
-modify numerical parameters.
-
-`core/plotting/` separates render data models, appearance catalogs, persisted state,
-result-to-plot builders, and rendering. RDF and cumulative RDF share a distance domain and may use
-left/right Y axes. The cumulative curve is `N(r)` and its Y label is
-`Coordination number`. Energy terms form separate plot windows by default and may be assigned an
-explicit shared group in one window. Each window renders one plot. Plot state stores the result ID,
-selected result series, panel group, visibility, legend, color, custom title, strict
-primary/secondary limit fields, and validated appearance settings. Appearance covers legend and
-grid visibility, legend placement, line width, and title, axis-label, tick-label, and legend font
-sizes. The GUI edits the title of the plot containing the current visible series and synchronizes
-that title across its grouped series; project restore, plot windows, and figure export consume the
-same state.
-Interactive project figure saving writes one PNG/SVG/PDF set per plot model directly under
-`figures`, using canonical names allocated against both the current batch and existing image sets.
-Models with multiple series of one analysis type use `rdf`, `cn`, or `energy`; mixed RDF/CN models
-use `rdf-cn`. Name collisions append numeric suffixes starting at `-2`. Standalone radial and Energy
-models retain their readable Pair or term name. GUI and TUI result bundles rebuild one standalone
-model per result item inside its analysis directory. A TUI radial task batch additionally saves its
-shared plot model at the export root through the same flat figure plan used by Save Plot. The plot
-dialog derives its initial client size from the Figure canvas and layout margins, so opening it does
-not change the aspect ratio later consumed by Save Plot or Export.
-
-## 6. Application layer
-
-Presentation calls flow through this sequence:
+An analysis follows one stable sequence:
 
 ```text
-presentation
-  -> ApplicationService
-  -> AnalysisUseCases.run(request)
-  -> complete backend selection
-  -> backend-owned trajectory loader and selection path
-  -> provenance builder
-  -> backend adapter
-  -> result validation
-  -> caller-requested export or project commit
-  -> presentation
+AnalysisRequest
+  -> request validation
+  -> complete backend resolution
+  -> input loading and static selection, when required
+  -> provenance collection
+  -> backend execution
+  -> AnalysisResult validation
+  -> optional export or project commit
 ```
 
-The request exposes one `analysis_backend` choice. `AnalysisRegistry` stores each complete backend
-once; the backend declares all supported analysis types and its Auto priority. Auto considers
-Native for GRO/GRO plus NDX, then MDAnalysis, then GROMACS when the required capabilities are
-available. Source-loading failure may advance to the next complete candidate, but one attempt never
-mixes backend components. Provenance records requested and resolved backend identities rather than
-a separate reader backend. In-process backends fingerprint inputs; direct external backends start
-their native command without a pre-run hash pass. The application records role decisions and
-validates adapter output. Every Integration command that contributes to a result is attached as a
-run record with software identity, version, executable, exact formatted command, and arguments. The
-execution layer writes the same command to the diagnostic log. GROMACS progress is derived from its
-captured native output and never substitutes the command for an output line. Role warnings are
-diagnostic only. First-shell detection happens after radial computation and does not become an
-input parameter.
+`analysis/pipeline/` defines `BackendAdapter`, `BackendQuery`, `AnalysisInput`, and
+`AnalysisRegistry`. The registry contains one entry for each complete backend, not one entry for
+each backend-analysis pair. A backend declares its supported analysis types, automatic priority,
+required external capabilities, input-loading behavior, and execution method.
 
-## 7. Analysis implementations
+Automatic resolution orders eligible complete backends by priority. Native is eligible for radial
+analysis of GRO/GRO inputs with an NDX file, MDAnalysis is the general in-process candidate, and
+GROMACS is eligible when its required capabilities are available. Fallback occurs only between
+complete attempts. Explicit backend selection resolves one backend and reports its failure directly.
 
-`analysis/pipeline/` owns the complete-backend protocol, execution input, backend query, and
-registry. These contracts describe analysis orchestration and therefore live beside the built-in
-pipeline implementations; there is no plugin-discovery or third-party extension package.
-`analysis/__init__.py` registers exactly one adapter for each built-in complete pipeline:
-`NativeBackend`, `MDAnalysisBackend`, and `GromacsBackend`. The registry is keyed by backend name,
-not by the Cartesian product of backend and analysis type. `analysis/radial/` separates frame
-selection and audit, bounded neighbor search, curve accumulation, shell diagnostics, and execution.
-Native and MDAnalysis searches feed the same half-width histogram and normalization path.
-`rdf.py` publishes `g_r`; `cumulative_rdf.py` publishes `cumulative_number`. `common.py` retains
-only analysis workspace, progress, and cancellation infrastructure.
+Native and MDAnalysis radial paths convert inputs to the narrow `TrajectorySource` protocol and
+share the radial accumulation path. The GROMACS path invokes native commands directly through
+`integrations` and retains command records in provenance. External library objects and subprocess
+objects do not cross their adapter boundaries.
 
-`gromacs/` separates input preparation, run auditing, curve parsing, and complete backend
-orchestration. Its radial path preserves zero-based Python frame slicing and invokes `gmx rdf`
-through Integrations. RDF requests use only `-o`; cumulative RDF adds
-`-cn` and parses both XVG curves. Both retain every metadata-inspection, trajectory-conversion, and
-RDF run record. The default full range reads the original trajectory directly; non-default ranges
-obtain the frame count with `gmx check` and use one exact converted subset.
+## 6. Data contracts
 
-`mdanalysis.py` owns MDAnalysis radial and Energy dispatch, while `native.py` owns Native radial
-dispatch. `energy.py` contains private Energy implementations shared by the complete adapters.
-GROMACS discovers and extracts terms through `gmx energy`; MDAnalysis reads terms, time, values,
-and units through `EDRReader`. Presentation code calls the application discovery use case and never
-parses an EDR menu itself.
+`core/analysis/` defines strict schema-version-1 request and result records. RDF and cumulative RDF
+use `RadialRequest`; energy extraction uses `EnergyRequest`. Every `AnalysisResult` contains its
+complete request, data, parameters, units, diagnostics, provenance, warnings, identity, method
+version, and creation time. Unknown fields, missing fields, invalid enums, and inconsistent arrays
+fail validation. Version 0.1.0 contains no compatibility or migration path for persisted schemas.
 
-The implementation invariants and formulas are specified in [ALGORITHM.md](ALGORITHM.md). Released
-method meaning and validation tolerance belong in the method and validation documents, not in
-presentation code.
+Trajectory and selection adapters expose stable zero-based atom indices and frame ranges. Radial
+calculation uses nanometres internally. Selection membership remains fixed during an analysis.
+Species roles record descriptive provenance and do not select atoms or alter numerical parameters.
 
-## 8. Services and backends
+Plot contracts live under `core/plotting/`, separate from numerical analysis. The same plot models
+and persisted plot state drive GUI display and figure export.
 
-The system service summarizes atoms and proposes explainable species roles. Native requires NDX
-groups. MDAnalysis uses NDX groups when supplied and otherwise uses static MDAnalysis expressions.
-GROMACS RDF/CN quotes exact NDX group names or passes GROMACS selection expressions to `gmx rdf`.
-Integrations own external-software configuration,
-detection, status, and execution;
-configuration, template discovery, and provenance remain separate services so the analysis layer
-stays free of machine-specific executable handling.
-`services/config/` separates shared configuration contracts, strict parsed-value validation, and
-filesystem persistence. Storage owns active-path selection, TOML decoding and encoding, and atomic
-replacement; parsing remains independent of filesystem access.
+## 7. Persistence and export
 
-For analysis, `backends/trajectory.py` receives the already resolved backend name; it does not make
-a second policy choice. The MDHelper reader validates fixed atom identity and streams frames. The
-MDAnalysis adapter converts third-party objects into core atoms, frames, boxes, and zero-based
-indices; third-party objects do not cross the backend boundary. The GROMACS analysis adapter
-bypasses the trajectory port: default full-range RDF/CN passes the original inputs directly to
-`gmx rdf`, while a non-default range obtains its frame count through `gmx check` and uses one
-GROMACS-generated exact subset. The metadata check validates an explicit stop without a full
-coordinate expansion. Every external command is invoked through Integrations.
+A project is rooted by `mdhelper-project.json` and uses this layout:
 
-## 9. I/O and projects
+```text
+project/
+|-- mdhelper-project.json
+|-- results/
+|   |-- data/
+|   `-- runs/
+|-- figures/
+`-- cache/
+```
 
-NDX parsing lives under `io`, independently of CLI and GUI. `io/export/structured.py` writes
-validated results as JSON/CSV and externalizes integration streams; `figures.py` renders
-`AnalysisResult` or `PlotModel` inputs as PNG/SVG/PDF. The application use case combines these
-independent adapters when a workflow requests both data and figures. RDF exports
-`radius_nm,g_r`; cumulative RDF exports `radius_nm,cumulative_number`. Integration stdout/stderr
-bodies are external `.out`/`.err` files; persisted JSON retains stream fingerprints but not stream
-bodies or paths.
+The manifest stores schema and application versions, content-addressed input records, species
+roles, committed result indexes, and plot state. Complete result JSON files remain the source of
+analysis parameters, data, diagnostics, and provenance. Result and input fingerprints detect
+unexpected changes, and derived paths are constrained to the project root.
 
-A project is rooted by `mdhelper-project.json` and owns `results/data`, `results/runs`, `figures`,
-and `cache`. Its manifest records schema/application version, content-addressed inputs, confirmed
-roles, strict plot state, and committed analysis entries. Result integration metadata stays in the
-result JSON, with deterministic fingerprinted `.out`/`.err` siblings under `results/data`.
-Standalone integration records and streams live under `results/runs`. Every analysis
-entry includes an ID, analysis type, commit time, and hash. Its result path is derived as
-`results/data/<analysis_id>.json`; request and method metadata live only in that complete result.
-Opening rejects old or incomplete schema-1 data; it never rewrites an incompatible manifest into
-the current contract. Each input record stores one relative path when portable, or one absolute
-path when a relative path cannot be represented, plus its hash.
+Manifest and result updates use atomic replacement. Integration output bodies live in separate
+fingerprinted stream files instead of the manifest. Project relocation accepts a replacement input
+only when its content hash matches. `cache` contains rebuildable trajectory indexes and external
+tool work files; deleting it does not remove canonical results.
 
-`cache` contains rebuildable working data rather than canonical analysis results. This includes
-MDAnalysis XDR frame-offset indexes and retained GROMACS command work directories with native
-outputs and exact frame subsets. Project work uses the project cache; unbound GROMACS analysis uses
-a process-lifetime system directory. Removing cache files only forces regeneration and does not
-change analysis semantics.
+`io/export/` writes validated JSON and CSV data and renders PNG, SVG, and PDF figures. Export is a
+separate application use case, so successful analysis does not imply disk output. Project commits
+and standalone exports share the same validated result contract.
 
-Result commit validates request equality, input paths, and any recorded provenance fingerprints,
-externalizes integration streams, writes the result atomically, hashes it, and then commits the
-compact manifest index. Result loading verifies and hydrates referenced logs. Derived result and log
-paths are checked for containment, and fingerprints are rechecked on load.
-Relocation changes a path only when content identity is unchanged.
+## 8. Jobs and external processes
 
-## 10. Jobs and external tools
+`jobs` owns pending, running, completed, failed, and cancelled state. `JobRunner` calls the same
+analysis use case for synchronous and threaded execution. Cancellation is cooperative across frame
+processing, input hashing, and external-process polling. GUI workers report state back to the Qt
+thread and do not mutate widgets directly.
 
-`jobs` owns pending/running/completed/failed/cancelled state and retained raw progress messages. GUI
-polls job state on the Qt thread; TUI and CLI can use the same use case synchronously. Cancellation is
-cooperative at frame, hash-chunk, and process-poll points. External-process polling streams output
-to the active stage progress callback and terminates the complete process group on cancellation.
-The `workflow` package is reserved for future user-authored orchestration and currently has no
-implementation.
+`integrations` owns external-tool identity, configuration, capability detection, and command
+coordination. `runtime/process/` owns the actual process lifecycle. Commands use argument vectors,
+filtered environments, captured streams, timeouts, and process-group termination. Each execution
+produces an auditable run record with executable identity, arguments, timing, outcome, and stream
+fingerprints.
 
-External tool adapters define executable candidates, identity checks, and capability detection.
-`runtime/process/records.py` builds auditable run records, `terminal.py` opens interactive commands,
-and `lifecycle.py` owns captured background execution, cancellation, timeout, and process-group
-termination. All paths use explicit argument vectors and restricted environments. Discovery only
-determines availability; request resolution chooses the analysis backend.
-Interactive backend selectors expose GROMACS only after an explicit Integrations detection action
-in the current session or a saved executable path; internal Auto discovery does not expose it.
+## 9. Change impact
 
-## 11. Presentation adapters
+A new analysis type changes the core request/result contract, JSON schemas, method definition,
+supporting complete backend adapters, application use cases, exports, presentation adapters, and
+their tests. A new backend implements one complete `BackendAdapter` and adds one registry entry. A
+new external tool adds an integration adapter while process management remains in `runtime`. A new
+presentation adapter consumes application use cases and `core` without importing analysis
+engines.
 
-CLI grammar is composed from command-specific modules and parsed into native `jsonargparse`
-namespaces. Execution receives only the selected namespace. `analyze rdf` and
-`analyze cumulative-rdf` use `--reference` and `--selection`; the latter constructs a
-`cumulative_rdf` request. Structured roles, terms, and capability lists accept JSON or YAML values,
-and `--args-file` loads a complete invocation. Output remains script-oriented and errors map to
-stable exit categories.
+The test suite covers contracts, numerical behavior, application orchestration, persistence,
+exports, presentations, package boundaries, and platform-specific startup. Ruff, mypy, the full
+Linux suite, and the full Windows suite are the repository completion gates.
 
-TUI stores an `AnalysisDraft`, converts explicit choices to `AnalysisRequest`, and calls the facade
-immediately when Run is selected. RDF and CN drafts add the initial selection to ordered queues of
-typed selection and radial-parameter snapshots. The RDF + CN workflow owns a separate mixed queue
-and creates exactly one request per explicit RDF or CN task. It exports each result and standalone
-plot to a readable directory and writes a shared dual-axis model as `rdf-cn` when both types are
-present. Save Plot uses the same model in the flat project-figure layout, and both paths use the
-GUI's application plans. The initial Load menu can open a project, enter the main menu without
-inputs, or quit. Open project matches the GUI flow: existing projects open directly, while ordinary
-directories use discovered input candidates to create a project. Analysis-dependent actions retain
-their input guards, while independent main-menu actions remain available without loaded inputs.
-System and project is one direct main-menu action for input loading, inspection, project binding,
-and session reset. Its shared load action treats a directory as a project and a file as topology,
-then requests the remaining trajectory inputs. Species roles remains a separate direct action.
-Integrations and Templates remain separate Tools states. EDR selection
-invokes shared term discovery and presents an ordered marked multi-select. It does not call CLI
-parsing or GUI widgets. `tui/controller.py` owns only top-level navigation and error handling;
-focused controllers under `tui/controllers/` own workspace, analysis setup, execution, results, and
-tools workflows. `tui/controllers/analysis/` further separates parameter editing, radial task queue
-operations, and analysis-menu navigation through a one-way controller chain.
+## 10. Related documents
 
-GUI separates widgets, state, user actions, application calls, and result formatting.
-`gui/window.py` is the composition root. `components` owns reusable widgets, `pages` owns workspace
-views, `dialogs` owns general floating windows, `plotting` owns the result-plot feature,
-`controllers` owns other widget-independent state machines and background adapters, and `actions`
-connects those boundaries for system, analysis, project, and
-result operations. Analysis batches transition explicitly through idle, running, and cancelling;
-system inspection and project sessions have separate explicit state machines.
-`actions/system/` separates loaded-system inspection, generated index-file watching, species-role
-operations, and system-related help windows behind one composed `SystemActions` entry point.
-`components/parameters/` builds requests; `pages/results.py` renders result history and summary;
-`plotting/` separates plot state, table rendering, controls, coordination, and windows;
-`components/species.py`
-handles role confirmation. Both interactive frontends
-expose Backend under Analysis, not
-Load. Energy remains available through MDAnalysis; GROMACS RDF/CN requires `rdf`, frame subsets
-additionally require `trjconv` and `check`, and GROMACS Energy requires
-`energy`. Backend selection is
-independent from system inspection. New
-Project non-recursively discovers `.tpr`/`.gro` topology,
-`.xtc`/`.trr`/`.gro` trajectory, and optional `.ndx` candidates. Background workers never mutate Qt
-widgets.
-
-`gui/windows.py` owns reusable non-modal window lifecycles. It creates each tool window once by
-type, manages variable-size groups of plot windows, enforces non-modal presentation, centralizes
-show/raise/activate behavior, and closes every managed window with the main window. Pages emit
-window requests instead of constructing dialogs or retaining dialog-specific fields. Modal command
-dialogs and synchronous message boxes remain at their call sites; reusable non-modal notices use
-the same centralized presentation helper.
-
-The Analysis action bar keeps its Progress title and Cancel/Run controls on one row in that order,
-with progress and its Details action below. Details opens `dialogs/log.py` as a non-modal raw-message
-window, so menus and the main workspace remain interactive. The viewer follows new messages while
-it is at the bottom, preserves position when the user scrolls up, and confirms clipboard copies
-without blocking. Consecutive identical progress text is retained once because repeated callback
-values update progress state rather than representing distinct log events.
-
-The Result page keeps reproduction metadata out of its Overview. Details opens the complete
-readable report, including technical metadata. The viewer is non-modal, uses the current job or
-workflow name as its heading, and provides a Copy action below the content. Test sessions redirect
-diagnostic logging to temporary storage so expected error-path tests never modify a user's
-persistent log. Plot Settings keeps frequently edited title, coloring, and range controls inline;
-its bottom-right Advanced action opens one reusable non-modal editor for plot appearance. Control
-edits remain a draft until Apply or OK. Apply redraws open plot windows and updates the project
-state without closing the editor, OK applies then closes it, and Cancel restores the appearance
-from before the current editor session, including settings changed by Apply during that session.
-
-Menu ordering is controlled by insertion order in `gui/menu.py`; analysis combo ordering is
-controlled by `addItem` order in `gui/components/parameters/`; TUI menu ordering is controlled by
-option tuple order in each owning controller. Table sizing is controlled by `QHeaderView` resize modes and explicit
-`resizeSection(column, pixels)` calls in the owning widget.
-
-## 12. Testing and extension rules
-
-Tests are layered:
-
-- core/model tests validate strict data and plotting contracts;
-- synthetic and reference tests validate formulas and PBC behavior;
-- app/project/export tests validate orchestration and failure atomicity;
-- CLI/TUI/GUI tests validate presentation adapters;
-- architecture tests validate dependency direction and package layout;
-- Linux and Windows runs exercise platform-specific dependency sets.
-
-To add an analysis, define its request/result contract and method first, implement it in each
-supporting complete backend adapter, expose it through app and each required presentation adapter,
-then add reference, schema, export, persistence, and architecture tests. Adding an analysis does
-not create new registry entries. A new backend implements one complete adapter, declares all
-supported analyses and Auto policy, and is registered once. A new frontend depends on `app` and
-`core` only.
-
-Before committing a change, check strict schemas, layer direction, method invariants, resource
-bounds, failure atomicity, all frontends, bilingual documentation, Linux tests, Windows tests, and
-`tests/test_architecture.py`.
+- [Usage](USAGE.md) describes user-facing workflows and commands.
+- [Configuration](CONFIGURATION.md) describes configuration fields and path resolution.
+- [Selections](SELECTIONS.md) describes selection syntax and backend semantics.
+- [Algorithm](ALGORITHM.md) defines numerical and deterministic engineering behavior.
+- [Methods](methods/README.md) defines released scientific methods.
+- [Validation](validation/) contains reference evidence and tolerances.
+- [Known limitations](KNOWN_LIMITATIONS.md) records current product limits.
+- [Software design goals](SOFTWARE_DESIGN_GOALS.md) records engineering properties and acceptance.
+- [Packaging](PACKAGING.md) describes platform artifacts and release validation.

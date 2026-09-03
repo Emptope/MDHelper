@@ -2,711 +2,207 @@
 
 [English](ARCHITECTURE.md) | [简体中文](ARCHITECTURE.zh-CN.md)
 
-本文只描述仓库当前实现。它面向需要修改、评审、测试或发布
-MDHelper 的软件工程师。算法的集中说明见 `docs/ALGORITHM.md`，方法的发布定义见
-`docs/methods/`，验证证据见 `docs/validation/`，已知限制见
-`docs/KNOWN_LIMITATIONS.md`。
+本文描述当前代码结构、依赖边界和运行时数据流。算法定义位于
+[ALGORITHM.md](ALGORITHM.zh-CN.md)，用户流程和发布细节位于文末列出的其他文档。
 
 ## 1. 系统边界
 
-MDHelper 是一个 Python 3.12 分子动力学分析应用。0.1.0 提供径向分布函数（RDF）、
-累积配位数（CN）和 EDR energy 提取。程序可以读取纯 Python 原生后端
-支持的 GRO 轨迹，也可以通过 MDAnalysis 读取更广泛的拓扑、轨迹组合和 EDR 文件。选择
-来源可以是 GROMACS NDX 组或静态 MDAnalysis 选择表达式。
+MDHelper 是一个面向分子动力学分析的本地 Python 3.12 应用。CLI、TUI 和 Qt GUI 通过
+不同表现层适配器提供相同的应用能力。当前版本支持 RDF、累积配位数和 EDR energy 提取。
 
-系统有三个表现层：
+每次分析使用一个完整 Backend：
 
-- TUI 是引导式终端交互入口，也是 GUI 不可用时的降级入口；
-- CLI 是稳定的无交互自动化入口；
-- GUI 是 Qt 和 display 可用时无参数启动的优先入口。
+| Backend | RDF | 累积 RDF | Energy | 执行方式 |
+| --- | --- | --- | --- | --- |
+| Native | 支持 | 支持 | 不支持 | 进程内 GRO 读取和数值分析 |
+| MDAnalysis | 支持 | 支持 | 支持 | 进程内库适配和数值分析 |
+| GROMACS | 支持 | 支持 | 支持 | 通过 Integration 边界调用本地 GROMACS 命令 |
 
-三个表现层共享同一个应用服务和数据契约，不复制分析算法。GROMACS 是可选外部工具；显式
-`gromacs` request 可作为原生 RDF、CN、trajectory 或 Energy 后端。
+GROMACS 是可选依赖。一次 Backend 尝试完整负责输入加载、选择语义、帧处理和分析执行，
+不同 Backend 的组件不会在同一次尝试中混用。
 
-## 2. 架构原则与依赖方向
+## 2. 依赖结构
 
-```text
-CLI / TUI / GUI
-        |
-        v
-ApplicationService facade
-        |
-        v
-app use cases --------------------------> jobs
-        |                                  |
-        +--> analysis                      |
-        +--> services --> backends         |
-        +--> project                       |
-        +--> io                            |
-        +--> integrations --> runtime      |
-        |                                  |
-        +----------------------------------+
-                         |
-                         v
-                        core
+箭头从依赖方指向被依赖方。该图表示主要请求与执行依赖，不包含每个工具模块的导入关系：
+
+```mermaid
+flowchart TB
+    Bootstrap[bootstrap] --> CLI
+    Bootstrap --> TUI
+    Bootstrap --> GUI
+
+    CLI --> App[app / ApplicationService]
+    TUI --> App
+    GUI --> App
+    CLI --> Jobs[jobs / JobRunner]
+    TUI --> Jobs
+    GUI --> Jobs
+    Jobs --> App
+
+    App --> Analysis[analysis]
+    App --> Services[services]
+    App --> Project[project]
+    App --> IO[io]
+    App --> Integrations[integrations]
+
+    Analysis --> Services
+    Analysis --> Integrations
+    Services --> Backends[backends]
+    Services --> Integrations
+    Integrations --> Runtime[runtime / process]
+
+    App --> Core[core]
+    Jobs --> Core
+    Analysis --> Core
+    Services --> Core
+    Project --> Core
+    IO --> Core
+    Integrations --> Core
+    Backends --> Core
+    Runtime --> Core
 ```
 
-箭头表示“可以依赖”。`core` 是最内层：只能依赖标准库、第三方基础库和
-`mdhelper.core` 自身，不能反向导入其他内部包。CLI、TUI、GUI 不能彼此导入，也不能
-直接导入 `analysis` 或 `backends`。这些约束由 `tests/test_architecture.py` 静态检查。
+代码执行以下边界约束：
 
-- `core` 定义稳定的数据形状、协议和错误语义，不负责装配或 I/O；
-- `backends` 把具体轨迹库适配成 `core` 协议；
-- `analysis` 只实现分析计算；
-- `services` 组合后端和基础设施，提供系统、选择、配置和 provenance 等能力；
-- `app` 编排一次用户用例，是所有表现层进入业务系统的边界；
-- `project` 负责可恢复、可校验的磁盘状态；
-- `jobs` 负责后台 job 生命周期，不改变分析语义。
-- `workflow` 保留给未来的用户编排功能，当前不包含实现。
+- `core` 不依赖其他 MDHelper 包。
+- `cli`、`tui` 和 `gui` 不互相导入，也不直接导入 `analysis` 和 `backends`。
+- `bootstrap` 是唯一组合表现层适配器的包。
+- Qt 导入只存在于 `gui`，GUI 状态模块不依赖 Qt。
+- `analysis` 和 `backends` 不直接执行子进程，也不直接导入 `runtime`。
+- 分析计算不依赖绘图。
+- 职责集中的子包使用明确的单向模块层级，不形成循环依赖。
 
-## 3. 包布局
+`tests/test_architecture.py` 检查这些边界和包布局。
+
+## 3. 包职责
+
+| 包 | 职责 |
+| --- | --- |
+| `bootstrap` | 公共入口分派和便携配置激活 |
+| `cli`、`tui`、`gui` | 输入收集、表现层状态和结果呈现 |
+| `app` | `ApplicationService`、用例编排、导出计划和可读报告 |
+| `jobs` | 同步和线程执行、进度、状态及取消 |
+| `core` | 请求、结果、领域记录、协议、错误、单位和绘图模型 |
+| `analysis` | 完整 Backend 注册表及 RDF、累积 RDF、energy 实现 |
+| `backends` | 将轨迹读取和选择结果转换为 Core 对象的适配器 |
+| `services` | 配置、系统检查、选择、provenance、运行流和模板服务 |
+| `integrations` | 外部工具适配、能力状态和执行协调 |
+| `runtime` | 进程生命周期、检测基础设施、环境过滤和日志 |
+| `project` | Manifest、输入身份、结果仓库、运行归档和原子存储 |
+| `io` | NDX 解析、结构化数据导出和图片导出 |
+| `resources` | 随包发布的只读模板 |
+| `workflow` | 预留的用户编排包，当前为空 |
+
+`mdhelper` 包根目录只包含公共入口和版本元数据。较大的功能位于职责集中的包和子包中。
+
+## 4. 启动与装配
+
+`bootstrap/portable.py` 管理 `mdhelper` 入口。无参数启动在 Qt 和 display 可用时进入 GUI，
+否则进入 TUI。显式 `gui`、`tui` 和 `cli` 模式选择对应适配器，其他参数由 CLI 处理。
+冻结发行版默认使用可执行文件同目录的 `config.toml`，已有 `MDHELPER_CONFIG` 配置具有更高
+优先级。
+
+`app/facade.py` 是应用装配根。`ApplicationService` 构造共享配置、Integration manager、
+分析注册表和轨迹加载器，并按系统检查、分析、导出、项目、Integration 和模板暴露用例。
+注册表和加载器支持注入，因此测试可以在没有 GUI 或外部程序的环境验证应用边界。
+
+表现层构造 Core request 并调用应用用例。共享支持包提供 Job 执行、项目会话状态和
+Integration 状态，数值引擎保持在应用边界之后。
+
+## 5. 分析链路
+
+一次分析使用固定流程：
 
 ```text
-src/mdhelper/
-  bootstrap/       启动和便携模式
-  core/            领域数据、协议、错误和绘图模型
-  app/             应用用例与统一门面
-  analysis/        分析流水线契约、注册表与 RDF、CN、energy 算法
-  services/        配置、系统、选择、provenance 和模板服务
-  backends/        GRO、MDAnalysis 和 GROMACS 轨迹及选择适配器
-  io/              NDX 读取与结果/图像导出
-  project/         项目清单、结果仓库和原子存储
-  jobs/            同步/异步 job 执行
-  workflow/        预留的用户编排边界
-  integrations/    外部程序的领域适配
-  runtime/         子进程、检测、环境和日志基础设施
-  cli/             无交互命令行表现层
-  tui/             编号菜单终端表现层
-  gui/             Qt 桌面表现层
-  resources/       内置模板等只读资源
-```
-
-包根目录只保留 `__init__.py`、`__main__.py` 和 `version.py`。业务实现不得重新堆回根
-目录；该规则同样由架构测试保护。
-
-## 4. 启动与组合根
-
-| 文件 | 职责 |
-| --- | --- |
-| `mdhelper/__init__.py` | 暴露版本等最小公共信息，不执行重量级初始化。 |
-| `mdhelper/__main__.py` | 支持 `python -m mdhelper`，转入统一终端启动器。 |
-| `mdhelper/version.py` | 定义单一应用版本 `0.1.0`。 |
-| `bootstrap/portable.py` | 处理便携配置位置和统一界面分派。 |
-
-无参数调用优先进入 GUI，不可用时降级到 TUI；显式 `gui`、`tui`、`cli` 模式仍保持表现层
-分离，其他参数进入 CLI。Windows 只构建一个控制台子系统启动器，使 PowerShell 等终端在
-TUI/CLI 运行期间保持等待并连接标准流。GUI 启动会创建独立的无控制台应用进程，随后结束外层
-启动进程，使临时 Windows Terminal 窗口在 Qt 主窗口继续运行前关闭。终端模式保留继承的
-控制台，必要时自行创建。所有冻结程序都把配置定位到可执行文件旁；显式
-`MDHELPER_CONFIG` 仍优先。便携逻辑只决定位置，不绕过配置校验。
-
-真正的组合根是 `app/facade.py` 中的 `ApplicationService`。它创建应用上下文和用例
-对象，并向三个表现层提供统一接口。轨迹加载器、分析注册表和 Integration 注册表可以注入，
-使测试无需依赖真实 GUI、真实外部程序或特定轨迹库。
-
-## 5. `core`：稳定领域内核
-
-`core` 不表示“算法后端”。它是内外层共享的类型和协议集合，负责规定数据是什么、
-错误如何表达、边界如何校验。
-
-| 文件 | 工作原理与关系 |
-| --- | --- |
-| `analysis/validation.py` | 校验请求与结果中共享的 JSON-safe 数据边界。 |
-| `analysis/requests.py` | 定义共享 `AnalysisRequest` 边界及字段互斥的 `RadialRequest`/`EnergyRequest`。径向请求保存轨迹、选择和帧参数；Energy 请求只保存 EDR 输入和 term。 |
-| `analysis/results.py` | 定义 `AnalysisResult`、严格 JSON 转换以及请求与结果一致性校验。结果包含方法、数值、诊断和 provenance。契约 schema 版本当前为 1。 |
-| `system.py` | 定义 `Atom`、`Box`、`Frame`、`FrameRange`、`SystemSummary`。`Frame` 是算法逐帧消费的最小对象；`Atom.molecule_id` 是按残基/分子计数的稳定键。当前没有 `MDSystem`、`Molecule` 或 `Species` 实体类。 |
-| `trajectory.py` | 定义 `TrajectorySource` 协议。分析层只要求原子元数据、帧数和帧迭代，不知道 GRO 或 MDAnalysis。 |
-| `selection.py` | 定义选择引擎协议，使 NDX 和 MDAnalysis 选择最终都转换为零基原子索引。 |
-| `species.py` | 定义阳离子、阴离子、溶剂等角色词汇和建议对象。角色是解释性元数据，不能改变选择集合、截断半径或数值算法。 |
-| `plotting/models.py` | 定义与窗口无关的绘图尺寸、序列和渲染模型。 |
-| `plotting/appearance.py` | 定义配色、图例位置和外观契约。 |
-| `plotting/state.py` | 定义可持久化的坐标范围、结果选择和绘图状态。 |
-| `plotting/builders.py` | 将分析结果组装为绘图模型。 |
-| `plotting/rendering.py` | 将绘图模型渲染到 Matplotlib-compatible axes。 |
-| `errors.py` | 定义可归类的领域错误。外层根据错误类别选择退出码、对话框或日志。 |
-| `progress.py` | 定义进度回调和取消检查所需的契约。 |
-| `templates.py` | 定义分析模板的领域表示。 |
-| `units.py` | 集中声明内部和展示单位约定。 |
-| `__init__.py` | 统一导出核心公共类型，不放业务逻辑。 |
-
-### 5.1 请求和结果契约
-
-`AnalysisRequest` 是执行的唯一事实来源。GUI 控件、TUI 草稿和 CLI 参数必须先转换为
-这个对象，算法不能再从界面状态读取隐含参数。帧范围采用 Python 切片语义：`start` 包含、
-`stop` 不包含，并按 `stride` 取样；
-`r_max` 与 bin width 均由用户或模板显式给出。
-
-`AnalysisResult` 是表现层和导出的共同输入。数组存放在结构化 `data` 中，解释信息放在
-`diagnostics`，复现信息放在 `provenance`。请求与结果都经过严格解析：必填字段缺失、
-未知字段、非法枚举和不一致数组会在边界处失败。
-
-`AnalysisRequest.from_dict()` 和 `PlotState.from_dict()` 只接受 0.1.0 当前字段。未知字段、
-缺失字段、旧分析标识和旧绘图状态均直接失败；最初开发版本不包含数据迁移分支。
-
-内部距离单位为 nm，时间单位为 ps。径向绘图可以显示为埃，但转换只发生在展示模型，
-不会改写持久化结果数据。
-
-### 5.2 绘图领域模型
-
-`core/plotting/` 将渲染数据、外观目录、持久化状态、结果组装和渲染拆分，并把“分析结果如何组成一张图”从 GUI 中抽出：
-
-- RDF 与 CN 的横轴都是径向距离，可组合到同一绘图域；
-- 两种量同时存在时使用共享横轴和双纵轴；
-- energy term 默认各自形成独立绘图窗口，每个窗口仅有一张图，可通过显式 group 合并到
-  同一窗口的共享坐标轴；
-- `Residue name` 配色由序列的目标/配体残基名产生稳定键；
-- `Fixed color` 以序列标识保存显式颜色；
-- 同一选择的次坐标轴序列使用更暗颜色和虚线，保持关联但可辨认；
-- 自动横轴取可见序列定义域的交集，自动纵轴根据当前横轴范围内的数据计算；
-- GUI 改变配色或范围后直接更新状态，不存在额外的 Auto/Apply 提交阶段。
-
-绘图状态逐行保存 result ID、result series、panel group、可见性、legend、颜色和自定义
-标题，并保存经过校验的图例/网格可见性、图例位置、线宽以及标题、坐标标签、刻度和图例
-字号，因此同一 energy result 的多个 term 可以独立恢复、组合和导出。GUI 编辑当前可见
-序列所属绘图的标题，并同步到该绘图的其他分组序列；项目恢复、绘图窗口和图片导出使用
-同一状态。
-交互式界面保存项目图片时，每个绘图模型按可读分析名称直接在 `figures` 下生成一组
-PNG/SVG/PDF，不建立图片子目录；命名会同时避开本批次及磁盘已有图片组。RDF/CN 组合模型
-中，同类多序列模型固定使用 `rdf`、`cn` 或 `energy`，RDF/CN 混合模型使用 `rdf-cn`；名称
-冲突时从 `-2` 开始追加数字编号。单项径向与 Energy 模型保留包含 Pair 或 term 的可读名称。
-GUI 与 TUI 结果 bundle 都会在对应分析目录内为每个结果重建单项图；TUI 径向任务批次还会
-通过 Save Plot 使用的同一平铺图片规划，在导出根目录保存共享绘图模型。绘图对话框根据
-Figure canvas 与 layout margins 计算初始 client size，因此首次打开不会改变 Save Plot 或
-Export 随后使用的内容比例。
-
-当前绘图配色不支持 `Atom name`。原子名可以用于选择表达式和选择诊断，但一条聚合分析
-序列往往包含多个原子名，不能形成无歧义的一对一颜色键。
-
-## 6. `app`：用例编排与统一门面
-
-表现层只能调用这一层完成业务动作。它负责“按什么顺序调用哪些能力”，但不实现 RDF
-公式或具体文件解析。
-
-| 文件 | 工作原理与关系 |
-| --- | --- |
-| `context.py` | 保存配置文件、已校验配置、轨迹加载器、分析注册表和 Integration 管理器，依赖均可替换。 |
-| `facade.py` | 构造 `ApplicationService`，聚合 analyses、checks、projects、integrations、templates 等用例，形成前端唯一业务入口。 |
-| `analysis/execution.py` | 校验请求，解析可用后端，按后端能力决定是否加载轨迹和生成输入指纹，调用分析注册表并校验结果。 |
-| `analysis/plans.py` | 为 GUI 与 TUI 统一规划可读结果目录、Energy 分曲线导出、图片目标和项目 `figures` 平铺命名。 |
-| `analysis/exports.py` | 执行结果、绘图和批量导出计划，不参与后端选择或分析执行。 |
-| `checks.py` | 读取系统摘要、选择组大小和角色建议，供前端在真正运行前检查输入。 |
-| `projects.py` | 包装项目输入发现、创建、打开、结果查询和提交，不向表现层泄露仓库细节。New Project 非递归发现所选目录直属的 `.tpr`/`.gro` topology、`.xtc`/`.trr`/`.gro` trajectory 和可选 `.ndx`，进行大小写不敏感匹配并稳定排序。 |
-| `integrations.py` | 检测、查询和运行外部软件，并返回结构化状态与运行记录。 |
-| `templates.py` | 列出、读取和保存分析模板。 |
-| `reports/` | 定义 GUI 与 TUI 共用的 `Report` 基类；RDF、CN、energy 子类分别负责各自结果与配置字段，表现层只负责 HTML 或终端渲染。 |
-| `__init__.py` | 导出应用层公共接口。 |
-
-```text
-presentation
-  -> ApplicationService
-  -> AnalysisUseCases.run(request)
-  -> 完整 Backend 选择
-  -> Backend 固定的 trajectory loader 与 selection 路径
-  -> provenance service
-  -> Backend adapter
+AnalysisRequest
+  -> request validation
+  -> complete backend resolution
+  -> input loading and static selection, when required
+  -> provenance collection
+  -> backend execution
   -> AnalysisResult validation
-  -> caller-requested export/project commit
-  -> presentation
+  -> optional export or project commit
 ```
 
-应用层会记录角色信息，但角色不完整只产生诊断警告；它不会替换用户选择，也不根据数据
-自动改变 `r_max`。第一配位壳位置仅作为运行后诊断。
+`analysis/pipeline/` 定义 `BackendAdapter`、`BackendQuery`、`AnalysisInput` 和
+`AnalysisRegistry`。注册表按完整 Backend 建立条目，不按 Backend 与分析类型的笛卡尔积
+建立条目。每个 Backend 声明支持的分析类型、Auto 优先级、外部能力要求、输入加载方式和
+执行方法。
 
-## 7. `analysis`：流水线与分析计算
+Auto 按优先级排列符合条件的完整 Backend。Native 适用于带 NDX 的 GRO/GRO 径向分析，
+MDAnalysis 是通用进程内候选，GROMACS 在所需能力可用时成为外部候选。Fallback 只发生在
+完整尝试之间。显式 Backend 只解析一个实现，并直接返回该实现的失败。
 
-### 7.1 分析注册表
+Native 和 MDAnalysis 径向链路将输入转换为窄接口 `TrajectorySource`，并共享径向累计链路。
+GROMACS 链路通过 `integrations` 直接调用原生命令，并把命令记录保存在 provenance 中。
+外部库对象和子进程对象不会越过各自的适配边界。
 
-`analysis/pipeline/` 定义完整 Backend 协议、执行输入、Backend 查询和注册表：一个 Backend
-名只映射到一个 adapter。adapter 声明其支持的全部分析类型、Auto 优先级并固定自己的输入路径。
-`analysis/__init__.py` 仅注册 Native、MDAnalysis 和 GROMACS 三个 Backend，不再按
-“分析类型 x Backend”重复注册。当前不存在插件发现、第三方扩展包、动态安装、权限隔离
-或独立进程协议。
+## 6. 数据契约
 
-新增分析应先定义请求/结果形状，再加入支持它的现有 Backend adapter，最后由应用层和
-表现层暴露；新增分析不会产生新的注册项。新增 Backend 时才实现一个完整 adapter 并注册
-一次。不应在 CLI 或 GUI 中直接调用算法文件。
+`core/analysis/` 定义严格的 schema version 1 request 和 result。RDF 与累积 RDF 使用
+`RadialRequest`，energy 提取使用 `EnergyRequest`。每个 `AnalysisResult` 包含完整 request、
+数据、参数、单位、诊断、provenance、警告、标识、方法版本和创建时间。未知字段、缺失字段、
+非法枚举和不一致数组都会导致验证失败。0.1.0 不包含持久化 schema 的兼容或迁移分支。
 
-### 7.2 通用数值基础
+轨迹和选择适配器输出稳定的零基原子索引与帧范围。径向计算内部使用 nm。一次分析中的选择
+成员保持静态。物种角色只记录描述性 provenance，不选择原子，也不修改数值参数。
 
-`analysis/common.py` 只保留分析工作目录、通用进度和取消基础设施。径向专属帧与数值逻辑
-位于 `analysis/radial/`，RDF 和 CN 共用这些不变量。
+绘图契约位于 `core/plotting/`，与数值分析分离。GUI 显示和图片导出使用相同的绘图模型与
+持久化绘图状态。
 
-### 7.3 RDF 与 CN 共享算法
+## 7. 持久化与导出
 
-`analysis/radial/` 分离帧选择与审计、邻域搜索、曲线累计、壳层诊断和执行编排。Native 与
-MDAnalysis 邻域搜索进入同一半宽 pair histogram 和归一化路径，再分别重采样到中心对齐
-RDF grid 和边界对齐 cumulative grid。`rdf.py`、`cumulative_rdf.py` 只把共享 profile
-组装成各自的结果契约和诊断。第一壳层是结果后的独立诊断，不修改原始曲线。
-
-`analysis/gromacs/` 分离输入准备、命令审计、曲线解析和完整 Backend 编排。其 RDF/CN 路径保留零基 Python 帧切片语义，通过
-Integrations 调用 `gmx rdf`。RDF request 只使用 `-o`；cumulative RDF 添加 `-cn` 并解析两条
-XVG 曲线。两者都记录
-metadata inspection、trajectory conversion 与 RDF 完整命令。运行时进度来自 GROMACS
-原生输出，不显示该命令；命令由 execution 层写入诊断日志。默认全帧范围直接读取原轨迹；
-非默认范围先用 `gmx check` 获取帧数，再使用一次精确转换子集。
-
-PBC、分块、网格、归一化、累计公式、端点和第一壳层峰谷规则集中记录在
-`docs/ALGORITHM.md`；发布定义和验证容差分别见
-`docs/methods/rdf-1.0.0.md`、`docs/methods/cumulative-rdf-1.0.0.md` 与对应验证文档。
-
-| 文件 | 职责 |
-| --- | --- |
-| `rdf.py` | 调用共享径向计算，发布半径、`g(r)` 和第一壳层诊断。 |
-| `cumulative_rdf.py` | 调用同一径向计算，发布 `cumulative_rdf` 的 `N(r)`；若识别到第一壳层最小值，同时报告该半径处配位数。 |
-| `native.py` | Native 完整 adapter；固定使用 Native reader、NDX selection 和 Native 径向算法。 |
-| `mdanalysis.py` | MDAnalysis 完整 adapter；统一分派 MDAnalysis radial 与 Energy。 |
-| `gromacs/` | GROMACS 输入、命令、解析和完整 adapter；通过 Integration 调用 `gmx trjconv`、`gmx rdf`、cumulative RDF 的 `-cn` 和 `gmx energy`。 |
-| `energy.py` | 两个软件 Backend 的私有 Energy 实现，共用结果契约和 App 发现用例。 |
-| `radial/frames.py` | 帧范围、帧审计、可靠半径和周期盒校验。 |
-| `radial/neighbors.py` | Native 与 MDAnalysis 邻域搜索及有界 pair 分块。 |
-| `radial/curves.py` | 共用径向网格、直方图、RDF 归一化和 CN 累计。 |
-| `radial/shells.py` | 第一显著峰、随后最小值、置信度和警告。 |
-| `radial/execution.py` | 解析选择并编排帧、搜索和曲线职责。 |
-| `common.py` | 分析工作目录、进度和取消。 |
-
-当前分析结果是对明确帧集合的确定性统计，没有 bootstrap、块平均置信区间或其他不确定
-度估计。诊断曲线平滑不提供结果数据的不确定度。
-
-## 8. `services`：基础业务服务
-
-### 8.1 系统与物种角色
-
-`services/system.py` 通过轨迹源构造 `SystemSummary`，包括原子、残基、元素、可用电荷和
-帧信息。角色建议使用通用的分子净电荷和种群证据；模糊情况标记为不可用并要求用户确认。
-精确阈值、分支和置信度规则见 `docs/ALGORITHM.md`。
-
-实现不按 `SOL`、`Li` 等具体名称写特判。角色只是 provenance 和解释信息，不能影响
-选择结果或分析数值。完整规则见 `docs/SPECIES.md`。
-
-### 8.2 选择服务
-
-Native 只接受 `io/ndx.py` 的命名组。MDAnalysis 在请求给出 index file 时也使用命名组，
-否则使用 `backends/mdanalysis_selection.py` 解析静态 MDAnalysis 表达式。GROMACS RDF/CN
-有 index 时引用精确 NDX 组名，没有 index 时把 GROMACS selection expression 传给
-`gmx rdf`。
-
-服务返回稳定、零基、去重的原子索引，并记录组名或表达式、索引文件哈希、选中原子名、
-残基名和解析器来源。分析开始后选择固定，不随帧动态变化。动态选择关键词会被明确拒绝，
-避免不同后端产生不同语义。选择语法见 `docs/SELECTIONS.md`。
-
-### 8.3 配置、provenance、工具和模板
-
-`services/config/` 将共享配置契约、严格值解析和文件持久化分开。配置覆盖 GUI 主题/字体、
-分析 pair chunk 上限和外部工具路径。存储层负责 TOML 解码和编码、配置路径选择及原子替换；
-解析层不访问文件系统，并拒绝未知字段和非法类型。路径解析优先使用显式
-`MDHELPER_CONFIG`，否则使用可执行程序同目录配置。详见 `config.example.toml` 与
-`docs/CONFIGURATION.md`。
-
-`services/provenance.py` 以 4 MiB 块计算 SHA-256，并在块边界检查取消状态。provenance
-包括应用/Python/关键依赖版本、平台、请求及解析出的 Backend、输入路径和哈希、角色及参数决策。
-选择解析和帧审计由分析函数在结果 `diagnostics` 中记录。
-
-`integrations/manager.py` 按本次覆盖、配置路径、配置搜索路径、环境、`PATH` 和 adapter
-候选路径的顺序检测外部软件。`services/templates.py` 递归发现非隐藏 ASCII 模板，并原子
-保存用户模板。
-
-| 文件 | 主要职责 |
-| --- | --- |
-| `system.py` | 加载系统摘要和通用角色建议。 |
-| `selection.py` | 将不同选择源解析为统一索引及诊断。 |
-| `config/` | 配置契约、严格值解析及 TOML 持久化。 |
-| `provenance.py` | 输入哈希和运行环境记录。 |
-| `templates.py` | 内置/用户模板发现、读取和保存。 |
-
-## 9. `backends`：轨迹与选择适配
-
-### 9.1 轨迹分派
-
-分析运行前，完整 Backend 已经解析完成；`backends/trajectory.py` 只按同一个 Backend 名
-加载对应 source，不再执行第二次分析策略选择：
-
-| 模式 | 行为 |
-| --- | --- |
-| `native` | 强制使用 MDHelper GRO Reader（`GroTrajectorySource`）；输入不受支持或解析失败就报错。 |
-| `mdanalysis` | 强制使用 `MDAnalysisTrajectorySource`。 |
-| `gromacs` | 非默认范围通过 Integrations 获取 metadata 并调用本机 `gmx trjconv`；默认全帧分析不进入该轨迹端口。 |
-| `auto` | 只供独立体系检查使用；双 GRO 选择 Native，否则选择 MDAnalysis。 |
-
-分析请求中的 Auto 由完整 Backend 注册表处理：GRO/GRO 加 NDX 时依次考虑 Native、
-MDAnalysis 和具备 `rdf` 能力的 GROMACS；其他径向输入从 MDAnalysis 开始；抽样帧子集额外
-需要 `trjconv` 和 `check`；
-Energy 依次考虑 MDAnalysis 和具备 `energy` 能力的 GROMACS。source 加载失败可以进入下一
-条完整候选流水线，但同一次尝试不会混合 reader、selection 或 computation。
-
-### 9.2 后端文件
-
-`backends/gro.py` 以流式方式读取单帧或多帧 GRO：使用固定列解析残基号、残基名、原子
-名、原子号和 nm 坐标；从标题读取可用时间；支持 3 个正交盒参数和 9 个三斜盒参数；
-第一帧建立原子元数据，后续帧验证原子数量和身份不变；不虚构 GRO 中不存在的电荷。
-
-`backends/mdanalysis.py` 构造 `MDAnalysis.Universe`，把帧适配为 core `Frame`：坐标从埃
-转换为 nm，盒长/角转换成盒矩阵，时间统一为 ps。原子元数据在可用时包含元素和电荷；
-`segid:resname:resid` 组合成分子标识，供按分子计数。
-
-XTC/TRR reader 通过通用 XDR reader 子类把 MDAnalysis 的 `*_offsets.npz` 和 lock 文件定向
-到应用提供的 cache 目录。非 XDR reader 不创建这类缓存；不得在分析完成后才移动 sidecar，
-因为那会导致下一次加载重新扫描并再次污染输入目录。
-
-GROMACS 分析 adapter 绕过标准轨迹端口：默认全帧 RDF/CN 把原输入路径直接传给
-`gmx rdf`，非默认范围先通过 `gmx check` 获取帧数并校验显式 stop，再使用一次 GROMACS
-生成的精确子集，避免完整展开坐标。可执行文件检测、能力校验与所有命令执行均由
-Integrations 完成，上层分析不接触可执行程序路径。
-
-`backends/mdanalysis_selection.py` 从 core 原子元数据构造轻量 Universe 解析静态表达式，
-避免应用层依赖 MDAnalysis 对象。`backends/common.py` 提供输入存在性检查和基于原子名的
-通用元素推断；推断规则不能针对测试样例或具体体系。
-
-## 10. `io`：边界格式
-
-`io/ndx.py` 严格读取 UTF-8（允许 BOM）的 GROMACS NDX 文件。组名精确匹配，文件中的
-一基索引转换为内部零基索引。重复组、非法整数、重复原子、非正索引、越界索引或空组
-都会产生明确错误，不做静默修复。
-
-`io/export/structured.py` 独立写入 JSON、CSV 和 integration stream；JSON 保留完整结果
-契约，CSV 使用稳定列和 15 位有效数字，stdout/stderr 正文写入 `.out`/`.err`，持久化 JSON
-只保留流指纹。`io/export/figures.py` 独立将 `AnalysisResult` 或 `PlotModel` 渲染为 PNG、SVG
-和 PDF；Matplotlib 使用非交互 Agg 后端，PNG 默认 300 dpi，SVG/PDF 保留矢量输出。
-应用用例在工作流同时需要数据和图片时组合两个 adapter。所有文件先在目标目录生成临时文件，
-成功后原子替换。
-
-## 11. `project`：项目聚合与持久化
+项目以 `mdhelper-project.json` 为根，目录结构固定：
 
 ```text
-project-root/
-  mdhelper-project.json
-  results/
-    data/
-    runs/
-  figures/
-  cache/
+project/
+|-- mdhelper-project.json
+|-- results/
+|   |-- data/
+|   `-- runs/
+|-- figures/
+`-- cache/
 ```
 
-`cache/` 保存可重建工作数据，不保存规范分析结果。其中包括 MDAnalysis XDR reader 帧偏移
-索引，以及保留的 GROMACS 命令工作目录、原生输出和精确帧子集。项目分析和检查显式传入
-项目 cache；未绑定项目的 GROMACS 分析使用进程生命周期内的系统目录。任何 cache 文件
-都可以删除，之后只会重新构建而不会改变分析语义。
+Manifest 保存 schema 和应用版本、按内容寻址的输入记录、物种角色、已提交结果索引和绘图
+状态。完整 result JSON 是分析参数、数据、诊断和 provenance 的事实来源。Result 与输入
+指纹用于检测意外变更，派生路径被限制在项目根目录内。
 
-| 文件 | 工作原理与关系 |
-| --- | --- |
-| `project.py` | `Project` 聚合 manifest、input 和 result 仓库，向应用层提供创建、打开、提交和读取。 |
-| `manifests.py` | 严格校验 `mdhelper-project.json`；记录输入、结果索引和 schema 版本，不迁移旧字段。 |
-| `inputs.py` | 每个输入只保存一个路径和 SHA-256；可移植时使用项目相对路径，Windows 跨卷无法表示相对路径时使用绝对路径。移动后的文件只有 SHA-256 相同才重新关联。 |
-| `runs.py` | 校验 integration run；结果流以 analysis ID 命名写入 `results/data`，独立 run 及其流写入 `results/runs`，读取时校验 SHA-256 并恢复内存记录。 |
-| `results.py` | 验证请求/结果/provenance，写入结果，计算哈希并更新紧凑 manifest 索引；读取时由 analysis ID 推导结果路径，并检查路径、哈希和契约。 |
-| `schema.py` | 运行时 Python schema 校验器，递归拒绝未知字段、缺失字段和错误类型。 |
-| `storage.py` | JSON 序列化、同目录临时文件和 `os.replace` 原子替换等底层存储原语。 |
-| `__init__.py` | 导出项目公共接口。 |
+Manifest 和 result 更新使用原子替换。Integration 输出正文保存在独立的指纹流文件中，
+不进入 Manifest。项目重定位只接受内容哈希一致的替代输入。`cache` 保存可重建的轨迹索引和
+外部工具工作文件，删除缓存不会删除规范结果。
 
-结果提交顺序是：严格校验请求、结果和输入 provenance；将 integration stdout/stderr
-作为 `<analysis_id>.out/.err` 原子写入 `results/data/`，并在持久化记录中用 SHA-256
-替换流正文；将完整结果原子写入 `results/data/<analysis_id>.json`；计算文件哈希；将 ID、
-分析类型、提交时间和哈希加入 manifest 并原子提交。manifest 不保存 integration run 或
-integration preference，也不重复保存 request、method、流正文、恒定完成状态和可推导路径。
-若 manifest 提交失败，刚创建且未被索引的结果与流文件都会被删除。
+`io/export/` 写入通过验证的 JSON 和 CSV，并渲染 PNG、SVG 和 PDF。导出是独立应用用例，
+因此分析成功不代表已经写入磁盘。项目提交和独立导出共享同一个已验证结果契约。
 
-读取时拒绝结果路径逃逸 `results/data/`；每条记录必须带结果哈希，加载时会校验该哈希，
-随后按 analysis ID 和 run 顺序定位流文件、校验指纹、恢复内存中的 stdout/stderr，再重新解析结果契约。
-`schemas/` 中的 JSON Schema 面向发布、测试和外部工具；运行时以 `project/schema.py`
-的严格校验为准，二者变更必须同步。
+## 8. Job 与外部进程
 
-## 12. `jobs`：job 状态与取消
+`jobs` 管理 pending、running、completed、failed 和 cancelled 状态。`JobRunner` 的同步与
+线程执行调用同一个分析用例。取消操作在帧处理、输入哈希和外部进程轮询点协作完成。GUI
+Worker 把状态返回 Qt 线程，不直接修改 Widget。
 
-`jobs/runner.py` 和 `jobs/models.py` 提供 `JobRunner` 与 `JobHandle`。默认使用单工作线程的
-`ThreadPoolExecutor`，保证 GUI 不阻塞且同一会话不会无界并发占用内存。
+`integrations` 管理外部工具身份、配置、能力检测和命令协调。`runtime/process/` 管理实际
+进程生命周期。命令使用参数向量、受限环境、输出捕获、超时和进程组终止。每次执行产生包含
+可执行程序身份、参数、时间、结果和输出指纹的可审计运行记录。
 
-handle 保存待运行、运行中、成功、失败或取消状态，以及进度、raw message、结果、结构化错误、取消
-事件和 future。GUI 提交后台任务后用 `QTimer` 轮询 handle 状态；CLI 和 TUI 调用同步包装，但
-仍使用同一任务语义。
+## 9. 变更影响
 
-取消是协作式的：分析帧边界、文件哈希块和子进程轮询点检查取消事件；pair chunk 内当前
-没有独立取消点。取消后不得提交不完整结果或项目记录。
+新增分析类型会改变 Core request/result 契约、JSON schema、方法定义、支持该类型的完整
+Backend、应用用例、导出、表现层和相关测试。新增 Backend 会实现一个完整
+`BackendAdapter`，并产生一个注册表条目。新增外部工具会产生一个 Integration adapter，
+进程管理仍保留在 `runtime`。新增表现层会消费应用用例与 Core 契约，不导入分析引擎。
 
-## 13. 表现层
+测试覆盖契约、数值行为、应用编排、持久化、导出、表现层、包边界和平台启动。Ruff、mypy、
+完整 Linux 测试和完整 Windows 测试构成仓库完成标准。
 
-### 13.1 CLI
+## 10. 相关文档
 
-| 文件 | 职责 |
-| --- | --- |
-| `grammar/` | 按领域声明 jsonargparse 命令、结构类型和帮助文本，不执行业务。 |
-| `parser.py` | 组合根命令，支持 JSON/YAML 参数文件并返回原生嵌套 namespace。 |
-| `main.py` | 分派命令并把领域错误转换为稳定退出类别。 |
-| `commands.py` | 选择命令 namespace，按需建立 `ApplicationService`。 |
-| `analysis_commands.py` | 将 RDF、cumulative RDF、energy 参数转换为 `AnalysisRequest`。 |
-| `config_commands.py` | 配置查看和修改。 |
-| `project_commands.py` | 项目创建、打开和结果操作。 |
-| `integration_commands.py` | 外部软件列出、检测和执行。 |
-| `template_commands.py` | 模板列出、查看和保存。 |
-| `output.py` | 保证 stdout 只含最终机器可读 JSON，进度和诊断写 stderr。 |
-| `__main__.py` | 支持 `python -m mdhelper.cli`。 |
-
-CLI 适合脚本和 CI。`analyze` 统一分析入口，roles、terms 和 capability 列表使用 JSON 或
-YAML 结构值，`--args-file` 可载入完整调用。SIGINT 转换为取消请求。配置命令在完整应用
-构造前处理，避免损坏配置阻止用户执行修复命令。
-
-### 13.2 TUI
-
-| 文件 | 职责 |
-| --- | --- |
-| `terminal.py` | 抽象输入、输出和终端能力，便于非交互测试。 |
-| `model.py` | 保存 TUI 会话状态、各分析独立草稿和径向任务队列。 |
-| `controller.py` | 组合控制器并实现顶层编号菜单、导航和错误边界。 |
-| `controllers/` | 按 workspace、分析、执行、结果和工具拆分交互流程。 |
-| `controllers/analysis/` | 分离参数编辑、径向任务队列和分析菜单导航。 |
-| `formatting.py` | 渲染共享结果报告，并格式化 TUI 错误和选择摘要。 |
-| `main.py` | 创建终端、应用服务和控制器。 |
-| `__main__.py` | 支持 `python -m mdhelper.tui`。 |
-
-TUI 会话状态保存当前输入和检测结果；各分析草稿相互独立，避免参数串扰。选择 Run 后直接
-构造 request 并执行，不显示独立的 Review 或二次确认页面。检测到的物种角色须经用户确认才
-参与已配置运行，但确认不会改变分析选择。RDF 与 CN 草稿会把首次选择直接加入由分析类型、
-选择和径向参数快照组成的有序队列；RDF + CN 工作流使用独立混合队列，每个显式 RDF 或 CN
-任务只构造一个 request。工作流分别导出原始结果及其单项图到可读分析目录；两种类型同时
-存在时，在导出根目录以 `rdf-cn` 保存共享距离轴和双 Y 轴模型。TUI Export 与 Save Plot 复用 GUI 的 App
-导出规划，项目图片同样平铺保存到 `figures`。初始 Load 菜单可打开项目、在没有输入时进入
-主菜单或退出。Open project 与 GUI 流程一致：已有项目直接打开，普通目录则从发现的输入候选
-中创建项目。依赖分析输入的操作保留前置校验，不依赖输入的主菜单操作在没有加载输入时仍可
-使用。System and project 作为单一主菜单入口，统一负责输入加载、体系检查、项目绑定和会话
-重置。统一加载动作将目录作为项目处理，将文件作为 topology 处理并继续请求 trajectory 等
-输入。Species roles 保持为独立的主菜单入口。Tools 中的 Integrations 与 Templates 保持为独立
-状态。选定
-EDR 后通过 App 用例按所选 Backend
-发现 terms；`auto` 先使用 MDAnalysis，无法读取时才按已检测 capability 回退到
-`gmx energy`，随后以带选中标记的有序多选菜单编辑 terms。
-
-### 13.3 GUI
-
-GUI 分离视图、状态、用户操作和应用调用。Qt 只在 GUI 包内惰性导入，Linux CLI/TUI
-测试不需安装或初始化 Qt。`window.py` 只负责组合；`controllers` 保存不依赖页面的状态机
-与后台适配器；`actions` 连接页面、对话框、控制器和应用用例。
-
-| 文件 | 职责 |
-| --- | --- |
-| `main.py` | GUI 入口、Qt 应用创建和顶层异常边界。 |
-| `window.py` | GUI 组合根，创建页面、actions、控制器和菜单。 |
-| `windows.py` | 按类型统一管理可复用非模态窗口和可变数量的绘图窗口，负责展示、聚焦与关闭。 |
-| `controllers/analysis_state.py` | 定义分析批次的 idle、running 和 cancelling 状态转换。 |
-| `controllers/system_state.py` | 定义系统检查及物种角色状态转换。 |
-| `controllers/session_state.py` | 定义项目会话状态转换。 |
-| `controllers/session.py` | 保存当前项目、请求和结果，并执行项目会话状态转换。 |
-| `controllers/analysis_jobs.py` | 轮询单个后台 `JobHandle` 并发出状态信号。 |
-| `controllers/analysis_runs.py` | 按状态机顺序提交分析批次并提交项目结果。 |
-| `controllers/integration_detection.py` | 在非 GUI 线程执行外部工具检测。 |
-| `actions/system/` | 分离系统检查、index 文件监视、物种角色操作和相关帮助窗口。 |
-| `actions/analysis.py` | 处理运行、取消、批次进度和分析结果展示操作。 |
-| `actions/project.py` | 处理项目打开、重置、结果历史和绘图状态持久化操作。 |
-| `actions/results.py` | 处理结果详情、绘图设置、项目图片保存和结果导出操作。 |
-| `pages/workspace.py` | 固定主工作区页面的构造和标签顺序。 |
-| `pages/load.py` | 轨迹/拓扑/index 加载流程和加载后状态更新。 |
-| `pages/analysis.py` | 分析类型切换、请求构造和运行编排。 |
-| `pages/results.py` | 结果历史、概览、详情入口和项目结果加载。 |
-| `plotting/state.py` | 不依赖 Qt 的绘图序列、分组、范围和外观状态编排。 |
-| `plotting/table.py` | 在绘图状态与序列表格控件之间转换。 |
-| `plotting/panel.py` | 连接绘图控件、状态、结果和绘图窗口。 |
-| `plotting/window.py` | 渲染 core 绘图模型。 |
-| `plotting/settings.py` | 编辑图例、网格、线宽和字体等高级外观。 |
-| `components/inputs.py` | 输入控件构造、路径读取和启用状态。 |
-| `components/species.py` | 角色建议、确认和用户选择界面。 |
-| `components/parameters/` | `r_max`、bin width、cutoff 和帧采样等显式参数控件。 |
-| `components/parameters/radial.py` | RDF/CN 共用的选择、半径和 bin width 控件。 |
-| `components/selections.py` | 参考、目标、配体选择及批量 plot series 编辑。 |
-| `dialogs/log.py` | 在带完整窗口控制的非模态窗口显示并复制最新 job 的 raw message。 |
-| `dialogs/results.py` | 显示并复制包含技术元数据的完整结果报告。 |
-| `dialogs/species.py` | 显示角色含义表和格式化角色建议详情。 |
-| `formatting.py` | 把共享结果报告渲染为 GUI HTML，并格式化 GUI 错误和选择摘要。 |
-| `dialogs/integrations.py` | 外部程序集成配置和检测对话框。 |
-| `dialogs/projects.py` | 显示 App 层发现的拓扑和轨迹候选，并要求用户分别确认。 |
-| `dialogs/selection.py` | 非模态选择语法参考窗口。 |
-| `dialogs/templates.py` | 模板选择、加载和保存交互。 |
-| `theme.py` | 平面化主题、调色板和样式表。 |
-| `fonts.py` | 字体选择和配置应用。 |
-| `components/layout.py` | 尺寸、间距和布局辅助。 |
-| `menu.py` | 顶部菜单和动作连接。 |
-| `__init__.py` | 保持轻量，避免导入即启动 Qt。 |
-
-页面只发出窗口请求，不创建或保存具体对话框。`windows.py` 强制托管窗口使用非模态展示，
-统一处理单实例复用、绘图窗口组、显示、聚焦及主窗口退出时的关闭；同步命令对话框和短期
-阻塞式 message box 仍由调用点管理，可复用非模态提示使用同一展示辅助函数。
-
-Analysis 页使用 Type、Backend 和 Progress 标签，Progress 区域按 Cancel、Run 顺序排列，进度条右侧放置 Details。Log 视图在底部时自动跟随新 message，
-用户向上滚动后保留位置；复制完成提示不阻塞主窗口。连续相同的进度文本只作为一条
-日志保留，每次 callback 仍正常更新进度状态。
-
-Result 页的 Overview 不显示复现所需的技术元数据。Details 打开包含技术元数据的完整可读
-报告；该窗口为非模态窗口，顶栏显示当前 job 或 analysis 名称，内容下方提供 Copy 操作。
-测试会话将诊断日志重定向至临时目录，错误路径测试产生的预期日志不会写入用户的持久日志。
-Plot Settings 内联保留常用的标题、配色和范围控件，右下角 Advanced 打开单实例非模态外观编辑器；
-控件编辑只改变草稿，Apply 会重绘已打开的绘图窗口并更新图片导出使用的项目状态但不关闭
-窗口，OK 会应用后关闭，Cancel 会恢复本次打开编辑器之前的外观，包括回滚本次会话中已经
-Apply 的改动。
-
-批量 plot series 按配置逐项执行，以 `PlotModel` 合并展示。首次运行若尚无项目，GUI 在
-轨迹目录创建/选择项目，再通过项目用例提交结果。恢复结果时，数值数据来自结果文件，
-配色、坐标范围、可见性和高级外观来自绘图状态，两者不互相污染。
-
-GUI 的 New Project 先选择目录，由 App 层非递归发现受支持的拓扑和轨迹候选，再要求用户
-在两个独立选项框中明确选择输入。取消目录或候选选择时保留当前工作区；确认后才清空会话、
-填入输入并自动检查，首次有效分析按上述规则物化项目。Open Project 选择明确的
-`mdhelper-project.json` manifest，成功校验 manifest 和输入后才替换当前会话。自动打开轨迹
-目录中的既有项目时会先比较输入指纹，禁止把另一套体系的结果提交到该项目。
-
-GUI 与 TUI 在 Analysis 使用同一个 Backend 选择器；Load 不显示 Backend。
-Energy 始终可通过 MDAnalysis 使用；GROMACS RDF/CN 需要 `rdf` capability，帧子集额外需要
-`trjconv` 和 `check`，GROMACS Energy 需要 `energy`。Backend 选择不参与体系检查；切换 Backend
-不触发 Species 或 Index groups 刷新。仅在当前会话显式执行过 Integrations 检测，或保存的
-配置包含 GROMACS 可执行文件路径后，交互式 Backend 选择器才显示 GROMACS；Auto 内部探测
-不会显示该选项。
-
-## 14. 外部工具：`integrations` 与 `runtime`
-
-`integrations/gromacs.py` 定义 GROMACS 候选可执行名、环境键、版本/能力解释和领域身份。
-它说明“GROMACS 是什么以及如何识别”，不直接实现通用子进程控制。
-
-| 文件 | 职责 |
-| --- | --- |
-| `runtime/detection.py` | 以参数列表、受限环境、无 shell 和超时检测可执行文件，解析身份、版本和能力。 |
-| `runtime/process/contracts.py` | 定义执行 adapter、检测状态和已校验 argv 边界。 |
-| `runtime/process/records.py` | 格式化命令并记录软件身份、退出码、耗时、环境摘要和输出哈希。 |
-| `runtime/process/terminal.py` | 使用受限环境和平台终端启动器打开交互式命令。 |
-| `runtime/process/lifecycle.py` | 流式捕获后台进程输出；轮询期间发布进度，取消或超时时终止完整进程组。 |
-| `runtime/environment.py` | 构造可控子进程环境，避免无关用户环境改变行为。 |
-| `runtime/logging.py` | 在平台用户日志目录初始化日志并记录 integration 完整命令；可由 `MDHELPER_LOG` 覆盖，失败时退化为 `NullHandler`。 |
-
-独立外部工具运行记录可以写入项目 `results/runs/` 审计目录。显式 GROMACS RDF/CN 通过
-Integration 调用 `gmx rdf`，其中 cumulative RDF 添加 `-cn`；GROMACS Energy 调用 `gmx energy`。任何对结果有贡献的
-命令都在结果中显示软件正式名称、版本、可执行文件和
-子命令。非零退出保留结构化记录，由调用用例决定如何呈现。
-
-## 15. 模板、资源与文档契约
-
-`resources/templates/` 保存随包发布的只读模板。模板通过 services 层发现并转换为 core
-模板对象，表现层不直接猜测安装路径。用户模板与内置模板分开存储，保存行为是原子的。
-
-| 位置 | 含义 |
-| --- | --- |
-| `schemas/analysis-request-v1.schema.json` | 分析请求的外部 JSON 结构。 |
-| `schemas/analysis-result-v1.schema.json` | 分析结果的外部 JSON 结构。 |
-| `schemas/project-v1.schema.json` | 项目 manifest 的外部 JSON 结构。 |
-| `docs/methods/` | 公式、参数和算法定义。 |
-| `docs/validation/` | 参考体系、期望值和验证结论。 |
-| `docs/ALGORITHM.md` | 当前数值与确定性工程算法的集中说明。 |
-| `docs/KNOWN_LIMITATIONS.md` | 当前未实现或尚未充分验证的边界。 |
-| `docs/SELECTIONS.md` | 支持的选择来源和限制。 |
-| `docs/SPECIES.md` | 角色建议与确认语义。 |
-| `docs/CONFIGURATION.md` | 配置字段和路径规则。 |
-
-`pyproject.toml` 把模板、schemas、方法、验证和用户文档纳入发行物。添加运行时资源时，
-必须同时更新 package data/data files 和冻结打包配置，不能只让源码工作区可见。
-
-## 16. 端到端数据流
-
-```text
-paths
-  -> trajectory dispatcher
-  -> TrajectorySource
-  -> SystemSummary
-  -> optional NDX/static selections
-  -> role suggestions
-  -> presentation review
-```
-
-输入检查可以帮助用户理解体系，但不会产生隐式分析参数。
-
-```text
-validated AnalysisRequest
-  -> complete Backend resolution
-  -> Backend-owned source and selection path
-  -> input hashes and environment provenance
-  -> registered Backend adapter
-  -> fixed selection indices
-  -> frame iteration + PBC + chunked distances
-  -> validated AnalysisResult
-  -> optional project commit/export
-```
-
-```text
-mdhelper-project.json result entry
-  -> safe path resolution
-  -> file hash verification
-  -> AnalysisResult parsing
-  -> PlotModel grouping
-  -> CLI export or GUI rendering
-```
-
-项目恢复不重新运行分析算法，所以结果文件、hash 和 schema 校验是完整性关键。
-
-## 17. 错误、日志和失败原子性
-
-底层在最接近原因的位置抛出有类别的错误，应用层补充用例上下文，表现层只负责呈现：
-CLI 输出稳定错误 JSON/退出码，不把进度混入 stdout；TUI 在当前菜单显示可恢复错误；
-GUI 在主线程显示对话框并保留会话；日志记录技术细节，但不作为程序间契约。
-
-文件保存和项目提交使用临时文件加原子替换；长任务取消不会发布半成品；输入哈希和结果
-哈希在恢复时重新验证。这三层共同实现失败原子性。
-
-## 18. 性能与并发模型
-
-- 轨迹按帧迭代，不整体载入内存；
-- pair distances 按配置上限分块；
-- GUI 默认只有一个分析工作线程；
-- 哈希按固定块读取；
-- 绘图只消费结果数组，不保留完整轨迹。
-
-不得在表现层额外启动不受 `JobRunner` 管理的分析线程。若未来增加并行帧计算，必须保持
-直方图归并顺序、进度、取消、内存上限和结果可复现性，并增加跨线程数数值测试。
-
-## 19. 测试架构
-
-- core/contract 测试验证严格解析、单位和绘图模型；
-- backend/io 测试验证 GRO、MDAnalysis、NDX 和导出边界；
-- analysis 测试验证 RDF、CN、PBC 和溶剂化计数；
-- project 测试验证原子提交、严格拒绝旧字段、hash 和 schema；
-- application/CLI/TUI/GUI 测试验证共享用例和交互状态；
-- runtime 测试验证探测、超时、取消和退出记录；
-- architecture 测试防止层间依赖倒置；
-- packaging smoke 测试验证安装/冻结产物可启动并包含资源。
-
-Linux 必须能在没有 Qt 的环境运行 CLI/TUI 和非 GUI 测试；Windows 额外验证 GUI 与冻结
-产物。跨平台等价指相同请求、帧集合、算法和结果数据，不要求窗口渲染像素一致。
-
-## 20. 扩展规则
-
-### 20.1 新增分析
-
-1. 在 core 契约中定义通用、版本化的数据字段；
-2. 在支持该分析的完整 Backend adapter 中实现，不依赖表现层；
-3. 更新 adapter 的 `analysis_types`，不增加重复注册项；
-4. 在 app 用例中增加必要编排；
-5. 各表现层只负责构造相同请求；
-6. 增加方法、验证、schema、导出和跨前端测试。
-
-### 20.2 新增 Backend
-
-实现一个包含 reader、selection、frame handling 与 computation 的完整 adapter，只注册一次。
-需要时实现 `TrajectorySource` 并完成单位转换、盒矩阵、原子身份和帧范围测试。Auto 优先级
-必须确定且可解释；显式 Backend 不 fallback，同一次尝试禁止混用。
-
-### 20.3 新增表现层
-
-只依赖 `ApplicationService` 和允许展示的 core 类型。不得直接导入 `analysis`、`backends`
-或另一表现层，不得实现第二套选择、项目提交或分析算法。
-
-### 20.4 新增外部工具
-
-在 `integrations` 描述软件候选和能力，并由 manager 统一检测、状态管理和执行；在
-`runtime` 复用安全执行原语，在 app 暴露用例。不得把外部工具文本输出当作内部稳定契约。
-
-## 21. 工程师修改检查表
-
-- 依赖方向是否仍满足架构测试；
-- 请求、结果、Python 校验器与 JSON Schema 是否同步；
-- 单位转换是否只发生在明确边界；
-- 选择、角色、参数决策和帧审计是否进入 request/diagnostics/provenance 的相应位置；
-- 新循环是否有资源上限、进度和取消点；
-- 文件写入是否原子，项目恢复是否验证 hash；
-- CLI/TUI/GUI 是否仍调用同一应用用例；
-- 新行为是否有方法说明、验证证据和已知限制；
-- 新资源是否进入 wheel 和 Windows 冻结产物；
-- 实现是否通用，未针对文件名、类名、测试名、样例或具体软件输出写特判。
-
-这套边界的核心是让每种算法只有一个事实来源，让所有入口产生可复现、可审计、可恢复
-的同一种结果，同时使 I/O、第三方库、GUI 和外部程序停留在可替换的外层。
+- [使用说明](USAGE.zh-CN.md) 描述用户流程和命令。
+- [配置](CONFIGURATION.zh-CN.md) 描述配置字段和路径解析。
+- [选择规则](SELECTIONS.zh-CN.md) 描述选择语法和 Backend 语义。
+- [算法](ALGORITHM.zh-CN.md) 定义数值行为和确定性工程行为。
+- [方法](methods/README.zh-CN.md) 定义已发布科学方法。
+- [验证](validation/) 保存参考证据和容差。
+- [已知限制](KNOWN_LIMITATIONS.zh-CN.md) 记录当前产品限制。
+- [软件设计目标](SOFTWARE_DESIGN_GOALS.zh-CN.md) 记录工程属性和验收方式。
+- [打包](PACKAGING.zh-CN.md) 描述平台产物和发布验证。
