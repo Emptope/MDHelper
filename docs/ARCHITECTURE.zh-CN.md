@@ -72,7 +72,7 @@ flowchart TB
 - 分析计算不依赖绘图。
 - 职责集中的子包使用明确的单向模块层级，不形成循环依赖。
 
-`tests/test_architecture.py` 检查这些边界和包布局。
+`tests/test_architecture.py` 检查这些依赖边界。
 
 ## 3. 包职责
 

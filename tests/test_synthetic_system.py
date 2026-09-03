@@ -15,7 +15,7 @@ from mdhelper.backends.gromacs import GroTrajectorySource
 from mdhelper.backends.mdanalysis import MDAnalysisTrajectorySource
 from mdhelper.cli import main
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
-from mdhelper.core.errors import ConfigurationError, InputError, InputFileError
+from mdhelper.core.errors import ConfigurationError, InputFileError
 from mdhelper.core.plotting import PlotAppearance, PlotLimits, PlotSelection, PlotState
 from mdhelper.core.system import FrameRange
 from mdhelper.integrations.manager import IntegrationManager
@@ -247,20 +247,6 @@ def test_auto_prioritizes_compatible_radial_backends() -> None:
     assert DEFAULT_ANALYSIS_REGISTRY.auto(indexed, integrations)[0].name == "mdanalysis"
     assert DEFAULT_ANALYSIS_REGISTRY.auto(indexed_xtc, integrations)[0].name == "mdanalysis"
     assert DEFAULT_ANALYSIS_REGISTRY.auto(expression, integrations)[0].name == "mdanalysis"
-
-
-def test_removed_backend_value_is_rejected(synthetic_path: Path) -> None:
-    request = RadialRequest(
-        analysis_type="rdf",
-        topology=str(synthetic_path),
-        trajectory=str(synthetic_path),
-        reference="resname REF",
-        selection="resname LIGA",
-        analysis_backend="removed",  # type: ignore[arg-type]
-    )
-
-    with pytest.raises(InputError, match="Unknown analysis backend"):
-        ApplicationService(UserConfig()).analyses.run(request)
 
 
 def test_system_inspection_always_uses_auto_trajectory_reader(

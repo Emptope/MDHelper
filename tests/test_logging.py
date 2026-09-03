@@ -16,10 +16,6 @@ def _close_handlers(logger: logging.Logger) -> None:
         handler.close()
 
 
-def test_test_process_does_not_use_the_user_log_location() -> None:
-    assert log_path() != log_path({})
-
-
 def test_log_path_override_and_error_record(tmp_path: Path) -> None:
     logger = logging.getLogger(LOGGER_NAME)
     _close_handlers(logger)

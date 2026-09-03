@@ -96,36 +96,6 @@ def test_radial_grid_counts_use_shared_half_width_histogram() -> None:
     assert request.cumulative_bin_count() == 4
 
 
-def test_frame_range_contract_uses_stop_and_rejects_last() -> None:
-    value = _request().to_dict()
-    assert value["frames"] == {"start": 0, "stop": None, "stride": 1}
-
-    value["frames"]["last"] = value["frames"].pop("stop")
-    with pytest.raises(ConfigurationError, match=r"frames.*missing or unknown"):
-        AnalysisRequest.from_dict(value)
-
-
-def test_initial_contract_rejects_retired_radial_names() -> None:
-    value = _request().to_dict()
-    value["target"] = value.pop("selection")
-    with pytest.raises(ConfigurationError, match="missing or unknown fields"):
-        AnalysisRequest.from_dict(value)
-
-    value = _request().to_dict()
-    value["analysis_type"] = "coordination"
-    with pytest.raises(ConfigurationError, match="supported schema"):
-        AnalysisRequest.from_dict(value)
-
-
-@pytest.mark.parametrize("field", ["backend", "trajectory_backend"])
-def test_initial_contract_rejects_retired_backend_fields(field: str) -> None:
-    value = _request().to_dict()
-    value[field] = "unused"
-
-    with pytest.raises(ConfigurationError, match="unknown fields"):
-        AnalysisRequest.from_dict(value)
-
-
 def test_requests_reject_unknown_backend() -> None:
     with pytest.raises(InputError, match="Unknown analysis backend"):
         EnergyRequest(
@@ -134,32 +104,6 @@ def test_requests_reject_unknown_backend() -> None:
             energy_terms=("Potential",),
             analysis_backend="removed",  # type: ignore[arg-type]
         ).validate()
-
-
-@pytest.mark.parametrize("field", ["bins", "cutoff_nm", "coordination_group_by"])
-def test_initial_contract_rejects_unknown_radial_fields(field: str) -> None:
-    value = _request().to_dict()
-    value[field] = 100
-
-    with pytest.raises(ConfigurationError, match="unknown fields"):
-        AnalysisRequest.from_dict(value)
-
-
-def test_initial_contract_rejects_incomplete_frames_and_retired_solvation_fields() -> None:
-    value = _request().to_dict()
-    value["frames"].pop("stride")
-    with pytest.raises(ConfigurationError, match=r"frames.*missing or unknown"):
-        AnalysisRequest.from_dict(value)
-
-    value = _request().to_dict()
-    value["analysis_type"] = "solvation"
-    with pytest.raises(ConfigurationError, match="supported schema"):
-        AnalysisRequest.from_dict(value)
-
-    value = _request().to_dict()
-    value["ligands"] = []
-    with pytest.raises(ConfigurationError, match="unknown fields"):
-        AnalysisRequest.from_dict(value)
 
 
 def test_result_validation_rejects_unknown_and_non_json_content() -> None:

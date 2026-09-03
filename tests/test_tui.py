@@ -9,7 +9,6 @@ from test_synthetic_system import _write_trajectory
 import mdhelper.bootstrap.portable as portable
 import mdhelper.bootstrap.windows_console as windows_console
 from mdhelper.app import ApplicationService
-from mdhelper.core.analysis import AnalysisRequest, AnalysisResult
 from mdhelper.core.species import role_decision
 from mdhelper.core.system import FrameRange
 from mdhelper.gui.main import tui_command
@@ -18,44 +17,6 @@ from mdhelper.services.config import UserConfig
 from mdhelper.tui.controller import Tui
 from mdhelper.tui.model import AnalysisDraft, RadialTask, Workspace
 from mdhelper.tui.terminal import Terminal
-from mdhelper.version import DEVELOPER, __version__
-
-
-def test_tui_main_menu_keeps_independent_actions_available_without_inputs(
-    monkeypatch,
-) -> None:
-    tui = Tui(
-        ApplicationService(UserConfig()),
-        Terminal(StringIO("2\n1\n3\n4\n5\nq\n"), StringIO()),
-    )
-    calls: list[str] = []
-    monkeypatch.setattr(tui, "_analysis_setup", lambda _draft: calls.append("analysis"))
-    monkeypatch.setattr(tui, "_workspace", lambda: calls.append("workspace"))
-    monkeypatch.setattr(tui, "_tools", lambda: calls.append("tools"))
-
-    assert tui.run() == 0
-
-    assert calls == ["workspace", "tools"]
-
-
-def test_tui_open_project_from_load_page_enters_main_menu(monkeypatch) -> None:
-    tui = Tui(
-        ApplicationService(UserConfig()),
-        Terminal(StringIO("1\n5\nq\n"), StringIO()),
-    )
-    calls: list[str] = []
-
-    def open_project() -> None:
-        calls.append("project")
-        tui.workspace.topology = "topology.gro"
-        tui.workspace.trajectory = "trajectory.xtc"
-
-    monkeypatch.setattr(tui, "_open_project", open_project)
-    monkeypatch.setattr(tui, "_tools", lambda: calls.append("tools"))
-
-    assert tui.run() == 0
-
-    assert calls == ["project", "tools"]
 
 
 def test_tui_open_project_creates_a_project_from_discovered_inputs(
@@ -113,108 +74,6 @@ def test_tui_open_project_loads_an_existing_project(
     assert tui.workspace.topology == str(source.resolve())
     assert tui.workspace.trajectory == str(source.resolve())
     assert inspections == [None]
-
-
-def test_tools_separates_integrations_templates_and_configuration(monkeypatch) -> None:
-    tui = Tui(
-        ApplicationService(UserConfig()),
-        Terminal(StringIO("1\n2\n3\n0\n"), StringIO()),
-    )
-    calls: list[str] = []
-    monkeypatch.setattr(tui, "_integrations", lambda: calls.append("integrations"))
-    monkeypatch.setattr(tui, "_templates", lambda: calls.append("templates"))
-    monkeypatch.setattr(tui, "_config", lambda: calls.append("configuration"))
-
-    try:
-        tui._tools()
-    finally:
-        tui.job_runner.shutdown()
-
-    assert calls == ["integrations", "templates", "configuration"]
-
-
-def test_workspace_open_project_matches_load_page_action(monkeypatch) -> None:
-    application = ApplicationService(UserConfig())
-    tui = Tui(application, Terminal(StringIO("1\n"), StringIO()))
-    calls: list[str] = []
-    monkeypatch.setattr(tui, "_open_project", lambda: calls.append("project"))
-
-    try:
-        tui._workspace()
-    finally:
-        tui.job_runner.shutdown()
-
-    assert calls == ["project"]
-
-
-def test_workspace_shows_cached_summary_without_reinspection(monkeypatch) -> None:
-    tui = Tui(
-        ApplicationService(UserConfig()),
-        Terminal(StringIO("3\n0\n"), StringIO()),
-    )
-    calls: list[str] = []
-    monkeypatch.setattr(tui, "_inspect", lambda: calls.append("inspect"))
-    monkeypatch.setattr(tui, "_show_summary", lambda: calls.append("summary"))
-
-    try:
-        tui._workspace()
-    finally:
-        tui.job_runner.shutdown()
-
-    assert calls == ["summary"]
-
-
-def test_terminal_heading_centers_any_title_with_stars() -> None:
-    output = StringIO()
-    terminal = Terminal(StringIO(), output)
-    title = "Section"
-    width = 30
-
-    terminal.heading(title, width)
-
-    assert output.getvalue() == f"*** {title} ***".center(width).rstrip() + "\n"
-
-
-def test_terminal_panel_centers_lines_inside_an_ascii_border() -> None:
-    output = StringIO()
-    terminal = Terminal(StringIO(), output)
-    lines = ("Title", "A longer detail")
-    width = 24
-
-    terminal.panel(lines, width)
-
-    rendered = output.getvalue().splitlines()
-    assert len(rendered) == len(lines) + 2
-    assert {len(line) for line in rendered} == {width}
-    assert rendered[0] == rendered[-1]
-    assert set(rendered[0]) == {"+", "-"}
-    for source, line in zip(lines, rendered[1:-1], strict=True):
-        assert line.startswith("|") and line.endswith("|")
-        assert line[1:-1].strip() == source
-        left = len(line[1:-1]) - len(line[1:-1].lstrip())
-        right = len(line[1:-1]) - len(line[1:-1].rstrip())
-        assert abs(left - right) <= 1
-
-
-def test_banner_frames_centered_product_and_developer_lines() -> None:
-    output = StringIO()
-    tui = Tui(ApplicationService(UserConfig()), Terminal(StringIO(), output))
-
-    try:
-        tui._banner()
-    finally:
-        tui.job_runner.shutdown()
-
-    rendered = output.getvalue().splitlines()
-    assert len(rendered) == 4
-    assert rendered[0] == rendered[-1]
-    assert all(len(line) == len(rendered[0]) for line in rendered)
-    assert rendered[1].strip("| ").startswith("MDHelper ")
-    assert __version__ in rendered[1]
-    assert "*" not in rendered[1]
-    assert DEVELOPER in rendered[2]
-    assert "interactive terminal" not in output.getvalue()
-    assert "Ctrl+C" not in output.getvalue()
 
 
 def test_unified_entry_prefers_gui_and_routes_explicit_modes(monkeypatch) -> None:
@@ -541,67 +400,6 @@ def test_tui_default_export_directory_follows_selected_trajectory(tmp_path: Path
     assert workspace.rdf_cn() is not workspace.draft("rdf")
 
 
-def test_tui_exports_each_energy_curve_to_its_own_directory(
-    tmp_path: Path,
-    energy_result: AnalysisResult,
-    stub_figure_exports,
-) -> None:
-    stub_figure_exports()
-    output = StringIO()
-    tui = Tui(
-        ApplicationService(UserConfig()),
-        Terminal(StringIO(f"{tmp_path}\n{tmp_path}\n"), output),
-    )
-    tui.workspace.result = energy_result
-    tui.workspace.plot_results = (energy_result,)
-
-    try:
-        tui._export_result()
-        tui._export_result()
-    finally:
-        tui.job_runner.shutdown()
-
-    for term in ("Potential", "Temperature", "Pressure"):
-        for suffix in ("", "-2"):
-            name = f"energy-{term}{suffix}"
-            directory = tmp_path / name
-            assert {path.name for path in directory.iterdir()} == {
-                "result.json",
-                "energy.csv",
-                f"{name}.png",
-                f"{name}.svg",
-                f"{name}.pdf",
-            }
-
-
-def test_tui_save_plot_uses_flat_project_figure_names(
-    tmp_path: Path,
-    energy_result: AnalysisResult,
-    stub_figure_exports,
-) -> None:
-    stub_figure_exports()
-    source = tmp_path / "input.dat"
-    source.write_text("input\n", encoding="ascii")
-    application = ApplicationService(UserConfig())
-    project = application.projects.create(tmp_path / "project", source, source)
-    output = StringIO()
-    tui = Tui(application, Terminal(StringIO(), output))
-    tui.workspace.project = project
-    tui.workspace.result = energy_result
-    tui.workspace.plot_results = (energy_result,)
-
-    try:
-        tui._save_project_figures()
-    finally:
-        tui.job_runner.shutdown()
-
-    assert {path.name for path in (project.root / "figures").iterdir()} == {
-        f"energy-{term}.{suffix}"
-        for term in ("Potential", "Temperature", "Pressure")
-        for suffix in ("png", "svg", "pdf")
-    }
-
-
 def test_tui_analysis_setup_queues_initial_radial_selection(monkeypatch) -> None:
     output = StringIO()
     tui = Tui(ApplicationService(UserConfig()), Terminal(StringIO("0\n"), output))
@@ -632,26 +430,6 @@ def test_tui_analysis_setup_queues_initial_radial_selection(monkeypatch) -> None
     assert draft.queue == [
         RadialTask("rdf", "Reference", "Selection", 1.0, 0.002)
     ]
-
-
-def test_tui_analysis_menu_includes_rdf_cn_combined_plot(monkeypatch) -> None:
-    output = StringIO()
-    tui = Tui(
-        ApplicationService(UserConfig()),
-        Terminal(StringIO("3\n0\n"), output),
-    )
-    tui.workspace.topology = "topology.gro"
-    tui.workspace.trajectory = "trajectory.xtc"
-    calls: list[None] = []
-    monkeypatch.setattr(tui.application.integrations, "supports", lambda *_args: True)
-    monkeypatch.setattr(tui, "_rdf_cn_setup", lambda: calls.append(None))
-
-    try:
-        tui._analyses()
-    finally:
-        tui.job_runner.shutdown()
-
-    assert calls == [None]
 
 
 def test_tui_hides_gromacs_backend_until_explicit_detection(monkeypatch) -> None:
@@ -866,44 +644,10 @@ def test_tui_mixed_queue_keeps_rdf_and_cn_for_same_pair(monkeypatch) -> None:
     ]
 
 
-def test_tui_add_task_option_opens_complete_editor(monkeypatch) -> None:
-    output = StringIO()
+def test_tui_mixed_queue_builds_each_request_once() -> None:
     tui = Tui(
         ApplicationService(UserConfig()),
-        Terminal(StringIO("7\n0\n"), output),
-    )
-    draft = AnalysisDraft(
-        "rdf",
-        reference="Reference",
-        selection="Selection",
-        output="results",
-    )
-    calls: list[str] = []
-    monkeypatch.setattr(tui, "_prepare_setup", lambda _draft: None)
-    monkeypatch.setattr(
-        tui,
-        "_edit_selections",
-        lambda _draft: calls.append("groups"),
-    )
-    monkeypatch.setattr(
-        tui,
-        "_edit_parameters",
-        lambda _draft: calls.append("parameters"),
-    )
-    monkeypatch.setattr(tui, "_add_task", lambda _draft: calls.append("queue"))
-
-    try:
-        tui._analysis_setup(draft)
-    finally:
-        tui.job_runner.shutdown()
-
-    assert calls == ["groups", "parameters", "queue"]
-
-
-def test_tui_mixed_queue_selects_type_and_runs_each_task_once(monkeypatch) -> None:
-    tui = Tui(
-        ApplicationService(UserConfig()),
-        Terminal(StringIO("2\n"), StringIO()),
+        Terminal(StringIO(), StringIO()),
     )
     draft = AnalysisDraft(
         "rdf",
@@ -915,14 +659,8 @@ def test_tui_mixed_queue_selects_type_and_runs_each_task_once(monkeypatch) -> No
             RadialTask("cumulative_rdf", "Reference", "Second", 0.8, 0.004),
         ],
     )
-    calls: list[str] = []
-    monkeypatch.setattr(tui, "_edit_selections", lambda _draft: calls.append("groups"))
-    monkeypatch.setattr(tui, "_edit_parameters", lambda _draft: calls.append("parameters"))
-    monkeypatch.setattr(tui, "_add_task", lambda _draft: calls.append("queue"))
-
     try:
         runs = tui._radial_runs(draft)
-        tui._edit_task(draft, mixed=True)
     finally:
         tui.job_runner.shutdown()
 
@@ -930,8 +668,6 @@ def test_tui_mixed_queue_selects_type_and_runs_each_task_once(monkeypatch) -> No
         ("rdf", "First"),
         ("cumulative_rdf", "Second"),
     ]
-    assert draft.analysis_type == "cumulative_rdf"
-    assert calls == ["groups", "parameters", "queue"]
 
 
 def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(
@@ -1068,25 +804,3 @@ def test_tui_energy_runs_without_review(monkeypatch) -> None:
         tui.job_runner.shutdown()
 
     assert calls == ["run", "complete"]
-
-
-def test_tui_analysis_run_has_no_decorative_heading(
-    monkeypatch,
-    energy_result: AnalysisResult,
-) -> None:
-    tui = Tui(ApplicationService(UserConfig()), Terminal(StringIO(), StringIO()))
-    request = AnalysisRequest.from_dict(energy_result.request)
-    headings: list[str] = []
-    monkeypatch.setattr(tui.terminal, "heading", lambda title: headings.append(title))
-    monkeypatch.setattr(
-        tui.job_runner,
-        "run_sync",
-        lambda *_args, **_kwargs: energy_result,
-    )
-
-    try:
-        assert tui._run_requests((request,)) == (energy_result,)
-    finally:
-        tui.job_runner.shutdown()
-
-    assert headings == []

@@ -11,7 +11,7 @@
 
 ## 已完成
 
-- [x] [GUI] Remove the redundant Load button beside Saved results.
+- [x] [Tests] Remove redundant implementation snapshots and UI-content assertions.
 
 ## 完成标准（每轮代码改动后需重新确认）
 

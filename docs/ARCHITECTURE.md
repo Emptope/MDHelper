@@ -75,7 +75,7 @@ The enforced boundaries are:
 - Analysis computation does not depend on plotting.
 - Focused subpackages use an explicit inward module order without circular dependencies.
 
-`tests/test_architecture.py` checks these boundaries and the package layouts.
+`tests/test_architecture.py` checks these dependency boundaries.
 
 ## 3. Package responsibilities
 

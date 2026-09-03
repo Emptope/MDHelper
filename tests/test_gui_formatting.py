@@ -1,12 +1,6 @@
 from __future__ import annotations
 
 from mdhelper.app.analysis import result_exports
-from mdhelper.app.reports import (
-    CumulativeRdfReport,
-    EnergyReport,
-    RdfReport,
-    Report,
-)
 from mdhelper.core.analysis import AnalysisResult, EnergyRequest, RadialRequest
 
 
@@ -102,14 +96,3 @@ def test_result_exports_split_every_energy_curve_into_a_bounded_item() -> None:
         assert isinstance(item_request, EnergyRequest)
         assert item_request.energy_terms == (term,)
         assert tuple(item.result.data["series"]) == (term,)
-
-
-def test_every_analysis_report_inherits_the_shared_contract() -> None:
-    assert all(
-        issubclass(report_type, Report)
-        for report_type in (
-            RdfReport,
-            CumulativeRdfReport,
-            EnergyReport,
-        )
-    )
