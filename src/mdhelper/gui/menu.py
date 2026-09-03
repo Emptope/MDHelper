@@ -19,6 +19,7 @@ class MenuActions:
     theme_group: QActionGroup
     templates: QAction
     terminal: QAction
+    make_index: QAction
     settings: QAction
 
 
@@ -29,6 +30,7 @@ def install_menu(
     integrations: Callable[[], None],
     templates: Callable[[], None],
     terminal: Callable[[], None],
+    make_index: Callable[[], None],
     settings: Callable[[], None],
     theme: ThemeMode,
     set_theme: Callable[[ThemeMode], None],
@@ -54,6 +56,10 @@ def install_menu(
     tools_menu.addAction(terminal_action)
     tools_menu.addSeparator()
     tools_menu.addActions([templates_action, external_action])
+    tools_menu.addSeparator()
+    make_index_action = QAction("Make Index File...", window)
+    make_index_action.triggered.connect(make_index)
+    tools_menu.addAction(make_index_action)
 
     view_menu = window.menuBar().addMenu("&View")
     appearance_menu = view_menu.addMenu("&Appearance")
@@ -100,10 +106,11 @@ def install_menu(
         )
     )
     return MenuActions(
-        open_action,
-        themes,
-        theme_group,
-        templates_action,
-        terminal_action,
-        settings_action,
+        project=open_action,
+        themes=themes,
+        theme_group=theme_group,
+        templates=templates_action,
+        terminal=terminal_action,
+        make_index=make_index_action,
+        settings=settings_action,
     )

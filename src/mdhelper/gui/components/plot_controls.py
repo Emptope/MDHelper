@@ -103,7 +103,7 @@ class PlotControls(QWidget):
         settings.setRowStretch(settings.rowCount(), 1)
         advanced_row = QHBoxLayout()
         advanced_row.addStretch(1)
-        self.advanced_button = QPushButton("Advanced")
+        self.advanced_button = QPushButton("Advanced...")
         advanced_row.addWidget(self.advanced_button)
         settings.addLayout(advanced_row, 7, 0, 1, 3)
         layout.addWidget(self.settings)

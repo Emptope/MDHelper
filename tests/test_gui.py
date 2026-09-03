@@ -29,6 +29,7 @@ from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.gui.components.choices import choice_enabled
 from mdhelper.gui.dialogs.projects import NewProjectDialog
+from mdhelper.gui.dialogs.tools import MakeIndexHelpDialog
 from mdhelper.gui.window import MainWindow
 from mdhelper.integrations.models import IntegrationConfig, IntegrationStatus
 from mdhelper.services.config import UserConfig, config_path, save_config
@@ -186,6 +187,59 @@ def test_gui_menu_opens_tui_through_the_unified_process(monkeypatch) -> None:
     assert calls == [True]
     assert window.statusBar().currentMessage() == "Terminal interface opened"
     window.job_controller.shutdown()
+    window.close()
+
+
+def test_make_index_is_last_tool_and_opens_help_without_configuration() -> None:
+    QApplication.instance() or QApplication([])
+    window = MainWindow()
+    tools_menu = window.menuBar().actions()[1].menu()
+    assert tools_menu is not None
+
+    assert tools_menu.actions()[-1] is window.menu_actions.make_index
+
+    window.menu_actions.make_index.trigger()
+
+    help_dialog = window.windows.get(MakeIndexHelpDialog)
+    assert help_dialog is not None
+    assert help_dialog.isVisible()
+    assert help_dialog.documentation.openExternalLinks()
+    window.close()
+
+
+def test_make_index_uses_loaded_topology_for_configured_command(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    QApplication.instance() or QApplication([])
+    source = tmp_path / "loaded topology.g96"
+    source.write_text("structure", encoding="ascii")
+    calls: list[tuple[str, list[str], Path, tuple[str, ...]]] = []
+    monkeypatch.setattr(
+        "mdhelper.app.integrations.IntegrationUseCases.is_configured",
+        lambda _self, _name: True,
+    )
+    monkeypatch.setattr(
+        "mdhelper.app.integrations.IntegrationUseCases.open_terminal",
+        lambda _self, name, arguments, cwd, required_capabilities=(): calls.append(
+            (name, arguments, Path(cwd), required_capabilities)
+        )
+        or "command",
+    )
+    window = MainWindow()
+    window.load.inputs.topology.edit.setText(str(source))
+
+    window.menu_actions.make_index.trigger()
+
+    assert calls == [
+        (
+            "gromacs",
+            ["make_ndx", "-f", str(source), "-o", "index.ndx"],
+            tmp_path,
+            ("make_ndx",),
+        )
+    ]
+    assert window.statusBar().currentMessage()
     window.close()
 
 

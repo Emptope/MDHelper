@@ -37,6 +37,7 @@ from mdhelper.gui.dialogs.results import ResultDetailsDialog
 from mdhelper.gui.dialogs.selection import SelectionHintDialog
 from mdhelper.gui.dialogs.species import RoleHelpDialog, SuggestionDetailsDialog
 from mdhelper.gui.dialogs.templates import TemplatesDialog
+from mdhelper.gui.dialogs.tools import MakeIndexHelpDialog
 from mdhelper.gui.fonts import configure_ui_font
 from mdhelper.gui.formatting import (
     error_text,
@@ -104,6 +105,7 @@ class MainWindow(QMainWindow):
             self._integrations,
             self._templates,
             self._open_terminal,
+            self._make_index_file,
             self._open_settings,
             self.application.config.gui.theme,
             self._set_theme,
@@ -126,6 +128,29 @@ class MainWindow(QMainWindow):
             "Terminal Interface",
             "The terminal interface could not be started.",
         )
+
+    def _make_index_file(self) -> None:
+        if not self.application.integrations.is_configured("gromacs"):
+            self.windows.show(MakeIndexHelpDialog)
+            return
+        try:
+            value = self.load.inputs.topology.edit.text().strip()
+            source = self.application.integrations.validate_input_file(
+                "gromacs",
+                "make_ndx",
+                "-f",
+                value,
+            )
+            self.application.integrations.open_terminal(
+                "gromacs",
+                ["make_ndx", "-f", str(source), "-o", "index.ndx"],
+                source.parent,
+                required_capabilities=("make_ndx",),
+            )
+        except Exception as exc:
+            self._show_error(exc)
+            return
+        self.statusBar().showMessage(f"Creating index file in {source.parent}", 10000)
 
     def _connect_panels(self) -> None:
         self.load.inputs.system_changed.connect(self._system_input_changed)

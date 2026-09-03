@@ -25,6 +25,16 @@ BASE_ENVIRONMENT_KEYS = frozenset(
     }
 )
 
+TERMINAL_ENVIRONMENT_KEYS = frozenset(
+    {
+        "DBUS_SESSION_BUS_ADDRESS",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "XAUTHORITY",
+        "XDG_RUNTIME_DIR",
+    }
+)
+
 
 def child_environment(
     adapter: EnvironmentAdapter, environment: dict[str, str]
@@ -32,4 +42,13 @@ def child_environment(
     """Return only platform essentials and adapter-declared variables."""
 
     allowed = BASE_ENVIRONMENT_KEYS | adapter.environment_keys()
+    return {key: value for key, value in environment.items() if key in allowed}
+
+
+def terminal_environment(
+    adapter: EnvironmentAdapter, environment: dict[str, str]
+) -> dict[str, str]:
+    """Return the integration environment plus desktop-session routing."""
+
+    allowed = BASE_ENVIRONMENT_KEYS | TERMINAL_ENVIRONMENT_KEYS | adapter.environment_keys()
     return {key: value for key, value in environment.items() if key in allowed}

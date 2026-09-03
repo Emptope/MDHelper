@@ -17,6 +17,15 @@ _ERROR_HEADING = re.compile(
     r"(?:Error in user input|Fatal error|Inconsistency in user input):",
     flags=re.IGNORECASE,
 )
+_MAKE_NDX_STRUCTURE_SUFFIXES = (
+    ".gro",
+    ".g96",
+    ".pdb",
+    ".brk",
+    ".ent",
+    ".esp",
+    ".tpr",
+)
 
 
 def _output_line(value: str) -> str | None:
@@ -150,6 +159,11 @@ class GromacsAdapter(IntegrationAdapter):
                 seen.add(command)
                 commands.append(command)
         return tuple(commands)
+
+    def file_suffixes(self, command: str, option: str) -> tuple[str, ...]:
+        if command.casefold() == "make_ndx" and option.casefold() == "-f":
+            return _MAKE_NDX_STRUCTURE_SUFFIXES
+        return ()
 
     def environment_keys(self) -> frozenset[str]:
         return frozenset(

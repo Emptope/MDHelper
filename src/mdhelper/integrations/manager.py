@@ -18,7 +18,7 @@ from mdhelper.integrations.models import (
     IntegrationStatus,
 )
 from mdhelper.runtime.detection import canonical_path, detect_candidate
-from mdhelper.runtime.execution import format_command, run_integration
+from mdhelper.runtime.execution import format_command, launch_in_terminal, run_integration
 
 
 class IntegrationManager:
@@ -147,6 +147,32 @@ class IntegrationManager:
         command = [status.path, *adapter.command_prefix(), *arguments]
         return format_command(command)
 
+    def validate_input_file(
+        self,
+        name: str,
+        command: str,
+        option: str,
+        path: str | Path,
+    ) -> Path:
+        value = str(path).strip()
+        if not value:
+            raise BackendError("Select an input file before starting the command.")
+        source = Path(value).expanduser()
+        if not source.is_file():
+            raise BackendError(f"Integration input file does not exist: {source}")
+        source = source.resolve()
+        adapter = self.registry.get(name)
+        suffixes = adapter.file_suffixes(command, option)
+        if suffixes and source.suffix.casefold() not in {
+            suffix.casefold() for suffix in suffixes
+        }:
+            display_name = adapter.display_name.strip() or adapter.name
+            raise BackendError(
+                f"{display_name} {command} does not accept this file format for {option}.",
+                f"Select one of: {', '.join(suffixes)}.",
+            )
+        return source
+
     def run(
         self,
         name: str,
@@ -185,4 +211,27 @@ class IntegrationManager:
                 process_progress,
                 IntegrationRunRecord,
             ),
+        )
+
+    def open_terminal(
+        self,
+        name: str,
+        arguments: list[str],
+        working_directory: str | Path,
+        required_capabilities: tuple[str, ...] = (),
+    ) -> str:
+        status = self.status(name)
+        missing = sorted(set(required_capabilities) - set(status.capabilities))
+        if missing:
+            raise BackendError(
+                f"The selected {name} integration lacks required capabilities.",
+                "Select another detected installation.",
+                {"missing_capabilities": missing, "integration": status.to_dict()},
+            )
+        return launch_in_terminal(
+            self.registry.get(name),
+            status,
+            arguments,
+            working_directory,
+            self.environment,
         )

@@ -63,6 +63,20 @@ class IntegrationUseCases:
     def display_name(self, name: str) -> str:
         return self.context.integrations.display_name(name)
 
+    def validate_input_file(
+        self,
+        name: str,
+        command: str,
+        option: str,
+        path: str | Path,
+    ) -> Path:
+        return self.context.integrations.validate_input_file(
+            name,
+            command,
+            option,
+            path,
+        )
+
     def run(
         self,
         name: str,
@@ -96,3 +110,17 @@ class IntegrationUseCases:
         if project:
             project.record_integration_run(record.to_dict())
         return record
+
+    def open_terminal(
+        self,
+        name: str,
+        arguments: list[str],
+        working_directory: str | Path,
+        required_capabilities: tuple[str, ...] = (),
+    ) -> str:
+        return self.context.integrations.open_terminal(
+            name,
+            arguments,
+            working_directory,
+            required_capabilities,
+        )

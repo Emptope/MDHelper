@@ -11,8 +11,8 @@
 
 ## 已完成
 
-- [x] [Fix] Analysis 页 Progress 按钮按 `Cancel`、`Run` 排列。
-- [x] [Fix] 重构 GUI 非模态窗口管理，并让 Advanced Plot Settings 的 `Cancel` 回滚本次会话设置。
+- [x] [Fix] GUI Result 页 `Advanced` 按钮改成 `Advanced...`
+- [x] [Feature] 增设一个功能：Tools 最下方增设 `Make Index File...` 选项，实现逻辑：当用户未配置 GROMACS 时，打开信息页，告诉用户如何用 `gmx make_ndx` 制作 index file，并附上 https://manual.gromacs.org/documentation/current/onlinehelp/gmx-make_ndx.html ；当用户配置 GROMACS 时，打开外部终端，调用 GROMACS 执行 `<gmx_executable> make_ndx -f <.gro> -o index.ndx` 命令。
 
 ## 完成标准（每轮代码改动后需重新确认）
 

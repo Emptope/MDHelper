@@ -8,6 +8,7 @@ import os
 import shlex
 import signal
 import subprocess
+import sys
 import time
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
@@ -16,9 +17,9 @@ from threading import Event, Thread
 from typing import Any, Literal, Protocol, TextIO
 
 from mdhelper.core.errors import BackendError, JobCancelled
-from mdhelper.runtime.environment import child_environment
+from mdhelper.runtime.environment import child_environment, terminal_environment
 from mdhelper.runtime.logging import record_command
-from mdhelper.runtime.process import hidden_window_flags
+from mdhelper.runtime.process import hidden_window_flags, terminal_command
 
 
 class ExecutionAdapter(Protocol):
@@ -44,6 +45,20 @@ class ExecutionStatus(Protocol):
 
     @property
     def version(self) -> str | None: ...
+
+
+def _integration_argv(
+    adapter: ExecutionAdapter,
+    integration: ExecutionStatus,
+    arguments: list[str],
+) -> list[str]:
+    if integration.name.casefold() != adapter.name.casefold():
+        raise BackendError("The integration status does not match the selected adapter.")
+    if not integration.available or not integration.path or not integration.version:
+        raise BackendError("An integration must pass detection before execution.")
+    if any("\x00" in argument for argument in arguments):
+        raise BackendError("Integration arguments cannot contain NUL bytes.")
+    return [integration.path, *adapter.command_prefix(), *arguments]
 
 
 def _sha256(path: Path) -> str:
@@ -110,6 +125,43 @@ def _record(
 
 
 ProcessProgress = Callable[[float, str, str], None]
+
+
+def launch_in_terminal(
+    adapter: ExecutionAdapter,
+    integration: ExecutionStatus,
+    arguments: list[str],
+    working_directory: str | Path,
+    environment: dict[str, str] | None = None,
+) -> str:
+    """Launch a validated integration command in an interactive terminal."""
+
+    argv = _integration_argv(adapter, integration, arguments)
+    cwd = Path(working_directory).expanduser().resolve()
+    if not cwd.is_dir():
+        raise BackendError(f"Integration working directory does not exist: {cwd}")
+    raw_environment = dict(os.environ if environment is None else environment)
+    child_env = terminal_environment(adapter, raw_environment)
+    command = format_command(argv)
+    record_command(command, cwd)
+    try:
+        launcher, creationflags = terminal_command(argv)
+        subprocess.Popen(
+            launcher,
+            cwd=cwd,
+            env=child_env,
+            shell=False,
+            close_fds=True,
+            creationflags=creationflags,
+            start_new_session=sys.platform != "win32",
+        )
+    except OSError as exc:
+        raise BackendError(
+            "Could not open an external terminal.",
+            "Install a terminal application or run the command from an existing terminal.",
+            {"command": command, "exception": f"{type(exc).__name__}: {exc}"},
+        ) from exc
+    return command
 
 
 def _signal_tree(process: subprocess.Popen[str], force: bool) -> None:
@@ -194,12 +246,7 @@ def run_integration(
 ) -> Any:
     """Run a detected integration with a bounded environment and lifetime."""
 
-    if integration.name.casefold() != adapter.name.casefold():
-        raise BackendError("The integration status does not match the selected adapter.")
-    if not integration.available or not integration.path or not integration.version:
-        raise BackendError("An integration must pass detection before execution.")
-    if any("\x00" in argument for argument in arguments):
-        raise BackendError("Integration arguments cannot contain NUL bytes.")
+    argv = _integration_argv(adapter, integration, arguments)
     if input_text is not None and "\x00" in input_text:
         raise BackendError("Integration input cannot contain NUL bytes.")
     if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
@@ -213,7 +260,6 @@ def run_integration(
     child_env = child_environment(adapter, raw_environment)
     started = time.monotonic()
     started_at = datetime.now(UTC).isoformat()
-    argv = [integration.path, *adapter.command_prefix(), *arguments]
     command = format_command(argv)
     record_command(command, cwd)
     try:

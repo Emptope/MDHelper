@@ -128,6 +128,10 @@ class IntegrationAdapter(ABC):
     def default_capabilities(self) -> tuple[str, ...]:
         return ()
 
+    def file_suffixes(self, command: str, option: str) -> tuple[str, ...]:
+        del command, option
+        return ()
+
     def environment_keys(self) -> frozenset[str]:
         return frozenset()
 

@@ -12,6 +12,7 @@ from threading import Event, Timer
 import pytest
 
 import mdhelper.integrations.manager as manager_module
+import mdhelper.runtime.execution as execution_module
 from mdhelper.app import ApplicationService
 from mdhelper.core.errors import BackendError, ConfigurationError, JobCancelled
 from mdhelper.integrations import DEFAULT_INTEGRATION_REGISTRY
@@ -30,7 +31,8 @@ from mdhelper.integrations.models import (
 )
 from mdhelper.integrations.vmd import VmdAdapter
 from mdhelper.project import Project
-from mdhelper.runtime.process import hidden_window_flags
+from mdhelper.runtime.execution import launch_in_terminal
+from mdhelper.runtime.process import hidden_window_flags, terminal_command
 from mdhelper.services.config import UserConfig
 
 _PROGRESS_READY = "progress-ready"
@@ -184,8 +186,126 @@ def test_background_processes_hide_windows_console(monkeypatch) -> None:
     assert hidden_window_flags("posix") == 0
 
 
+def test_terminal_command_uses_windows_console_or_available_posix_launcher(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    command = ["tool", "subcommand", "value with spaces"]
+    monkeypatch.setitem(vars(subprocess), "CREATE_NEW_CONSOLE", 0x00000010)
+
+    assert terminal_command(command, "win32") == (command, 0x00000010)
+
+    available = {"x-terminal-emulator": "/usr/bin/x-terminal-emulator"}
+    assert terminal_command(command, "linux", available.get) == (
+        ["/usr/bin/x-terminal-emulator", "-e", *command],
+        0,
+    )
+
+
+def test_terminal_launch_preserves_argv_and_bounds_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager, program, _registry = _fake_integration(tmp_path, validated=True)
+    status = manager.status("fake")
+    adapter = manager.registry.get("fake")
+    launches: list[tuple[list[str], dict[str, object]]] = []
+    logged: list[tuple[str, Path]] = []
+    monkeypatch.setattr(
+        execution_module,
+        "terminal_command",
+        lambda command: (["terminal", "-e", *command], 0),
+    )
+    monkeypatch.setattr(
+        execution_module.subprocess,
+        "Popen",
+        lambda command, **kwargs: launches.append((command, kwargs)) or object(),
+    )
+    monkeypatch.setattr(
+        execution_module,
+        "record_command",
+        lambda command, cwd: logged.append((command, cwd)),
+    )
+
+    command = launch_in_terminal(
+        adapter,
+        status,
+        ["echo", "value;still-one-argument"],
+        tmp_path,
+        {"PATH": "/bin", "FAKE_TOOL": str(program), "UNRELATED_SECRET": "hidden"},
+    )
+
+    argv, options = launches[0]
+    assert argv[-2:] == ["echo", "value;still-one-argument"]
+    assert options["shell"] is False
+    assert options["cwd"] == tmp_path.resolve()
+    assert options["env"] == {"PATH": "/bin"}
+    assert logged == [(command, tmp_path.resolve())]
+
+
+def test_integration_manager_opens_validated_terminal_command(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager, _program, _registry = _fake_integration(tmp_path, validated=True)
+    calls: list[tuple[str, list[str], Path]] = []
+
+    def launch(
+        adapter: IntegrationAdapter,
+        _status: IntegrationStatus,
+        arguments: list[str],
+        cwd: str | Path,
+        _environment: dict[str, str],
+    ) -> str:
+        calls.append((adapter.name, arguments, Path(cwd)))
+        return "command"
+
+    monkeypatch.setattr(manager_module, "launch_in_terminal", launch)
+
+    assert manager.open_terminal(
+        "fake",
+        ["echo", "value"],
+        tmp_path,
+        required_capabilities=("echo",),
+    ) == "command"
+    assert calls == [("fake", ["echo", "value"], tmp_path)]
+
+    with pytest.raises(BackendError, match="lacks required capabilities"):
+        manager.open_terminal(
+            "fake",
+            ["missing"],
+            tmp_path,
+            required_capabilities=("missing",),
+        )
+
+
+def test_integration_validates_adapter_specific_input_formats(tmp_path: Path) -> None:
+    registry = IntegrationRegistry()
+    registry.register(GromacsAdapter())
+    manager = IntegrationManager({}, registry, {})
+    accepted = tmp_path / "structure.g96"
+    rejected = tmp_path / "trajectory.xtc"
+    accepted.touch()
+    rejected.touch()
+
+    assert manager.validate_input_file("gromacs", "make_ndx", "-f", accepted) == (
+        accepted.resolve()
+    )
+    with pytest.raises(BackendError, match="does not accept"):
+        manager.validate_input_file("gromacs", "make_ndx", "-f", rejected)
+
+
 def test_gromacs_output_parsing() -> None:
     adapter = GromacsAdapter()
+    assert adapter.file_suffixes("make_ndx", "-f") == (
+        ".gro",
+        ".g96",
+        ".pdb",
+        ".brk",
+        ".ent",
+        ".esp",
+        ".tpr",
+    )
+    assert adapter.file_suffixes("rdf", "-f") == ()
     assert adapter.parse_version("GROMACS version: 2026.3", "", 0) == "2026.3"
     assert adapter.parse_version("not the requested tool", "", 0) is None
     assert adapter.parse_capabilities(
