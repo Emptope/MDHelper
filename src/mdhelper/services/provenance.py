@@ -1,10 +1,8 @@
-"""Reproducibility records and cancellable content fingerprints."""
+"""Reproducibility metadata for analysis results."""
 
 from __future__ import annotations
 
-import hashlib
 import importlib.metadata
-import json
 import platform
 import sys
 from collections.abc import Callable
@@ -12,50 +10,8 @@ from pathlib import Path
 from threading import Event
 from typing import Any
 
-from mdhelper.core.errors import InputFileError, JobCancelled
+from mdhelper.io.files import sha256_file
 from mdhelper.version import __version__
-
-
-def unique_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Remove identical records while preserving their first-seen order."""
-    result: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for record in records:
-        key = json.dumps(record, sort_keys=True, separators=(",", ":"))
-        if key not in seen:
-            seen.add(key)
-            result.append(record)
-    return result
-
-
-def sha256_file(
-    path: str | Path,
-    cancel_event: Event | None = None,
-    progress: Callable[[int, int | None, str], None] | None = None,
-) -> str:
-    target = Path(path)
-    digest = hashlib.sha256()
-    processed = 0
-    try:
-        if cancel_event is not None and cancel_event.is_set():
-            raise JobCancelled("Input fingerprinting was cancelled.")
-        total = target.stat().st_size
-        with target.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(4 * 1024 * 1024), b""):
-                if cancel_event is not None and cancel_event.is_set():
-                    raise JobCancelled("Input fingerprinting was cancelled.")
-                digest.update(chunk)
-                processed += len(chunk)
-                if progress:
-                    progress(processed, total, f"Fingerprinting {target.name}")
-    except JobCancelled:
-        raise
-    except OSError as exc:
-        raise InputFileError(
-            f"Could not fingerprint input file: {target}",
-            details={"exception": f"{type(exc).__name__}: {exc}"},
-        ) from exc
-    return digest.hexdigest()
 
 
 def dependency_versions() -> dict[str, str]:

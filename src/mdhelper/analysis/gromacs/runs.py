@@ -10,13 +10,13 @@ from mdhelper.analysis.common import report_progress
 from mdhelper.analysis.pipeline import AnalysisInput
 from mdhelper.analysis.radial import FrameAudit
 from mdhelper.core.errors import BackendError
+from mdhelper.core.integrations import IntegrationRunRecord
 from mdhelper.integrations.gromacs import (
     frame_count,
     frame_progress,
     frame_progresses,
     output_message,
 )
-from mdhelper.integrations.models import IntegrationRunRecord
 
 
 def _run_audit(

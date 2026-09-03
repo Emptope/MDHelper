@@ -4,7 +4,7 @@ import pytest
 
 from mdhelper.bootstrap.portable import activate_portable_config, portable_config_path
 from mdhelper.core.errors import ConfigurationError
-from mdhelper.integrations.models import IntegrationConfig
+from mdhelper.core.integrations import IntegrationConfig
 from mdhelper.services.config import (
     DEFAULT_CONFIG_TEMPLATE,
     GuiConfig,

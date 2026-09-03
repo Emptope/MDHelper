@@ -27,11 +27,11 @@ import mdhelper.gui.window as window_module
 from mdhelper.app import InputCandidates
 from mdhelper.core.analysis import AnalysisResult, RadialRequest, analysis_label
 from mdhelper.core.errors import ConfigurationError
+from mdhelper.core.integrations import IntegrationConfig, IntegrationStatus
 from mdhelper.gui.components.choices import choice_enabled
 from mdhelper.gui.dialogs.projects import NewProjectDialog
 from mdhelper.gui.dialogs.tools import MakeIndexHelpDialog
 from mdhelper.gui.window import MainWindow
-from mdhelper.integrations.models import IntegrationConfig, IntegrationStatus
 from mdhelper.services.config import UserConfig, config_path, save_config
 
 gui_main_module = import_module("mdhelper.gui.main")

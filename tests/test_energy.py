@@ -13,14 +13,10 @@ from mdhelper.analysis.pipeline import BackendQuery
 from mdhelper.app import ApplicationService, TrajectoryLoader
 from mdhelper.core.analysis import EnergyRequest, RadialRequest
 from mdhelper.core.errors import BackendError, FormatError, InputError
+from mdhelper.core.integrations import IntegrationConfig, IntegrationStatus
 from mdhelper.core.plotting import result_plot
 from mdhelper.core.system import FrameRange
-from mdhelper.integrations.models import (
-    IntegrationAdapter,
-    IntegrationConfig,
-    IntegrationRegistry,
-    IntegrationStatus,
-)
+from mdhelper.integrations.registry import IntegrationAdapter, IntegrationRegistry
 from mdhelper.services.config import UserConfig
 
 

@@ -6,7 +6,7 @@ import os
 import re
 from pathlib import Path
 
-from mdhelper.integrations.models import IntegrationAdapter
+from mdhelper.integrations.registry import IntegrationAdapter
 
 
 class VmdAdapter(IntegrationAdapter):

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-from mdhelper.integrations.models import IntegrationConfig
+from mdhelper.core.integrations import IntegrationConfig
 
 SCHEMA_VERSION = 1
 ThemeMode = Literal["system", "light", "dark"]

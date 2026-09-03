@@ -13,7 +13,7 @@ from mdhelper.core.analysis import (
     RadialRequest,
 )
 from mdhelper.core.errors import ConfigurationError, InputFileError
-from mdhelper.services.provenance import sha256_file
+from mdhelper.io.files import sha256_file
 
 
 class InputRecord(TypedDict):

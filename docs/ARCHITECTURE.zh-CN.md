@@ -48,7 +48,9 @@ flowchart TB
     Analysis --> Services
     Analysis --> Integrations
     Services --> Backends[backends]
+    Services --> IO
     Services --> Integrations
+    Project --> IO
     Integrations --> Runtime[runtime / process]
 
     App --> Core[core]
@@ -70,7 +72,8 @@ flowchart TB
 - Qt 导入只存在于 `gui`，GUI 状态模块不依赖 Qt。
 - `analysis` 和 `backends` 不直接执行子进程，也不直接导入 `runtime`。
 - 分析计算不依赖绘图。
-- 职责集中的子包使用明确的单向模块层级，不形成循环依赖。
+- `io` 和 `project` 不依赖服务编排层。
+- 顶层包与职责集中的子包使用明确的单向模块层级，不形成循环依赖。
 
 `tests/test_architecture.py` 检查这些依赖边界。
 
@@ -82,16 +85,15 @@ flowchart TB
 | `cli`、`tui`、`gui` | 输入收集、表现层状态和结果呈现 |
 | `app` | `ApplicationService`、功能编排、导出计划和可读报告 |
 | `jobs` | 同步和线程执行、进度、状态及取消 |
-| `core` | 请求、结果、领域记录、协议、错误、单位和绘图模型 |
+| `core` | 请求、结果、Integration 契约、领域记录、协议、错误、单位和绘图模型 |
 | `analysis` | 完整的 `mdanalysis/` 与 `gromacs/` 管线，以及共享管线契约和径向诊断 |
 | `backends` | 对应的 `mdanalysis/` 与 `gromacs/` 输入适配器，用于生成 Core 对象 |
-| `services` | 配置、系统检查、选择、provenance、运行流和模板服务 |
-| `integrations` | 外部工具适配、能力状态和执行协调 |
+| `services` | 配置、系统检查、选择、provenance 和模板服务 |
+| `integrations` | 外部工具适配、注册、能力检测和执行协调 |
 | `runtime` | 进程生命周期、检测基础设施、环境过滤和日志 |
 | `project` | Manifest、输入身份、结果仓库、运行归档和原子存储 |
-| `io` | NDX 解析、结构化数据导出和图片导出 |
+| `io` | 文件指纹、Integration 运行流、NDX 解析、结构化数据和图片导出 |
 | `resources` | 随包发布的只读模板 |
-| `workflow` | 预留的用户编排包，当前为空 |
 
 `mdhelper` 包根目录只包含公共入口和版本元数据。较大的功能位于职责集中的包和子包中。
 
@@ -149,6 +151,9 @@ MDAnalysis 径向链路将输入转换为窄接口 `TrajectorySource`。GROMACS 
 数据、参数、单位、诊断、provenance、警告、标识、方法版本和创建时间。未知字段、缺失字段、
 非法枚举和不一致数组都会导致验证失败。0.1.0 不包含持久化 schema 的兼容或迁移分支。
 
+`core/integrations.py` 定义配置、检测、状态与运行记录契约，不依赖适配器发现和进程执行。
+适配器协议与注册仍位于 `integrations/`。
+
 轨迹和选择适配器输出稳定的零基原子索引与帧范围。径向计算内部使用 nm。一次分析中的选择
 成员保持静态。物种角色只记录描述性 provenance，不选择原子，也不修改数值参数。
 
@@ -177,8 +182,9 @@ Manifest 和 result 更新使用原子替换。Integration 输出正文保存在
 不进入 Manifest。项目重定位只接受内容哈希一致的替代输入。`cache` 保存可重建的轨迹索引和
 外部工具工作文件，删除缓存不会删除规范结果。
 
-`io/export/` 写入通过验证的 JSON 和 CSV，并渲染 PNG、SVG 和 PDF。导出是独立应用用例，
-因此分析成功不代表已经写入磁盘。项目提交和独立导出共享同一个已验证结果契约。
+`io/` 负责可取消的文件指纹和 Integration 运行流存储。`io/export/` 写入通过验证的 JSON
+和 CSV，并渲染 PNG、SVG 和 PDF。导出是独立应用用例，因此分析成功不代表已经写入磁盘。
+项目提交和独立导出共享同一个已验证结果契约。
 
 ## 8. Job 与外部进程
 

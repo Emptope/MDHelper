@@ -15,6 +15,7 @@ import mdhelper.integrations.manager as manager_module
 import mdhelper.runtime.process.terminal as terminal_module
 from mdhelper.app import ApplicationService
 from mdhelper.core.errors import BackendError, ConfigurationError, JobCancelled
+from mdhelper.core.integrations import Detection, IntegrationConfig, IntegrationStatus
 from mdhelper.integrations import DEFAULT_INTEGRATION_REGISTRY
 from mdhelper.integrations.gromacs import GromacsAdapter
 from mdhelper.integrations.gromacs import error_message as gromacs_error_message
@@ -22,13 +23,7 @@ from mdhelper.integrations.gromacs import frame_count as gromacs_frame_count
 from mdhelper.integrations.gromacs import frame_progress as gromacs_frame_progress
 from mdhelper.integrations.gromacs import output_message as gromacs_output_message
 from mdhelper.integrations.manager import IntegrationManager
-from mdhelper.integrations.models import (
-    Detection,
-    IntegrationAdapter,
-    IntegrationConfig,
-    IntegrationRegistry,
-    IntegrationStatus,
-)
+from mdhelper.integrations.registry import IntegrationAdapter, IntegrationRegistry
 from mdhelper.integrations.vmd import VmdAdapter
 from mdhelper.project import Project
 from mdhelper.runtime.process import hidden_window_flags, launch_in_terminal, terminal_command

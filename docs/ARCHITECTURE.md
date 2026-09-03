@@ -51,7 +51,9 @@ flowchart TB
     Analysis --> Services
     Analysis --> Integrations
     Services --> Backends[backends]
+    Services --> IO
     Services --> Integrations
+    Project --> IO
     Integrations --> Runtime[runtime / process]
 
     App --> Core[core]
@@ -73,7 +75,9 @@ The enforced boundaries are:
 - Qt imports remain inside `gui`, and GUI state modules remain independent of Qt.
 - `analysis` and `backends` do not execute subprocesses or import `runtime` directly.
 - Analysis computation does not depend on plotting.
-- Focused subpackages use an explicit inward module order without circular dependencies.
+- `io` and `project` do not depend on service orchestration.
+- Top-level packages and focused subpackages use an explicit inward module order without
+  circular dependencies.
 
 `tests/test_architecture.py` checks these dependency boundaries.
 
@@ -85,16 +89,15 @@ The enforced boundaries are:
 | `cli`, `tui`, `gui` | Input collection, presentation state, and result rendering |
 | `app` | `ApplicationService`, feature orchestration, export plans, and readable reports |
 | `jobs` | Synchronous and threaded execution, progress, status, and cancellation |
-| `core` | Requests, results, domain records, protocols, errors, units, and plot models |
+| `core` | Requests, results, integration contracts, domain records, protocols, errors, units, and plot models |
 | `analysis` | Complete `mdanalysis/` and `gromacs/` pipelines plus shared pipeline contracts and radial diagnostics |
 | `backends` | Matching `mdanalysis/` and `gromacs/` input adapters that produce core objects |
-| `services` | Configuration, system inspection, selection, provenance, run streams, and templates |
-| `integrations` | External-tool adapters, capability status, and execution coordination |
+| `services` | Configuration, system inspection, selection, provenance, and templates |
+| `integrations` | External-tool adapters, registry, capability detection, and execution coordination |
 | `runtime` | Process lifecycle, detection primitives, environment filtering, and logging |
 | `project` | Manifest, input identity, result repository, run archive, and atomic storage |
-| `io` | NDX parsing plus structured-data and figure export adapters |
+| `io` | File fingerprints, integration streams, NDX parsing, and data/figure export adapters |
 | `resources` | Packaged read-only templates |
-| `workflow` | Reserved package for future user-authored orchestration; currently empty |
 
 The `mdhelper` package root contains only public entry points and version metadata. Larger features
 reside in focused packages and subpackages.
@@ -159,6 +162,10 @@ complete request, data, parameters, units, diagnostics, provenance, warnings, id
 version, and creation time. Unknown fields, missing fields, invalid enums, and inconsistent arrays
 fail validation. Version 0.1.0 contains no compatibility or migration path for persisted schemas.
 
+`core/integrations.py` defines configuration, detection, status, and run-record contracts without
+depending on adapter discovery or process execution. Adapter protocols and registration remain in
+`integrations/`.
+
 Trajectory and selection adapters expose stable zero-based atom indices and frame ranges. Radial
 calculation uses nanometres internally. Selection membership remains fixed during an analysis.
 Species roles record descriptive provenance and do not select atoms or alter numerical parameters.
@@ -190,9 +197,10 @@ fingerprinted stream files instead of the manifest. Project relocation accepts a
 only when its content hash matches. `cache` contains rebuildable trajectory indexes and external
 tool work files; deleting it does not remove canonical results.
 
-`io/export/` writes validated JSON and CSV data and renders PNG, SVG, and PDF figures. Export is a
-separate application use case, so successful analysis does not imply disk output. Project commits
-and standalone exports share the same validated result contract.
+`io/` owns cancellable file fingerprints and integration stream storage. `io/export/` writes
+validated JSON and CSV data and renders PNG, SVG, and PDF figures. Export is a separate application
+use case, so successful analysis does not imply disk output. Project commits and standalone exports
+share the same validated result contract.
 
 ## 8. Jobs and external processes
 

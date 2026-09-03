@@ -1,14 +1,13 @@
 """Unified external software configuration, detection, status, and execution."""
 
-from mdhelper.integrations.gromacs import GromacsAdapter
-from mdhelper.integrations.models import (
+from mdhelper.core.integrations import (
     Detection,
-    IntegrationAdapter,
     IntegrationConfig,
-    IntegrationRegistry,
     IntegrationRunRecord,
     IntegrationStatus,
 )
+from mdhelper.integrations.gromacs import GromacsAdapter
+from mdhelper.integrations.registry import IntegrationAdapter, IntegrationRegistry
 from mdhelper.integrations.vmd import VmdAdapter
 
 DEFAULT_INTEGRATION_REGISTRY = IntegrationRegistry()

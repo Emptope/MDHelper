@@ -10,13 +10,13 @@ from threading import Event
 from typing import cast
 
 from mdhelper.core.errors import BackendError
-from mdhelper.integrations.models import (
+from mdhelper.core.integrations import (
     Detection,
     IntegrationConfig,
-    IntegrationRegistry,
     IntegrationRunRecord,
     IntegrationStatus,
 )
+from mdhelper.integrations.registry import IntegrationRegistry
 from mdhelper.runtime.detection import canonical_path, detect_candidate
 from mdhelper.runtime.process import format_command, launch_in_terminal, run_integration
 

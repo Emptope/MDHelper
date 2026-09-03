@@ -11,12 +11,12 @@ from typing import Any
 from uuid import uuid4
 
 from mdhelper.core.errors import ConfigurationError
-from mdhelper.project.storage import atomic_json
-from mdhelper.services.run_streams import (
+from mdhelper.io.integration_runs import (
     externalize_run_streams,
     hydrate_run_streams,
     remove_run_streams,
 )
+from mdhelper.project.storage import atomic_json
 
 _COMMON_FIELDS = {
     "name",

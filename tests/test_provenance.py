@@ -4,14 +4,15 @@ from threading import Event
 import pytest
 
 from mdhelper.core.errors import JobCancelled
-from mdhelper.services.provenance import sha256_file, unique_records
+from mdhelper.core.integrations import unique_run_records
+from mdhelper.io.files import sha256_file
 
 
-def test_unique_records_preserves_order_and_removes_exact_duplicates() -> None:
+def test_unique_run_records_preserves_order_and_removes_exact_duplicates() -> None:
     first = {"name": "first", "values": [1, 2]}
     second = {"name": "second", "values": [1, 2]}
 
-    assert unique_records([first, dict(first), second]) == [first, second]
+    assert unique_run_records([first, dict(first), second]) == [first, second]
 
 
 def test_fingerprinting_reports_progress_and_honors_cancellation(

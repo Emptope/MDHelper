@@ -7,7 +7,7 @@ from threading import Event
 
 from mdhelper.app.context import ApplicationContext
 from mdhelper.core.errors import MDHelperError
-from mdhelper.integrations.models import (
+from mdhelper.core.integrations import (
     IntegrationConfig,
     IntegrationRunRecord,
     IntegrationStatus,

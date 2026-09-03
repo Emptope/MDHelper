@@ -24,6 +24,7 @@ import mdhelper.gui.window as window_module
 from mdhelper.app import ApplicationService
 from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import InputError
+from mdhelper.core.integrations import IntegrationConfig, IntegrationStatus
 from mdhelper.core.plotting import PlotAppearance, PlotLimits
 from mdhelper.core.species import SpeciesRoleSuggestion
 from mdhelper.core.system import FrameRange, SystemSummary
@@ -36,7 +37,6 @@ from mdhelper.gui.pages.results import ResultPanel
 from mdhelper.gui.plotting.settings import PlotSettingsDialog
 from mdhelper.gui.window import MainWindow
 from mdhelper.gui.windows import WindowManager
-from mdhelper.integrations.models import IntegrationConfig, IntegrationStatus
 from mdhelper.jobs import JobHandle
 from mdhelper.services.config import UserConfig, load_config
 

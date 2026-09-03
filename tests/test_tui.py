@@ -9,10 +9,10 @@ from test_synthetic_system import _write_trajectory
 import mdhelper.bootstrap.portable as portable
 import mdhelper.bootstrap.windows_console as windows_console
 from mdhelper.app import ApplicationService
+from mdhelper.core.integrations import IntegrationStatus
 from mdhelper.core.species import role_decision
 from mdhelper.core.system import FrameRange
 from mdhelper.gui.main import tui_command
-from mdhelper.integrations.models import IntegrationStatus
 from mdhelper.services.config import UserConfig
 from mdhelper.tui.controller import Tui
 from mdhelper.tui.model import AnalysisDraft, RadialTask, Workspace

@@ -20,9 +20,9 @@ from PySide6.QtWidgets import (
 )
 
 from mdhelper.app import ApplicationService
+from mdhelper.core.integrations import IntegrationConfig, IntegrationStatus
 from mdhelper.gui.components.paths import PathRow
 from mdhelper.gui.formatting import error_text
-from mdhelper.integrations.models import IntegrationConfig, IntegrationStatus
 from mdhelper.services.config import save_config
 
 

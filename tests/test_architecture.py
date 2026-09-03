@@ -68,6 +68,26 @@ def _internal_graph() -> dict[str, set[str]]:
     return graph
 
 
+def _package_graph(graph: dict[str, set[str]]) -> dict[str, set[str]]:
+    packages = {
+        module.split(".", maxsplit=2)[1]
+        for module in graph
+        if module.startswith("mdhelper.")
+    }
+    result = {package: set() for package in packages}
+    for module, targets in graph.items():
+        if not module.startswith("mdhelper."):
+            continue
+        source = module.split(".", maxsplit=2)[1]
+        for target in targets:
+            if not target.startswith("mdhelper."):
+                continue
+            destination = target.split(".", maxsplit=2)[1]
+            if destination != source:
+                result[source].add(destination)
+    return result
+
+
 def _cycles(graph: dict[str, set[str]]) -> set[tuple[str, ...]]:
     found: set[tuple[str, ...]] = set()
     active: list[str] = []
@@ -103,6 +123,14 @@ def test_core_has_no_reverse_internal_dependencies() -> None:
 
 def test_internal_module_dependencies_are_acyclic() -> None:
     assert _cycles(_internal_graph()) == set()
+
+
+def test_top_level_package_dependencies_are_acyclic() -> None:
+    assert _cycles(_package_graph(_internal_graph())) == set()
+
+
+def test_persistence_does_not_depend_on_service_orchestration() -> None:
+    assert _violations(("io", "project"), ("mdhelper.services",)) == {}
 
 
 def test_presentations_depend_on_application_boundaries() -> None:

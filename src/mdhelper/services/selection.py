@@ -14,13 +14,13 @@ from mdhelper.backends.mdanalysis import (
 from mdhelper.core.errors import SelectionError
 from mdhelper.core.selection import SelectionEngine
 from mdhelper.core.system import Atom
+from mdhelper.io.files import sha256_file
 from mdhelper.io.ndx import (
     NDX_SELECTION_LANGUAGE,
     NDX_SELECTION_LANGUAGE_VERSION,
     NdxSelectionEngine,
     load_groups,
 )
-from mdhelper.services.provenance import sha256_file
 
 DEFAULT_SELECTION_ENGINE: SelectionEngine = MDAnalysisSelectionEngine()
 

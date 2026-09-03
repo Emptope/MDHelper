@@ -16,10 +16,10 @@ from mdhelper.backends.mdanalysis import MDAnalysisTrajectorySource
 from mdhelper.cli import main
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError, InputFileError
+from mdhelper.core.integrations import IntegrationStatus
 from mdhelper.core.plotting import PlotAppearance, PlotLimits, PlotSelection, PlotState
 from mdhelper.core.system import FrameRange
 from mdhelper.integrations.manager import IntegrationManager
-from mdhelper.integrations.models import IntegrationStatus
 from mdhelper.services.config import UserConfig
 
 

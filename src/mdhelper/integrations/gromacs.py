@@ -6,7 +6,7 @@ import os
 import re
 from pathlib import Path
 
-from mdhelper.integrations.models import IntegrationAdapter
+from mdhelper.integrations.registry import IntegrationAdapter
 
 _FRAME_PROGRESS = re.compile(
     r"(?i)(?:reading|last)\s+frame\s+(\d+)\s+time\s+([-+0-9.eE]+)"

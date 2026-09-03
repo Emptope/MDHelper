@@ -1,87 +1,10 @@
-"""Contracts and state for supported external software integrations."""
+"""Contracts and registry for external integration adapters."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import asdict, dataclass, field
-from typing import Any, Literal
 
 from mdhelper.core.errors import ConfigurationError
-
-
-@dataclass(frozen=True)
-class IntegrationConfig:
-    enabled: bool = True
-    path: str = ""
-    search_paths: tuple[str, ...] = ()
-    use_environment: bool = True
-    detect_timeout_seconds: float = 10.0
-    run_timeout_seconds: float = 3600.0
-
-
-@dataclass(frozen=True)
-class Detection:
-    name: str
-    source: str
-    candidate: str
-    available: bool
-    path: str | None = None
-    version: str | None = None
-    capabilities: tuple[str, ...] = ()
-    error: str | None = None
-    rank: int = 0
-    diagnostics: dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        value = asdict(self)
-        value["capabilities"] = list(self.capabilities)
-        return value
-
-
-@dataclass(frozen=True)
-class IntegrationStatus:
-    name: str
-    available: bool
-    path: str | None = None
-    version: str | None = None
-    capabilities: tuple[str, ...] = ()
-    source: str | None = None
-    error: str | None = None
-    detections: tuple[Detection, ...] = ()
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "available": self.available,
-            "path": self.path,
-            "version": self.version,
-            "capabilities": list(self.capabilities),
-            "source": self.source,
-            "error": self.error,
-            "detections": [item.to_dict() for item in self.detections],
-        }
-
-
-@dataclass
-class IntegrationRunRecord:
-    name: str
-    display_name: str
-    path: str
-    version: str
-    command: str
-    arguments: list[str]
-    working_directory: str
-    environment_summary: dict[str, str]
-    exit_code: int
-    stdout: str
-    stderr: str
-    started_at: str
-    output_fingerprints: dict[str, str] = field(default_factory=dict)
-    elapsed_seconds: float = 0.0
-    status: Literal["completed", "failed", "cancelled", "timed_out"] = "completed"
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
 
 
 class IntegrationAdapter(ABC):

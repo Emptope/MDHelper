@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from mdhelper.core.errors import ConfigurationError
-from mdhelper.integrations.models import IntegrationConfig
+from mdhelper.core.integrations import IntegrationConfig
 from mdhelper.services.config.contracts import (
     SCHEMA_VERSION,
     THEME_MODES,

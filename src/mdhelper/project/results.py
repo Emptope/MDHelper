@@ -9,11 +9,11 @@ from typing import Any
 
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError
+from mdhelper.io.files import sha256_file
 from mdhelper.project.inputs import InputRepository
 from mdhelper.project.manifests import ManifestRepository
 from mdhelper.project.runs import RunRepository
 from mdhelper.project.storage import atomic_json
-from mdhelper.services.provenance import sha256_file
 
 _RunRecords = list[dict[str, Any]]
 

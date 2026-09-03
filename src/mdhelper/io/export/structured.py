@@ -11,8 +11,8 @@ from typing import Any
 
 from mdhelper.core.analysis import AnalysisResult
 from mdhelper.core.errors import BackendError
-from mdhelper.services.provenance import unique_records
-from mdhelper.services.run_streams import externalize_run_streams, remove_run_streams
+from mdhelper.core.integrations import unique_run_records
+from mdhelper.io.integration_runs import externalize_run_streams, remove_run_streams
 
 from .paths import output_directory
 
@@ -39,7 +39,7 @@ def export_result(
             if len(records) != len(raw_runs):
                 raise BackendError("Integration runs must be objects before export.")
             if records:
-                records = unique_records(records)
+                records = unique_run_records(records)
                 stored, stream_paths = externalize_run_streams(records, output, "run")
                 provenance["integration_runs"] = stored
     try:
