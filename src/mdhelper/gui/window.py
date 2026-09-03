@@ -40,6 +40,8 @@ __all__ = ["MainWindow", "NewProjectDialog", "QFileDialog"]
 class MainWindow(QMainWindow):
     """Compose desktop pages, actions, and application services."""
 
+    # Construction
+
     def __init__(self):
         configure_logging()
         application = ApplicationService()
@@ -126,9 +128,7 @@ class MainWindow(QMainWindow):
         )
         self.system_actions.detect_gromacs()
 
-    @property
-    def job_controller(self) -> AnalysisJobController:
-        return self.analysis_actions.jobs
+    # System actions
 
     @property
     def role_suggestions(self) -> dict[str, SpeciesRoleSuggestion]:
@@ -150,17 +150,15 @@ class MainWindow(QMainWindow):
     def _inspection_timer(self):
         return self.system_actions.timer
 
-    def _open_terminal(self) -> None:
-        from mdhelper.gui.main import start_tui
+    def _inspect(
+        self,
+        existing_roles: dict[str, str] | None = None,
+        report_error: bool = True,
+    ) -> None:
+        self.system_actions.inspect(existing_roles, report_error)
 
-        if start_tui():
-            self.statusBar().showMessage("Terminal interface opened", 10000)
-            return
-        QMessageBox.critical(
-            self,
-            "Terminal Interface",
-            "The terminal interface could not be started.",
-        )
+    def _integration_detected(self, name: str, status: object) -> None:
+        self.system_actions.integration_detected(name, status)
 
     def _make_index_file(self) -> None:
         if not self.application.integrations.is_configured("gromacs"):
@@ -174,16 +172,25 @@ class MainWindow(QMainWindow):
                 "-f",
                 value,
             )
+            output = source.parent / "index.ndx"
+            self.system_actions.watch_index_file(output)
             self.application.integrations.open_terminal(
                 "gromacs",
-                ["make_ndx", "-f", str(source), "-o", "index.ndx"],
+                ["make_ndx", "-f", str(source), "-o", output.name],
                 source.parent,
                 required_capabilities=("make_ndx",),
             )
         except Exception as exc:
+            self.system_actions.cancel_index_watch()
             self._show_error(exc)
             return
         self.statusBar().showMessage(f"Creating index file in {source.parent}", 10000)
+
+    # Analysis actions
+
+    @property
+    def job_controller(self) -> AnalysisJobController:
+        return self.analysis_actions.jobs
 
     def _run(self) -> None:
         self.analysis_actions.run()
@@ -200,15 +207,7 @@ class MainWindow(QMainWindow):
         self.analysis_actions.present_result(RunCompletion(result, "", None, False))
         self.analysis_actions.finish()
 
-    def _inspect(
-        self,
-        existing_roles: dict[str, str] | None = None,
-        report_error: bool = True,
-    ) -> None:
-        self.system_actions.inspect(existing_roles, report_error)
-
-    def _integration_detected(self, name: str, status: object) -> None:
-        self.system_actions.integration_detected(name, status)
+    # Project actions
 
     def _open_project(self) -> None:
         self.project_actions.open()
@@ -219,11 +218,27 @@ class MainWindow(QMainWindow):
     def _refresh_project_results(self, selected_id: str | None = None) -> None:
         self.project_actions.refresh_results(selected_id)
 
+    # Result actions
+
     def _export_result(self) -> None:
         self.result_actions.export()
 
     def _save_project_figures(self) -> None:
         self.result_actions.save_project_figures()
+
+    # Application actions
+
+    def _open_terminal(self) -> None:
+        from mdhelper.gui.main import start_tui
+
+        if start_tui():
+            self.statusBar().showMessage("Terminal interface opened", 10000)
+            return
+        QMessageBox.critical(
+            self,
+            "Terminal Interface",
+            "The terminal interface could not be started.",
+        )
 
     def _integrations(self) -> None:
         IntegrationsDialog(self.application, self).exec()
@@ -261,6 +276,8 @@ class MainWindow(QMainWindow):
             self._show_error(exc)
             return
         self.statusBar().showMessage(f"Appearance: {mode}", 5000)
+
+    # Error handling and lifecycle
 
     def _show_error(self, error: BaseException) -> None:
         record_error(error, "GUI operation")

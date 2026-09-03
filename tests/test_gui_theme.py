@@ -10,7 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6", reason="GUI dependencies are not installed")
 
-from PySide6.QtCore import QPoint, QPointF, QRect, Qt
+from PySide6.QtCore import QDir, QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QFont, QFontDatabase, QPalette, QWheelEvent
 from PySide6.QtWidgets import (
     QApplication,
@@ -40,6 +40,7 @@ from mdhelper.gui.components.choices import choice_enabled
 from mdhelper.gui.components.inputs import InputPanel
 from mdhelper.gui.components.layout import PAGE_MARGIN, PAGE_SPACING, ActionBar
 from mdhelper.gui.components.parameters import ParameterPanel
+from mdhelper.gui.components.paths import PathRow
 from mdhelper.gui.components.plot_controls import PlotControls
 from mdhelper.gui.components.radial import RadialParameters
 from mdhelper.gui.components.selections import SelectionInput, SelectionSeries
@@ -109,6 +110,16 @@ def _tone_pixels(widget: QWidget, light: bool) -> int:
         for x in range(area.left(), area.right() + 1)
     ]
     return sum(value > 200 if light else value < 80 for value in values)
+
+
+def test_path_rows_use_native_separators() -> None:
+    row = PathRow("", "")
+    value = "directory/child/file.ext"
+
+    row.set_path(value)
+
+    assert row.edit.text() == QDir.toNativeSeparators(value)
+    row.close()
 
 
 def test_analysis_progress_leaves_busy_state_when_a_job_stops() -> None:

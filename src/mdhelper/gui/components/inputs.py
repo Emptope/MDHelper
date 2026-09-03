@@ -1,4 +1,4 @@
-"""Simulation input controls for the desktop GUI."""
+"""Input controls for the desktop GUI."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ class InputPanel(QGroupBox):
     index_changed = Signal()
 
     def __init__(self, parent: QWidget | None = None):
-        super().__init__("Simulation Inputs", parent)
+        super().__init__("Inputs", parent)
         form = QFormLayout(self)
         form.setHorizontalSpacing(12)
         form.setVerticalSpacing(10)
@@ -48,9 +48,9 @@ class InputPanel(QGroupBox):
 
     def apply_request(self, request: AnalysisRequest) -> None:
         if isinstance(request, RadialRequest):
-            self.topology.edit.setText(request.topology)
-            self.trajectory.edit.setText(request.trajectory)
-            self.index_file.edit.setText(request.index_file or "")
+            self.topology.set_path(request.topology)
+            self.trajectory.set_path(request.trajectory)
+            self.index_file.set_path(request.index_file or "")
 
     def set_index_groups(self, groups: dict[str, int]) -> None:
         if not groups:

@@ -94,7 +94,7 @@ class IntegrationsDialog(QDialog):
         config = self._drafts[name]
         self.enabled.setChecked(config.enabled)
         self.environment.setChecked(config.use_environment)
-        self.executable.edit.setText(config.path)
+        self.executable.set_path(config.path)
         self.selected_status = None
         self.status.setText("Not detected")
         self.version.setText("Not detected")
@@ -120,7 +120,7 @@ class IntegrationsDialog(QDialog):
             status = self.application.integrations.detect(name, config=config)
             self.selected_status = status if status.available else None
             if status.available and status.path:
-                self.executable.edit.setText(status.path)
+                self.executable.set_path(status.path)
             self._show_status(status)
         except Exception as exc:
             self.selected_status = None

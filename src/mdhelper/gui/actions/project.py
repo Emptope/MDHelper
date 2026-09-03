@@ -178,8 +178,8 @@ class ProjectActions:
     def _set_inputs(self, topology: str, trajectory: str, index_file: str) -> None:
         self.system.suspend_auto_inspect = True
         try:
-            self.load.inputs.topology.edit.setText(topology)
-            self.load.inputs.trajectory.edit.setText(trajectory)
-            self.load.inputs.index_file.edit.setText(index_file)
+            self.load.inputs.topology.set_path(topology)
+            self.load.inputs.trajectory.set_path(trajectory)
+            self.load.inputs.index_file.set_path(index_file)
         finally:
             self.system.suspend_auto_inspect = False

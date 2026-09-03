@@ -23,7 +23,7 @@ class MakeIndexHelpDialog(QDialog):
             "or run this command in a terminal:"
         )
         summary.setWordWrap(True)
-        self.command = QLineEdit("gmx make_ndx -f structure.gro -o index.ndx")
+        self.command = QLineEdit("gmx make_ndx -f <.gro/.tpr> -o index.ndx")
         self.command.setReadOnly(True)
         self.documentation = QLabel(
             f'<a href="{MAKE_INDEX_DOCUMENTATION}">Open the gmx make_ndx documentation</a>'

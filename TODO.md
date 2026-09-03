@@ -11,7 +11,10 @@
 
 ## 已完成
 
-- [x] [Refactor] 重构 GUI，拆分 actions、状态机、页面与组合根，精简窗口和结果页。
+- [x] [Feature] Make Index File 完成后自动加载生成的 index。
+- [x] [UI] 将 Simulation Inputs 标题精简为 Inputs。
+- [x] [UI] 统一 GUI 文件路径为系统原生分隔符。
+- [x] [Refactor] 按职责整理并注释 GUI 主窗口函数。
 
 ## 完成标准（每轮代码改动后需重新确认）
 

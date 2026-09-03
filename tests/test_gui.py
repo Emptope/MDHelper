@@ -243,6 +243,46 @@ def test_make_index_uses_loaded_topology_for_configured_command(
     window.close()
 
 
+def test_make_index_loads_output_after_the_file_is_complete(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    application = QApplication.instance() or QApplication([])
+    source = tmp_path / "structure.gro"
+    output = tmp_path / "index.ndx"
+    _write_trajectory(source)
+    output.write_text("[ Original ]\n1\n", encoding="ascii")
+    monkeypatch.setattr(
+        "mdhelper.app.integrations.IntegrationUseCases.is_configured",
+        lambda _self, _name: True,
+    )
+
+    def launch(*_args, **_kwargs) -> str:
+        output.write_text("[ Updated ]\n1 2\n", encoding="ascii")
+        return "command"
+
+    monkeypatch.setattr(
+        "mdhelper.app.integrations.IntegrationUseCases.open_terminal",
+        launch,
+    )
+    window = MainWindow()
+    window._inspection_timer.setInterval(0)
+    window.load.inputs.topology.edit.setText(str(source))
+    window.load.inputs.trajectory.edit.setText(str(source))
+    window.load.inputs.index_file.edit.setText(str(output.resolve()))
+    application.processEvents()
+    assert window.load.index_groups == {"Original": 1}
+
+    window.menu_actions.make_index.trigger()
+    window.system_actions.poll_index_file()
+    window.system_actions.poll_index_file()
+    application.processEvents()
+
+    assert window.load.inputs.index_value() == str(output.resolve())
+    assert window.load.index_groups == {"Updated": 2}
+    window.close()
+
+
 def test_gui_completes_coordination_on_generic_system(tmp_path: Path) -> None:
     application = QApplication.instance() or QApplication([])
     trajectory = tmp_path / "generic.gro"

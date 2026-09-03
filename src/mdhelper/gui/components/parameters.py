@@ -388,7 +388,7 @@ class ParameterPanel(QGroupBox):
             self.cn.apply_request(request)
         elif isinstance(request, EnergyRequest):
             self._set_analysis("energy")
-            self.energy_file.edit.setText(request.energy_file)
+            self.energy_file.set_path(request.energy_file)
             self._energy_source = request.energy_file
             self.energy_queue.set_available(())
             self.energy_queue.set_items(request.energy_terms)

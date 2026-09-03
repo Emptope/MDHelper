@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QDir, Signal
 from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QLineEdit, QPushButton, QWidget
 
 
@@ -16,6 +16,7 @@ class PathRow(QWidget):
         self.caption = caption
         self.file_filter = file_filter
         self.edit = QLineEdit()
+        self.edit.editingFinished.connect(self._normalize)
         self.button = QPushButton("Browse...")
         self.button.clicked.connect(self._browse)
         layout = QHBoxLayout(self)
@@ -23,10 +24,16 @@ class PathRow(QWidget):
         layout.addWidget(self.edit, 1)
         layout.addWidget(self.button)
 
+    def set_path(self, path: str) -> None:
+        self.edit.setText(QDir.toNativeSeparators(path))
+
+    def _normalize(self) -> None:
+        self.set_path(self.edit.text())
+
     def _browse(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, self.caption, self.edit.text(), self.file_filter
         )
         if path:
-            self.edit.setText(path)
-            self.path_selected.emit(path)
+            self.set_path(path)
+            self.path_selected.emit(self.edit.text())
