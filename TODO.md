@@ -11,8 +11,6 @@
 
 ## 已完成
 
-- [x] [UI] Standardize plot queue terminology and internal naming.
-
 ## 完成标准（每轮代码改动后需重新确认）
 
 - Ruff 和 mypy 通过。
