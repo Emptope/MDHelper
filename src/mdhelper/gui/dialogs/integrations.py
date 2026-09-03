@@ -47,6 +47,11 @@ class IntegrationsDialog(QDialog):
         self.enabled = QCheckBox("Enable detection")
         self.environment = QCheckBox("Use environment and PATH")
         self.executable = PathRow("Select executable", "Executables (*)")
+        self.config_file = PathRow(
+            "Select configuration file",
+            "TOML files (*.toml);;All files (*)",
+        )
+        self.config_file.set_path(str(application.config_file))
         self.detect = QPushButton("Detect")
         self.detect.clicked.connect(self._detect)
         self.status = QLabel("Not detected")
@@ -57,11 +62,11 @@ class IntegrationsDialog(QDialog):
         self.capabilities.setMinimumHeight(180)
         form = QFormLayout()
         form.addRow("Software", self.tool)
-        form.addRow("Configured executable", self.executable)
+        form.addRow("Executable", self.executable)
         form.addRow("", self.enabled)
         form.addRow("", self.environment)
         form.addRow("", self.detect)
-        form.addRow("Configuration file", QLabel(str(application.config_file)))
+        form.addRow("Configuration file", self.config_file)
         configuration = QGroupBox("Configuration")
         configuration.setLayout(form)
         status_form = QFormLayout()
@@ -69,7 +74,7 @@ class IntegrationsDialog(QDialog):
         status_form.addRow("Version", self.version)
         status_form.addRow("Detected from", self.source)
         status_form.addRow("Capabilities", self.capabilities)
-        detection = QGroupBox("Detection result")
+        detection = QGroupBox("Detection Result")
         detection.setLayout(status_form)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel

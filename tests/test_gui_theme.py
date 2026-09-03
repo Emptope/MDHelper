@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+import mdhelper.gui.components.paths as paths_module
 import mdhelper.gui.window as window_module
 from mdhelper.app import ApplicationService
 from mdhelper.core.analysis import AnalysisResult, RadialRequest
@@ -732,6 +733,28 @@ def test_integration_dialog_saves_configured_executable(tmp_path: Path) -> None:
 
     assert application.config.integration("gromacs").path == configured
     assert load_config(config_path).integration("gromacs").path == configured
+    dialog.close()
+
+
+def test_integration_dialog_selects_configuration_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    current = tmp_path / "current.toml"
+    selected = tmp_path / "selected.toml"
+    application = ApplicationService(UserConfig(), user_config_path=current)
+    dialog = IntegrationsDialog(application)
+    monkeypatch.setattr(
+        paths_module.QFileDialog,
+        "getOpenFileName",
+        lambda *_args, **_kwargs: (str(selected), ""),
+    )
+
+    assert Path(dialog.config_file.edit.text()) == current
+
+    dialog.config_file.button.click()
+
+    assert Path(dialog.config_file.edit.text()) == selected
     dialog.close()
 
 

@@ -11,6 +11,7 @@
 
 ## 已完成
 
+- [x] [Change] Refine integration configuration controls and remove the template dialog heading.
 - [x] [Change] Capitalize the Font Size group title.
 - [x] [Change] Capitalize the Add Current button label.
 - [x] [Change] Rename the plot series labels to Plot Queue.

@@ -33,9 +33,6 @@ class TemplatesDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
-        heading = QLabel("Reusable Text Templates")
-        heading.setProperty("role", "heading")
-        layout.addWidget(heading)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.template_list = QListWidget()
