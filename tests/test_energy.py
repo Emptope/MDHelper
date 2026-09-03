@@ -431,7 +431,7 @@ def test_gromacs_rdf_uses_native_commands_and_frame_range(
     paths = application.exports.export(result, output, include_figures=False)
     assert {path.name for path in paths} == {
         "result.json",
-        "rdf.csv" if analysis_type == "rdf" else "cn.csv",
+        "rdf.csv" if analysis_type == "rdf" else "rdf_cn.csv",
         "run.out",
         "run.err",
         "run-2.out",

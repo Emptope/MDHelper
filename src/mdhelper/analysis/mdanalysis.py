@@ -68,7 +68,6 @@ class MDAnalysisBackend:
             "MDAnalysis RDF",
             inputs.progress,
             inputs.cancel_event,
-            inputs.max_pairs_per_chunk,
         )
         if request.analysis_type == "rdf":
             return rdf_result(source, request, inputs.provenance, profile)

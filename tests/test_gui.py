@@ -25,7 +25,7 @@ from test_synthetic_system import _write_trajectory
 
 import mdhelper.gui.window as window_module
 from mdhelper.app import InputCandidates
-from mdhelper.core.analysis import AnalysisResult, RadialRequest
+from mdhelper.core.analysis import AnalysisResult, RadialRequest, analysis_label
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.gui.components.choices import choice_enabled
 from mdhelper.gui.dialogs.projects import NewProjectDialog
@@ -283,7 +283,7 @@ def test_make_index_loads_output_after_the_file_is_complete(
     window.close()
 
 
-def test_gui_completes_coordination_on_generic_system(tmp_path: Path) -> None:
+def test_gui_completes_cumulative_rdf_on_generic_system(tmp_path: Path) -> None:
     application = QApplication.instance() or QApplication([])
     trajectory = tmp_path / "generic.gro"
     _write_trajectory(trajectory)
@@ -298,11 +298,13 @@ def test_gui_completes_coordination_on_generic_system(tmp_path: Path) -> None:
         role.setCurrentText("other")
     window.analysis.parameters.frames.stop.setText("1")
 
-    window.analysis.parameters.analysis_choice.setCurrentText("Cumulative Coordination Number (CN)")
-    window.analysis.parameters.cn.reference.setText("resname REF")
-    window.analysis.parameters.cn.selection.setText("resname LIGA")
-    window.analysis.parameters.cn.r_max.setValue(0.5)
-    window.analysis.parameters.cn.bin_width.setValue(0.05)
+    window.analysis.parameters.analysis_choice.setCurrentText(
+        analysis_label("cumulative_rdf")
+    )
+    window.analysis.parameters.cumulative.reference.setText("resname REF")
+    window.analysis.parameters.cumulative.selection.setText("resname LIGA")
+    window.analysis.parameters.cumulative.r_max.setValue(0.5)
+    window.analysis.parameters.cumulative.bin_width.setValue(0.05)
     window._run()
     deadline = time.monotonic() + 10
     while window.job_controller.current is not None and time.monotonic() < deadline:

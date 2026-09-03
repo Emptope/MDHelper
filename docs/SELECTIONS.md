@@ -2,8 +2,8 @@
 
 [English](SELECTIONS.md) | [Simplified Chinese](SELECTIONS.zh-CN.md)
 
-MDHelper 0.1.0 keeps selection syntax inside the chosen complete backend. Native requires a
-GROMACS `.ndx` group file. MDAnalysis uses exact NDX groups when supplied and otherwise resolves a
+MDHelper 0.1.0 keeps selection syntax inside the chosen complete backend. MDAnalysis uses exact
+NDX groups when supplied and otherwise resolves a
 static MDAnalysis expression to a fixed, ordered tuple of zero-based atom indices. GROMACS uses
 exact NDX groups or passes the request expression to `gmx rdf` as GROMACS selection syntax. Every
 route records its selection language and source in the same result contract.
@@ -43,13 +43,13 @@ results leave NDX parsing to `gmx` and record the group names, resolved file pat
 command. The index remains a fingerprinted project input.
 
 After the topology, trajectory, and optional index files are selected, the GUI automatically loads
-the parsed groups. RDF and Cumulative Coordination Number selections become group pickers when an
-index file is present and remain free-form expression editors otherwise.
+the parsed groups. RDF and Cumulative Number RDF selections become group pickers when an index file
+is present and remain free-form expression editors otherwise.
 
 ## Expression syntax by backend
 
-If no `.ndx` file can be supplied, Native is unavailable. Explicit `mdanalysis` uses the
-MDAnalysis Atom Selection Language described below. Explicit `gromacs` RDF/CN passes both
+Explicit `mdanalysis` uses the MDAnalysis Atom Selection Language described below. Explicit
+`gromacs` RDF/cumulative RDF passes both
 expressions directly to GROMACS; use the syntax accepted by the installed `gmx rdf -ref` and
 `-sel`. Auto starts with the first available complete expression-capable backend, normally
 MDAnalysis, and does not borrow its parser for another backend.

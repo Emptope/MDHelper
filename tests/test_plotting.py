@@ -5,7 +5,7 @@ from dataclasses import replace
 import pytest
 from matplotlib import pyplot as plt
 
-from mdhelper.core.analysis import AnalysisResult, RadialRequest
+from mdhelper.core.analysis import AnalysisResult, RadialRequest, analysis_label
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.plotting import (
     PLOT_SCHEMES,
@@ -132,10 +132,10 @@ def test_results_plots_apply_custom_title_to_its_combined_plot() -> None:
         results_plots((_result(),), titles=("First", "Second"))
 
 
-def test_cumulative_rdf_plot_uses_coordination_number_y_label() -> None:
+def test_cumulative_rdf_plot_uses_gromacs_y_label() -> None:
     model = result_plot(_cumulative_rdf_result())
 
-    assert model.y_label == "Coordination number"
+    assert model.y_label == "number"
 
 
 def test_draw_plot_uses_selected_scheme_legend_and_user_limits() -> None:
@@ -212,13 +212,13 @@ def test_plot_appearance_rejects_invalid_values() -> None:
         PlotAppearance.from_dict(raw)
 
 
-def test_rdf_and_cn_are_combined_only_when_both_results_are_selected() -> None:
+def test_rdf_and_cumulative_rdf_are_combined_when_both_are_selected() -> None:
     models = results_plots((_result(), _cumulative_rdf_result()))
 
     assert len(models) == 1
     assert models[0].x_label == r"$r$ ($\mathrm{\AA}$)"
     assert models[0].y_label == r"$g(r)$"
-    assert models[0].secondary_y_label == "Coordination number"
+    assert models[0].secondary_y_label == "number"
     assert [series.axis for series in models[0].series] == ["primary", "secondary"]
     figure = plt.figure()
     try:
@@ -226,7 +226,7 @@ def test_rdf_and_cn_are_combined_only_when_both_results_are_selected() -> None:
             draw_plot(figure.add_subplot(len(models), 1, index), model)
         assert len(figure.axes) == 2
         assert [axis.get_title() for axis in figure.axes if axis.get_title()] == [
-            "RDF and Cumulative Coordination Number",
+            f"RDF and {analysis_label('cumulative_rdf')}",
         ]
         assert figure.axes[0].get_xlim() == pytest.approx((0.0, 3.0))
         assert figure.axes[0].get_ylim()[0] == pytest.approx(0.0)
@@ -238,7 +238,7 @@ def test_rdf_and_cn_are_combined_only_when_both_results_are_selected() -> None:
         plt.close(figure)
 
 
-def test_rdf_and_cn_use_independent_y_limits_on_a_shared_distance_axis() -> None:
+def test_rdf_and_cumulative_rdf_use_independent_y_limits() -> None:
     model = results_plots((_result(), _cumulative_rdf_result()))[0]
     figure, axis = plt.subplots()
     try:
@@ -259,13 +259,13 @@ def test_rdf_and_cn_use_independent_y_limits_on_a_shared_distance_axis() -> None
         assert secondary.get_xlim() == pytest.approx((0.0, 5.0))
         assert axis.get_ylim() == pytest.approx((-0.1, 3.0))
         assert secondary.get_ylim() == pytest.approx((-2.0, 8.0))
-        assert secondary.get_ylabel() == "Coordination number"
+        assert secondary.get_ylabel() == "number"
     finally:
         plt.close(figure)
 
 
 def test_radial_auto_limits_ignore_data_outside_the_common_x_domain() -> None:
-    coordination = replace(
+    cumulative = replace(
         _cumulative_rdf_result(),
         data={
             "radius_nm": [0.1, 0.2, 1.0],
@@ -273,8 +273,8 @@ def test_radial_auto_limits_ignore_data_outside_the_common_x_domain() -> None:
         },
     )
     model = results_plots(
-        (_result(), coordination),
-        ("RDF legend", "CN legend"),
+        (_result(), cumulative),
+        ("RDF legend", "Cumulative legend"),
     )[0]
     figure, axis = plt.subplots()
     try:
@@ -305,7 +305,7 @@ def test_plot_state_round_trips_explicit_result_selections() -> None:
     state = PlotState(
         (
             PlotSelection("rdf-id", "RDF series", True, 10),
-            PlotSelection("cn-id", "CN series", False, 1),
+            PlotSelection("cumulative-id", "Cumulative series", False, 1),
             PlotSelection(
                 "energy-id",
                 "Potential",

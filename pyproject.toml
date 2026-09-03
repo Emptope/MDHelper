@@ -27,7 +27,6 @@ dependencies = [
   "numpy>=1.26,<3",
   "platformdirs>=4.2,<5",
   "pyedr>=0.8,<1",
-  "scipy>=1.13,<2",
   "tomli-w>=1.1,<2",
   "PySide6>=6.7,<7; sys_platform == 'win32'",
 ]

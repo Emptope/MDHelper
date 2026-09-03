@@ -21,7 +21,7 @@ class AnalysisController(AnalysisQueueController):
             options = [
                 (analysis_label("rdf"), "1"),
                 (analysis_label("cumulative_rdf"), "2"),
-                ("RDF + CN Combined Plot", "3"),
+                (f"RDF + {analysis_label('cumulative_rdf')}", "3"),
                 (analysis_label("energy"), "4"),
             ]
             choice = self.terminal.menu(
@@ -47,7 +47,7 @@ class AnalysisController(AnalysisQueueController):
         draft = self.workspace.rdf_cn()
         self._prepare_setup(draft, edit_groups=False)
         while True:
-            self.terminal.heading("RDF + CN setup")
+            self.terminal.heading(f"RDF + {analysis_label('cumulative_rdf')} setup")
             self.terminal.write(setup_panel(draft, self.workspace))
             choice = self.terminal.menu(
                 "Options",

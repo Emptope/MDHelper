@@ -12,7 +12,6 @@ from mdhelper.services.config.contracts import (
     SCHEMA_VERSION,
     THEME_MODES,
     GuiConfig,
-    ResourceConfig,
     ThemeMode,
     UserConfig,
 )
@@ -159,24 +158,10 @@ def parse_config(raw: dict[str, Any], path: Path) -> UserConfig:
             f"This release supports schema_version = {SCHEMA_VERSION}.",
             {"path": str(path)},
         )
-    _reject_unknown(
-        raw, {"schema_version", "gui", "resources", "integrations"}, "", path
-    )
+    _reject_unknown(raw, {"schema_version", "gui", "integrations"}, "", path)
     gui = _mapping(raw.get("gui"), "gui", path)
-    resources = _mapping(raw.get("resources"), "resources", path)
     integrations = _mapping(raw.get("integrations"), "integrations", path)
     _reject_unknown(gui, {"theme", "font_size"}, "gui", path)
-    _reject_unknown(resources, {"max_pairs_per_chunk"}, "resources", path)
-
-    resource_defaults = ResourceConfig()
-    max_pairs = resources.get(
-        "max_pairs_per_chunk", resource_defaults.max_pairs_per_chunk
-    )
-    if isinstance(max_pairs, bool) or not isinstance(max_pairs, int) or max_pairs < 1_000:
-        raise ConfigurationError(
-            "Configuration field 'max_pairs_per_chunk' must be an integer of at least 1000.",
-            details={"path": str(path), "value": max_pairs},
-        )
 
     default_integrations = UserConfig().integrations
     source_integrations = integrations or {
@@ -196,6 +181,5 @@ def parse_config(raw: dict[str, Any], path: Path) -> UserConfig:
             theme=_theme(gui, path),
             font_size=_font_size(gui, path),
         ),
-        resources=ResourceConfig(max_pairs_per_chunk=max_pairs),
         integrations=parsed_integrations,
     )

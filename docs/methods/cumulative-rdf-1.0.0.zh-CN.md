@@ -1,13 +1,13 @@
-# 累积 RDF（Cumulative Coordination Number）— method 1.0.0
+# Cumulative Number RDF - method 1.0.0
 
 [English](cumulative-rdf-1.0.0.md) | [简体中文](cumulative-rdf-1.0.0.zh-CN.md)
 
 状态：MDHelper 0.1.0 发布方法规范。
 
-序列化 analysis type 为 `cumulative_rdf`。CLI 命令保留为 `cn`，对应 GROMACS
-`gmx rdf -cn`。GROMACS 2026.1 将输出称为 **cumulative number RDF**，文件类别为
-**Cumulative RDFs**；MDHelper UI 显示 **Cumulative Coordination Number (CN)**，使物理含义
-更直观。
+序列化 analysis type 为 `cumulative_rdf`，MDHelper CLI 命令为 `cumulative-rdf`。GROMACS
+2026.3 文档说明 `gmx rdf -cn` 生成 **cumulative number RDF**，输出文件说明为
+**Cumulative RDFs**，默认 basename 为 `rdf_cn`。GROMACS 实现将图标题设为
+**Cumulative Number RDF**，Y 轴设为 **number**；MDHelper 使用相同的用户可见表述。
 
 ## 量与适用范围
 
@@ -16,25 +16,26 @@
 histogram 两两合并得到。在 radius `(k+1)*d` 输出的累计曲线为：
 
 ```text
-N_k = sum_f sum_{j <= k} H_fj / (number_of_frames * |A|)
+cumulative_number[k] = sum_f sum_{j <= k} H_fj / (number_of_frames * |A|)
 ```
 
 在本方法 bulk RDF 归一化下，同一量数学上为：
 
 ```text
-N(r) = 4 * pi * rho_selection * integral_0^r g_reference,selection(r') * r'^2 dr'
+cumulative_number(r) =
+    4 * pi * rho_selection * integral_0^r g_reference,selection(r') * r'^2 dr'
 ```
 
-`N(r)` 表示每个 reference 原子周围半径 `r` 内平均有多少个 selection 原子。与 reference
+该累计数表示每个 reference 原子周围半径 `r` 内平均有多少个 selection 原子。与 reference
 拓扑索引相同的 selection 原子作为 self pair 排除。结果 data 只含 `radius_nm` 和
 `cumulative_number`，不生成固定 cutoff 时间序列、逐 reference count、residue 分组 count
-或 `P(N)` 概率分布。
+或 count 概率分布。
 
 selection 决定计数基准并始终显示在报告中。例如 `Li-O_FSI` 表示每个所选 Li 的 O_FSI atom
 contact 数。每个 FSI 只选一个代表原子时，该值才等同于不同 FSI 阴离子数。MDHelper 不会
 静默把 atom contact 改成 molecule count。
 
-累积分析必须显式运行或加载。RDF 结果只含 `g(r)`，不会隐式附带 `N(r)`。
+累积分析必须显式运行或加载。RDF 结果只含 `g(r)`，不会隐式附带 cumulative RDF 曲线。
 
 ## GROMACS 后端
 
@@ -50,14 +51,14 @@ Integration provenance 遵循 RDF method 1.0.0。
 相同；GROMACS 分支遵循对应 GROMACS RDF 规则。距离为 nm，累计数单位为 count。
 
 request 记录 `reference`、`selection`、`r_max_nm` 和 `bin_width_nm`。进程内后端建立
-`Q = round(2*r_max_nm/bin_width_nm)` 个半宽细 bin。CN 在 `d,2d,...` 输出 `floor(Q/2)` 个
-sample；无法配对的末尾细 bin 会像 `gmx rdf -cn` 一样忽略。请求宽度保持不变，不调整为
-恰好结束于 `r_max_nm`。每个所选帧都校验 `r_max_nm` 不超过可靠最小镜像半径。空选择、全
-self pair、非法 box/径向参数或超过一百万 RDF sample 会产生可行动错误。
+`Q = round(2*r_max_nm/bin_width_nm)` 个半宽细 bin。cumulative RDF 在 `d,2d,...` 输出
+`floor(Q/2)` 个 sample；无法配对的末尾细 bin 会像 `gmx rdf -cn` 一样忽略。请求宽度保持
+不变，不调整为恰好结束于 `r_max_nm`。每个所选帧都校验 `r_max_nm` 不超过可靠最小镜像
+半径。空选择、全 self pair、非法 box/径向参数或超过一百万 RDF sample 会产生可行动错误。
 
 ## 第一壳层 coordination number
 
-`N(r)` 是非递减累计曲线；全局最小值通常位于零距离端，全局最大值通常位于
+该 cumulative RDF 是非递减累计曲线；全局最小值通常位于零距离端，全局最大值通常位于
 `r_max_nm`。全局极值与终点值缺少自动化学意义，因此 MDHelper 不用这些值总结壳层
 coordination number。
 
@@ -66,7 +67,7 @@ coordination number。
 1. 用相同 pair histogram 和归一化生成 RDF；
 2. 按 RDF method 1.0.0 找第一显著峰和随后的第一最小值；
 3. 以该最小值半径作为壳层边界；
-4. 在第一个不小于该 RDF radius 的 CN endpoint 报告 `N(r)` 为单值
+4. 在第一个不小于该 RDF radius 的 cumulative-RDF endpoint 报告 `cumulative_number` 为单值
    `coordination_number`，并附边界与置信度。
 
 完整曲线仍叫 cumulative number。没有可靠最小值时，第一壳层值 unavailable，但完整曲线
@@ -85,12 +86,17 @@ Pierini 等使用积分到第一最小值的 RDF running number 得到第一 Li 
 
 ## 绘图与导出
 
-单结果图 X 轴以埃显示距离，Y 轴标签为 **Coordination number**。存储数据仍为 nm。显式
-选择 RDF 和累积结果时，可共享距离 X 轴，`g(r)` 在主 Y 轴，`N(r)` 在次 Y 轴，两套 Y scale
-独立，自动 X 范围取可见 domain 交集。
+单结果图 X 轴以埃显示距离，Y 轴标签为 **number**。存储数据仍为 nm。显式选择 RDF 和
+累积结果时，可共享距离 X 轴，`g(r)` 在主 Y 轴，**Cumulative RDF** series 在次 Y 轴，
+两套 Y scale 独立，自动 X 范围取可见 domain 交集。
 
-CSV 为 `cn.csv`，列是 `radius_nm,cumulative_number`，不包含 uncertainty、probability 或
+CSV 为 `rdf_cn.csv`，列是 `radius_nm,cumulative_number`，不包含 uncertainty、probability 或
 distribution。JSON/CSV 最多写 15 位有效数字，不改变内存计算。
+
+## GROMACS 术语来源
+
+- [GROMACS 2026.3 `gmx rdf` 手册](https://manual.gromacs.org/current/onlinehelp/gmx-rdf.html)
+- [GROMACS `rdf.cpp` 实现](https://gitlab.com/gromacs/gromacs/-/blob/main/src/gromacs/trajectoryanalysis/modules/rdf.cpp)
 
 ## 验证契约
 

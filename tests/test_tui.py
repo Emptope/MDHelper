@@ -963,7 +963,7 @@ def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(
     }
     draft = AnalysisDraft(
         "rdf",
-        analysis_backend="native",
+        analysis_backend="mdanalysis",
         reference="resname REF",
         selection="resname LIGA",
         r_max_nm=0.5,
@@ -1015,7 +1015,7 @@ def test_tui_runs_rdf_cn_queue_and_exports_combined_plot(
     }
     assert {path.name for path in cn.iterdir()} == {
         "result.json",
-        "cn.csv",
+        "rdf_cn.csv",
         "cn-resname-REF-resname-LIGA.png",
         "cn-resname-REF-resname-LIGA.svg",
         "cn-resname-REF-resname-LIGA.pdf",

@@ -23,14 +23,14 @@ load trajectory or EDR input
   -> inspect system/selections or discover Energy terms
   -> confirm species roles when applicable
   -> construct explicit AnalysisRequest
-  -> run RDF / CN / energy
+  -> run RDF / cumulative RDF / energy
   -> validate AnalysisResult
   -> export and/or commit to project
   -> reload, inspect, and plot the same result
 ```
 
-支持的产品形态是 Linux TUI/CLI 和 Windows TUI/CLI/GUI。Native、MDAnalysis 和可选
-GROMACS 都是显式、可审计且互不混用的完整分析流水线；request 与结果必须记录请求及解析
+支持的产品形态是 Linux TUI/CLI 和 Windows TUI/CLI/GUI。MDAnalysis 和可选 GROMACS
+是显式、可审计且互不混用的完整分析流水线；request 与结果必须记录请求及解析
 出的 Backend，不能隐藏调用。
 
 ## 2. 目标优先级
@@ -65,7 +65,7 @@ GROMACS 都是显式、可审计且互不混用的完整分析流水线；reques
 
 ### 验收标准
 
-- RDF、CN、energy 都能由共享用例端到端运行；
+- RDF、cumulative RDF、energy 都能由共享用例端到端运行；
 - 前端不直接导入 `analysis` 或 `backends`；
 - 同一请求在不同入口得到数值等价的数据字段；
 - 失败路径返回结构化错误，不留下伪成功结果。
@@ -79,8 +79,8 @@ GROMACS 都是显式、可审计且互不混用的完整分析流水线；reques
 
 ### 当前机制
 
-- RDF 和 CN 共用 `analysis/radial.py` 的 pair histogram；
-- PBC、可靠半径、分块距离、帧审计在 `analysis/common.py`；
+- RDF 和 cumulative RDF 共用 `analysis/radial/` 的 pair histogram；
+- PBC、可靠半径、MDAnalysis 距离搜索和帧审计位于 `core/geometry.py` 与 `analysis/radial/`；
 - energy 的 MDAnalysis 与 GROMACS 后端共用严格结果契约和 App term 发现用例；
 - `docs/methods/` 记录公式，`docs/validation/` 记录独立期望和容差；
 - 内部距离为 nm、时间为 ps，显示单位转换在绘图边界完成。
@@ -153,7 +153,7 @@ GROMACS 都是显式、可审计且互不混用的完整分析流水线；reques
 - 物种角色建议依据分子净电荷和数量，使用 0.25 e 容差；模糊结果需要用户确认；
 - 第一配位壳诊断依据已计算 RDF 的平滑峰谷，只作为运行后解释信息。
 
-角色不改变原子选择或算法。第一壳层诊断不改变 RDF/CN 数组，`r_max` 始终由用户决定。
+角色不改变原子选择或算法。第一壳层诊断不改变 RDF/cumulative RDF 数组，`r_max` 始终由用户决定。
 当前没有通用 `ParameterRecommender`。
 
 ### 验收标准
@@ -178,7 +178,7 @@ GROMACS 都是显式、可审计且互不混用的完整分析流水线；reques
 - core 解析器和 project Python schema 严格检查字段；
 - `schemas/` 发布对应 JSON Schema；
 - JSON 导出保留完整契约，CSV 提供稳定表格视图；
-- RDF/CN/energy 分别验证必需数组和长度关系。
+- RDF/cumulative RDF/energy 分别验证必需数组和长度关系。
 - 结果不保存尚未实现的 uncertainty 空对象或恒为 completed 的状态；project analysis 条目只保存 ID、类型、提交时间和内容 hash。
 
 ### 验收标准
@@ -244,23 +244,23 @@ GROMACS 都是显式、可审计且互不混用的完整分析流水线；reques
 
 ### 目标
 
-大轨迹不能要求整体载入内存，pair 矩阵不能无界增长，GUI 不能在主线程计算。取消应在
-合理时间内生效，并且与失败一样不发布半成品。
+大轨迹不能要求整体载入内存，GUI 不能在主线程计算。单帧稠密 cutoff 的临时内存可随
+匹配 pair 数增长。取消应在合理时间内生效，并且与失败一样不发布半成品。
 
 ### 当前机制
 
 - 轨迹按帧迭代；
-- pair distances 按 `max_pairs_per_chunk` 分块；
+- MDAnalysis 每次处理一帧，并只返回当前 cutoff 内的 pair；
 - 文件 hash 以 4 MiB 块读取；
 - XDR 帧偏移 cache 按源文件元数据失效，使用文件锁和原子替换，不在 trajectory 旁生成
   sidecar；
 - `JobRunner` 默认单工作线程；
-- 帧边界、hash chunk 和外部进程轮询都有取消检查；pair chunk 内当前没有独立取消点；
+- 帧边界、hash chunk 和外部进程轮询都有取消检查；单帧距离搜索内没有独立取消点；
 - GUI 用 `QTimer` 轮询 job handle 状态，不从工作线程直接操作控件。
 
 ### 验收标准
 
-- 配置上限决定峰值 pair 内存，原子对总数不改变该上限；
+- 峰值分析内存不随轨迹总帧数增长，并由当前帧原子及返回 pair 数决定；
 - 删除或失效的 XDR 帧偏移只触发重扫，不改变分析结果；
 - 取消后 job 状态明确，不写结果、不提交项目；
 - 进度单调且能区分运行、成功、失败、取消；
@@ -276,7 +276,6 @@ frame handling 与 computation，并必须进入 provenance。同一次尝试禁
 
 ### 当前机制
 
-- `native` 固定使用 Native GRO reader、NDX selection 和 Native 径向算法；
 - `mdanalysis` 固定使用 MDAnalysis reader、selection、frame handling、distance 与 Energy；
 - `gromacs` 默认把原输入直接传给 `gmx rdf`，仅 cumulative RDF 添加 `-cn`；非默认范围先用 `gmx check` 获取帧数，再用一次 `gmx trjconv -fr`，并使用 GROMACS selection 与 `gmx energy`；
 - `auto` 按 adapter 声明的优先级选择完整策略；source 加载失败时可尝试下一条完整策略；
@@ -286,8 +285,7 @@ frame handling 与 computation，并必须进入 provenance。同一次尝试禁
 ### 验收标准
 
 - requested/resolved Backend 决策有单元测试并进入 provenance；
-- native 明确拒绝不支持的输入；
-- 多帧 GRO 的原子数和身份变化会失败；
+- 已移除的 Backend 值会被契约明确拒绝；
 - MDAnalysis 的埃到 nm 转换和三斜盒转换有测试；
 - 同一可表达体系在不同后端的分析结果满足明确数值容差。
 
@@ -324,7 +322,7 @@ CLI、TUI 和 GUI 可以有适合媒介的交互，但不能拥有不同的分�
 ### 当前机制
 
 - `core/plotting/` 分离工具包无关的绘图模型、结果组装和渲染；
-- RDF 和 CN 按 radial domain 分组，可共享横轴并使用双纵轴；
+- RDF 和 cumulative RDF 按 radial domain 分组，可共享横轴并使用双纵轴；
 - 当前配色方案为 `Residue name` 与 `Fixed color`；
 - 当前所选绘图的自定义标题会进入绘图状态并用于项目恢复和图片导出；
 - 高级外观状态会进入绘图状态，并由 GUI 预览和图片导出共同消费；
@@ -441,9 +439,9 @@ CLI、TUI 和 GUI 可以有适合媒介的交互，但不能拥有不同的分�
 | 统一入口 | 无参数优先 GUI、不可用时降级 TUI；显式模式选择 GUI/TUI/CLI | 单一产物不混合表现层实现。 |
 | 桌面入口 | Windows GUI，Linux 可选 GUI | Windows 默认提供，Linux wheel 不强制 Qt。 |
 | 产物大小 | 每个发布产物不超过 256 MB | 防止重复 runtime 和无用依赖回归。 |
-| 分析 Backend | Native、MDAnalysis、GROMACS 三条完整流水线 | reader、selection、frame/computation 不混用，选择可测试、可复现并完整记录。 |
+| 分析 Backend | MDAnalysis、GROMACS 两条完整流水线 | reader、selection、frame/computation 不混用，选择可测试、可复现并完整记录。 |
 | Auto 语义 | 按 adapter 优先级选择可用完整策略 | source 加载失败可尝试下一条完整策略，显式选择不 fallback。 |
-| 选择 | Native 仅 NDX；MDAnalysis 使用 NDX 或静态 MDAnalysis 表达式；GROMACS 使用 NDX 或 GROMACS expression | 语法所有权明确，结果在运行中固定、可记录。 |
+| 选择 | MDAnalysis 使用 NDX 或静态 MDAnalysis 表达式；GROMACS 使用 NDX 或 GROMACS expression | 语法所有权明确，结果在运行中固定、可记录。 |
 | 分析参数 | 请求显式给出 | 避免不可审计的参数推断。 |
 | 角色识别 | 基于电荷/数量的建议并需确认 | 不把命名习惯误当化学事实。 |
 | 第一壳层 | 运行后诊断 | 不影响原始曲线和请求参数。 |
@@ -476,7 +474,7 @@ CLI、TUI 和 GUI 可以有适合媒介的交互，但不能拥有不同的分�
 
 ### 21.1 方法质量门
 
-- RDF、CN 方法文档与代码一致；
+- RDF、cumulative RDF 方法文档与代码一致；
 - 已发布分析有独立可解释的期望值和容差；
 - PBC、变盒、选择重叠、帧范围和空选择均被覆盖；
 - 结果契约包含单位、方法和 provenance；

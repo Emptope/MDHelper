@@ -47,7 +47,7 @@ class BackendChoice(QComboBox):
 
     def value(self) -> AnalysisBackend:
         value = self.currentData()
-        if value not in {"auto", "native", "mdanalysis", "gromacs"}:
+        if value not in {"auto", "mdanalysis", "gromacs"}:
             raise InputError("No analysis backend was selected.")
         return cast(AnalysisBackend, value)
 
@@ -70,8 +70,6 @@ class BackendChoice(QComboBox):
         try:
             self.clear()
             self.addItem("Automatic", "auto")
-            if self._analysis_type != "energy":
-                self.addItem("Native", "native")
             self.addItem("MDAnalysis", "mdanalysis")
             if self._gromacs_configured:
                 self.addItem("GROMACS (local gmx)", "gromacs")

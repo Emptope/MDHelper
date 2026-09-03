@@ -25,8 +25,8 @@ slab、非周期、取向、质心、site-exclusion 或仅分子间 RDF。
 
 ## 选择、帧、单位和 PBC
 
-Native 要求提供 `.ndx`，request 值是精确组名。MDAnalysis 有 NDX 时使用相同的精确组名，
-否则接受静态 MDAnalysis expression。GROMACS RDF 使用精确 NDX 名；没有 NDX 时使用显式
+MDAnalysis 有 NDX 时使用精确组名，否则接受静态 MDAnalysis expression。GROMACS RDF
+使用精确 NDX 名；没有 NDX 时使用显式
 GROMACS selection expression。帧采样始终遵循 Python slicing：`start` 是包含的零基索引，
 `stop` 是不包含的结束位置，`stride` 相对 `start` 应用。
 
@@ -52,8 +52,8 @@ request 与 `gmx rdf` 一致记录 `bin_width_nm`，不使用 bin count。进程
 原输入，非默认范围先用 `gmx check` 获取帧数，再使用一次精确转换子集，不用
 `gmx rdf -dt`。provenance 记录命令
 参数、可执行文件、版本、输出和帧审计；
-MDHelper 不重算 GROMACS 曲线。由于不同 GROMACS 版本以有限精度写 XVG，Native float64
-值与序列化值仍可能在实用容差内略有差异。
+MDHelper 不重算 GROMACS 曲线。由于不同 GROMACS 版本以有限精度写 XVG，MDAnalysis
+进程内值与序列化值仍可能在实用容差内略有差异。
 
 ## 参数与第一壳层诊断
 

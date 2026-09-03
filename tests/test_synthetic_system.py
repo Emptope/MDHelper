@@ -12,6 +12,7 @@ from mdhelper.analysis import DEFAULT_ANALYSIS_REGISTRY, AnalysisRegistry
 from mdhelper.analysis.pipeline import AnalysisInput, BackendQuery
 from mdhelper.app import ApplicationService
 from mdhelper.backends.gro import GroTrajectorySource
+from mdhelper.backends.mdanalysis import MDAnalysisTrajectorySource
 from mdhelper.cli import main
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
 from mdhelper.core.errors import ConfigurationError, InputError, InputFileError
@@ -41,19 +42,19 @@ def _write_trajectory(path: Path, n_frames: int = 2) -> None:
         (
             0.0,
             (
-                (1, "REF", "R", 1, (0.100, 0.100, 0.100)),
-                (2, "LIGA", "A1", 2, (0.225, 0.100, 0.100)),
-                (2, "LIGA", "A2", 3, (0.275, 0.100, 0.100)),
-                (3, "LIGB", "B", 4, (1.900, 0.100, 0.100)),
+                (1, "REF", "C", 1, (0.100, 0.100, 0.100)),
+                (2, "LIGA", "O1", 2, (0.225, 0.100, 0.100)),
+                (2, "LIGA", "O2", 3, (0.275, 0.100, 0.100)),
+                (3, "LIGB", "N", 4, (1.900, 0.100, 0.100)),
             ),
         ),
         (
             1.0,
             (
-                (1, "REF", "R", 1, (0.100, 0.100, 0.100)),
-                (2, "LIGA", "A1", 2, (0.425, 0.100, 0.100)),
-                (2, "LIGA", "A2", 3, (0.525, 0.100, 0.100)),
-                (3, "LIGB", "B", 4, (1.400, 0.100, 0.100)),
+                (1, "REF", "C", 1, (0.100, 0.100, 0.100)),
+                (2, "LIGA", "O1", 2, (0.425, 0.100, 0.100)),
+                (2, "LIGA", "O2", 3, (0.525, 0.100, 0.100)),
+                (3, "LIGB", "N", 4, (1.400, 0.100, 0.100)),
             ),
         ),
     )
@@ -68,10 +69,32 @@ def _write_trajectory(path: Path, n_frames: int = 2) -> None:
     path.write_text("".join(lines), encoding="utf-8")
 
 
+def _write_xtc(topology: Path, trajectory: Path) -> None:
+    import MDAnalysis as mda
+    from MDAnalysis.lib.mdamath import triclinic_box
+
+    source = GroTrajectorySource(topology, topology)
+    universe = mda.Universe(str(topology))
+    with mda.Writer(str(trajectory), n_atoms=len(source.atoms)) as writer:
+        for frame in source.iter_frames(FrameRange()):
+            universe.atoms.positions = frame.positions_nm * 10.0
+            box_angstrom = np.asarray(frame.box.vectors_nm, dtype=float) * 10.0
+            universe.dimensions = triclinic_box(*box_angstrom)
+            universe.trajectory.ts.time = frame.time_ps
+            writer.write(universe.atoms)
+
+
 @pytest.fixture
 def synthetic_path(tmp_path: Path) -> Path:
     path = tmp_path / "trajectory.gro"
     _write_trajectory(path)
+    return path
+
+
+@pytest.fixture
+def synthetic_xtc_path(synthetic_path: Path, tmp_path: Path) -> Path:
+    path = tmp_path / "trajectory.xtc"
+    _write_xtc(synthetic_path, path)
     return path
 
 
@@ -95,20 +118,20 @@ def _common(path: Path) -> _Common:
     }
 
 
-def test_hand_checkable_rdf_and_coordination(
-    synthetic_path: Path, tmp_path: Path
+def test_hand_checkable_rdf_and_cumulative_rdf(
+    synthetic_path: Path, synthetic_xtc_path: Path, tmp_path: Path
 ) -> None:
     index = tmp_path / "groups.ndx"
     index.write_text("[ ref ]\n1\n[ sel ]\n2 3\n", encoding="ascii")
     application = ApplicationService(UserConfig())
     common = {
         "topology": str(synthetic_path),
-        "trajectory": str(synthetic_path),
+        "trajectory": str(synthetic_xtc_path),
         "index_file": str(index),
         "reference": "ref",
         "selection": "sel",
         "frames": FrameRange(stop=2),
-        "analysis_backend": "native",
+        "analysis_backend": "mdanalysis",
         "species_roles": {"REF": "other", "LIGA": "other", "LIGB": "other"},
     }
     rdf = application.analyses.run(
@@ -197,34 +220,6 @@ def test_application_rejects_a_mixed_backend_loader(synthetic_path: Path) -> Non
     assert calls == [(str(synthetic_path), str(synthetic_path), "mdanalysis")]
 
 
-def test_native_and_mdanalysis_radial_pipelines_are_distinct_and_consistent(
-    synthetic_path: Path, tmp_path: Path
-) -> None:
-    index = tmp_path / "groups.ndx"
-    index.write_text("[ ref ]\n1\n[ sel ]\n2 3\n", encoding="ascii")
-    app = ApplicationService(UserConfig())
-    common = {
-        "analysis_type": "rdf",
-        "topology": str(synthetic_path),
-        "trajectory": str(synthetic_path),
-        "index_file": str(index),
-        "reference": "ref",
-        "selection": "sel",
-        "r_max_nm": 0.5,
-        "bin_width_nm": 0.1,
-        "frames": FrameRange(stop=1),
-    }
-
-    native = app.analyses.run(RadialRequest(**common, analysis_backend="native"))
-    mda = app.analyses.run(RadialRequest(**common, analysis_backend="mdanalysis"))
-
-    assert native.provenance["analysis_backend"]["name"] == "native"
-    assert mda.provenance["analysis_backend"]["name"] == "mdanalysis"
-    assert "parameter_decisions" not in native.provenance
-    assert "species_mapping" not in native.provenance
-    assert native.data["g_r"] == pytest.approx(mda.data["g_r"], abs=1e-5)
-
-
 def test_auto_prioritizes_compatible_radial_backends() -> None:
     integrations = ApplicationService(UserConfig()).context.integrations
     integrations._statuses["gromacs"] = IntegrationStatus("gromacs", False)
@@ -235,6 +230,13 @@ def test_auto_prioritizes_compatible_radial_backends() -> None:
         "groups.ndx",
         FrameRange(),
     )
+    indexed_xtc = BackendQuery(
+        "rdf",
+        "topology.gro",
+        "trajectory.xtc",
+        "groups.ndx",
+        FrameRange(),
+    )
     expression = BackendQuery(
         "rdf",
         "topology.gro",
@@ -242,28 +244,29 @@ def test_auto_prioritizes_compatible_radial_backends() -> None:
         frames=FrameRange(),
     )
 
-    assert DEFAULT_ANALYSIS_REGISTRY.auto(indexed, integrations)[0].name == "native"
+    assert DEFAULT_ANALYSIS_REGISTRY.auto(indexed, integrations)[0].name == "mdanalysis"
+    assert DEFAULT_ANALYSIS_REGISTRY.auto(indexed_xtc, integrations)[0].name == "mdanalysis"
     assert DEFAULT_ANALYSIS_REGISTRY.auto(expression, integrations)[0].name == "mdanalysis"
 
 
-def test_explicit_native_requires_index_groups(synthetic_path: Path) -> None:
+def test_removed_backend_value_is_rejected(synthetic_path: Path) -> None:
     request = RadialRequest(
         analysis_type="rdf",
         topology=str(synthetic_path),
         trajectory=str(synthetic_path),
         reference="resname REF",
         selection="resname LIGA",
-        analysis_backend="native",
+        analysis_backend="removed",  # type: ignore[arg-type]
     )
 
-    with pytest.raises(InputError, match="requires index groups"):
+    with pytest.raises(InputError, match="Unknown analysis backend"):
         ApplicationService(UserConfig()).analyses.run(request)
 
 
 def test_system_inspection_always_uses_auto_trajectory_reader(
     synthetic_path: Path,
 ) -> None:
-    source = GroTrajectorySource(synthetic_path, synthetic_path)
+    source = MDAnalysisTrajectorySource(synthetic_path, synthetic_path)
     calls: list[tuple[str, str, str]] = []
 
     def loader(
@@ -272,7 +275,7 @@ def test_system_inspection_always_uses_auto_trajectory_reader(
         backend: str,
         _cancel_event: Event | None,
         _progress: object,
-    ) -> GroTrajectorySource:
+    ) -> MDAnalysisTrajectorySource:
         calls.append((topology, trajectory, backend))
         return source
 
@@ -286,11 +289,11 @@ def test_system_inspection_always_uses_auto_trajectory_reader(
 def test_analysis_algorithm_is_replaceable_behind_application_contract(
     synthetic_path: Path,
 ) -> None:
-    source = GroTrajectorySource(synthetic_path, synthetic_path)
+    source = MDAnalysisTrajectorySource(synthetic_path, synthetic_path)
     registry = AnalysisRegistry()
 
     class TestBackend:
-        name = "native"
+        name = "mdanalysis"
         display_name = "Test"
         analysis_types = frozenset(("rdf",))
 
@@ -318,7 +321,6 @@ def test_analysis_algorithm_is_replaceable_behind_application_contract(
 
         def run(self, inputs: AnalysisInput) -> AnalysisResult:
             assert inputs.source is source
-            assert inputs.max_pairs_per_chunk > 0
             return AnalysisResult(
                 analysis_type=inputs.request.analysis_type,
                 data={"marker": 1},
@@ -337,7 +339,7 @@ def test_analysis_algorithm_is_replaceable_behind_application_contract(
     )
     request = RadialRequest(
         analysis_type="rdf",
-        analysis_backend="native",
+        analysis_backend="mdanalysis",
         topology=str(synthetic_path),
         trajectory=str(synthetic_path),
         reference="resname REF",
@@ -355,10 +357,7 @@ def test_each_complete_backend_is_registered_once_for_all_supported_analyses() -
     assert DEFAULT_ANALYSIS_REGISTRY.names() == (
         "gromacs",
         "mdanalysis",
-        "native",
     )
-    native = DEFAULT_ANALYSIS_REGISTRY.get("native", "rdf")
-    assert DEFAULT_ANALYSIS_REGISTRY.get("native", "cumulative_rdf") is native
     mdanalysis = DEFAULT_ANALYSIS_REGISTRY.get("mdanalysis", "rdf")
     assert DEFAULT_ANALYSIS_REGISTRY.get("mdanalysis", "energy") is mdanalysis
     gromacs = DEFAULT_ANALYSIS_REGISTRY.get("gromacs", "rdf")
@@ -397,7 +396,7 @@ def test_project_plot_state_round_trips_all_comparison_controls(
     state = PlotState(
         (
             PlotSelection(rdf.analysis_id, "RDF comparison", True, 0),
-            PlotSelection(cn.analysis_id, "CN comparison", False, 1),
+            PlotSelection(cn.analysis_id, "Cumulative comparison", False, 1),
         ),
         "residue_name",
         PlotLimits(
@@ -456,7 +455,7 @@ def test_project_commit_binds_result_to_fingerprinted_inputs(
 
 
 def test_project_atomically_registers_explicit_index_on_first_commit(
-    synthetic_path: Path, tmp_path: Path
+    synthetic_path: Path, synthetic_xtc_path: Path, tmp_path: Path
 ) -> None:
     index = tmp_path / "groups.ndx"
     index.write_text("[ central ]\n1\n[ ligand ]\n2 3\n", encoding="utf-8")
@@ -464,18 +463,18 @@ def test_project_atomically_registers_explicit_index_on_first_commit(
     request = RadialRequest(
         analysis_type="cumulative_rdf",
         topology=str(synthetic_path),
-        trajectory=str(synthetic_path),
+        trajectory=str(synthetic_xtc_path),
         index_file=str(index),
         reference="central",
         selection="ligand",
         r_max_nm=0.5,
         bin_width_nm=0.05,
         frames=FrameRange(stop=2),
-        analysis_backend="native",
+        analysis_backend="mdanalysis",
     )
     result = application.analyses.run(request)
     project = application.projects.create(
-        tmp_path / "index.mdhelper", synthetic_path, synthetic_path
+        tmp_path / "index.mdhelper", synthetic_path, synthetic_xtc_path
     )
 
     application.projects.commit_result(project, request, result)

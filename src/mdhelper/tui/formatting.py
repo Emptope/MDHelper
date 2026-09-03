@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from mdhelper.app.reports import report_for
-from mdhelper.core.analysis import AnalysisResult
+from mdhelper.core.analysis import AnalysisResult, analysis_label
 from mdhelper.core.errors import MDHelperError
 from mdhelper.core.system import SystemSummary
 from mdhelper.tui.model import AnalysisDraft, RadialTask, Workspace
@@ -70,12 +70,6 @@ def draft_issues(draft: AnalysisDraft, workspace: Workspace) -> list[str]:
         issues.append("choose the reference group")
     if draft.analysis_type in {"rdf", "cumulative_rdf"} and not draft.selection.strip():
         issues.append("choose the selection group")
-    if (
-        draft.analysis_type in {"rdf", "cumulative_rdf"}
-        and draft.analysis_backend == "native"
-        and not workspace.index_file
-    ):
-        issues.append("select an index file for the Native backend")
     if draft.analysis_type == "energy":
         if not draft.energy_file.strip():
             issues.append("choose a GROMACS energy file")
@@ -87,7 +81,7 @@ def draft_issues(draft: AnalysisDraft, workspace: Workspace) -> list[str]:
 
 
 def task_label(task: RadialTask) -> str:
-    analysis = "RDF" if task.analysis_type == "rdf" else "CN"
+    analysis = "RDF" if task.analysis_type == "rdf" else analysis_label(task.analysis_type)
     return (
         f"{analysis}: {task.reference} -> {task.selection} | "
         f"r max {task.r_max_nm:g} nm | bin {task.bin_width_nm:g} nm"

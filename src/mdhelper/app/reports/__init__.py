@@ -13,16 +13,16 @@ from .base import (
     result_analysis_label,
 )
 from .energy import EnergyReport
-from .radial import CoordinationReport, RdfReport
+from .radial import CumulativeRdfReport, RdfReport
 
 REPORT_TYPES: dict[str, type[Report]] = {
     "rdf": RdfReport,
-    "cumulative_rdf": CoordinationReport,
+    "cumulative_rdf": CumulativeRdfReport,
     "energy": EnergyReport,
 }
 
 __all__ = (
-    "CoordinationReport",
+    "CumulativeRdfReport",
     "EnergyReport",
     "RdfReport",
     "Report",

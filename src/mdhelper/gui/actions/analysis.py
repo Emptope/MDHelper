@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtWidgets import QMainWindow, QMessageBox, QTabWidget
+from PySide6.QtWidgets import QMainWindow, QTabWidget
 
 from mdhelper.app import ApplicationService
 from mdhelper.core.analysis import RadialRequest
@@ -67,22 +67,6 @@ class AnalysisActions:
 
     def run(self) -> None:
         parameters = self.analysis.parameters
-        if (
-            parameters.requires_selections()
-            and parameters.analysis_backend_value() == "native"
-            and self.load.inputs.index_value() is None
-        ):
-            answer = QMessageBox.question(
-                self.parent,
-                "Native Requires Index File",
-                "No .ndx file was provided. Use MDAnalysis selection expressions instead?",
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                self.parent.statusBar().showMessage(
-                    "Select a GROMACS index file to continue.", 10000
-                )
-                return
-            parameters.set_analysis_backend("mdanalysis")
         try:
             items = self.analysis.request_series(
                 self.load.common(

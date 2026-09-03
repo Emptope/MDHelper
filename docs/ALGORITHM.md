@@ -13,7 +13,7 @@ selections, estimate statistical uncertainty, or cache analysis results.
 ## 1. Conventions
 
 - Internal distance and coordinates use nm; time uses ps and volume uses nm^3.
-- GRO coordinates are already in nm. MDAnalysis coordinates and box vectors are divided by 10.
+- MDAnalysis coordinates and box vectors are divided by 10 to enter the internal nm contract.
 - Core frames store coordinates as `float64` NumPy arrays. Readers perform format and unit
   conversion once at the backend boundary.
 - Radial plots convert nm to angstrom; persisted arrays remain in nm.
@@ -44,24 +44,16 @@ The following notation is used for radial calculations:
 An explicit analysis backend resolves to one complete strategy:
 
 ```text
-native     -> Native reader + NDX selection + Native frame/distance computation
 mdanalysis -> MDAnalysis reader + MDAnalysis selection/frame/distance or Energy
-gromacs    -> GROMACS input processing + GROMACS selection + RDF/CN or Energy
+gromacs    -> GROMACS input processing + GROMACS selection + RDF/cumulative RDF or Energy
 ```
 
-Auto orders available complete strategies. Radial requests consider Native first only for a
-GRO/GRO pair with NDX, then MDAnalysis, then GROMACS when `rdf` is available. GROMACS frame
-subsets additionally require `trjconv` and `check`. Energy
-considers MDAnalysis, then GROMACS when `energy` is available. A source-loading error may advance to
-the next complete strategy. Explicit requests do not fall back, and one attempt never combines
-components from different backends. Independent system inspection retains a reader-only Auto rule:
-GRO/GRO uses Native and other inputs use MDAnalysis. Provenance records the resolved complete
-analysis backend.
-
-The MDHelper GRO Reader validates both paths and extensions, builds atom metadata from the topology's
-first frame, scans the trajectory to count and validate frames, and then streams requested frames
-during analysis. Atom identity at each index must remain constant. Three box values produce a
-diagonal matrix; nine values are reordered according to the GRO format.
+Auto orders available complete strategies. Radial and Energy requests consider MDAnalysis before
+GROMACS when the required GROMACS capability is available. GROMACS frame subsets additionally
+require `trjconv` and `check`. A source-loading error may advance to the next complete strategy.
+Explicit requests do not fall back, and one attempt never combines components from different
+backends. Independent system inspection uses the MDAnalysis reader. Provenance records the resolved
+complete analysis backend.
 
 The MDAnalysis adapter creates one Universe, preserves its atom order, converts positions and
 triclinic dimensions from angstrom to nm, and maps each molecule to
@@ -70,17 +62,16 @@ format-independent atom-name fallback; this is not chemical perception.
 
 ## 3. Selection resolution
 
-Native and MDAnalysis selection dispatch is:
+MDAnalysis selection dispatch is:
 
 ```text
 injected engine + index file -> error
-Native                       -> NdxSelectionEngine; index file required
 MDAnalysis + index file      -> NdxSelectionEngine
 MDAnalysis without index     -> MDAnalysisSelectionEngine
 injected engine              -> that engine
 ```
 
-GROMACS RDF/CN quotes an NDX group as
+GROMACS RDF/cumulative RDF quotes an NDX group as
 `group "name"`; without NDX it passes the request value directly as a GROMACS selection expression.
 
 NDX parsing preserves group and atom order, converts one-based atom numbers to zero-based indices,
@@ -117,30 +108,14 @@ r_limit = min(h_0, h_1, h_2) / 2
 Every processed frame must satisfy
 `r <= r_limit + max(1e-12, r_limit * 1e-10)`.
 
-For a reference position `x_r` and selection position `x_s`, the minimum image is:
+The in-process route converts the row box vectors to MDAnalysis triclinic dimensions and calls
+`capped_distance` for periodic minimum-image distances. A pair is retained when its two topology
+atom indices differ and its distance is no greater than the cutoff. Distinct atoms at identical
+coordinates remain valid pairs. Neighbor-search method selection and temporary pair storage are
+owned by the bundled MDAnalysis version.
 
-```text
-delta = x_s - x_r
-fractional = delta @ inverse(H)
-fractional = fractional - rint(fractional)
-delta_mic = fractional @ H
-```
-
-A pair is retained when its two atom indices differ and its squared distance is no greater than
-the squared cutoff. Distinct atoms at identical coordinates remain valid pairs.
-
-Pair matrices are bounded by `max_pairs_per_chunk`. Large axis-aligned orthogonal searches use
-periodic k-d trees. Selection trees and exact neighbor counts are built in bounded selection
-blocks; reference blocks are then sized so each sparse distance result contains at most the
-configured pair limit. Small searches and general triclinic searches use direct chunks or periodic
-fractional-coordinate cells. The reciprocal box vectors define a conservative fractional cutoff on
-each axis, so only neighboring occupied cells can contain a retained pair. Candidate blocks still
-use the triclinic minimum-image calculation above. These search indexes change neither pair
-identity nor histogram order-independent results and avoid enumerating the full `N_R * N_S`
-product when the cutoff is local.
-
-The RDF/CN neighbor-search cutoff is exactly the request's user- or template-supplied `r_max`.
-Search indexing does not infer, reduce, or otherwise adjust this cutoff.
+The RDF/cumulative-RDF neighbor-search cutoff is exactly the request's user- or template-supplied
+`r_max`. Search indexing does not infer, reduce, or otherwise adjust this cutoff.
 
 ## 5. In-process radial grid
 
@@ -150,7 +125,7 @@ requested width `d`:
 ```text
 Q = max(1, round(2 * r_max / d))
 B_rdf = floor((Q + 1) / 2)
-B_cn = floor(Q / 2)
+B_cumulative = floor(Q / 2)
 h = d / 2
 ```
 
@@ -162,10 +137,10 @@ dV_0 = (4 * pi / 3) * (d/2)^3
 dV_k = (4 * pi / 3) * ((k+1/2)^3 - (k-1/2)^3) * d^3, k > 0
 ```
 
-CN sample `k` is reported at `(k+1)*d` and combines fine bins `2k` and `2k+1`. A final unmatched
-fine bin is omitted by the relevant resampling, just as in GROMACS. The requested width is not
-adjusted to make the final sample land on `r_max`. Reported radii are rounded to 15 decimal places
-for stable serialization, and the RDF sample count may not exceed 1,000,000.
+Cumulative-RDF sample `k` is reported at `(k+1)*d` and combines fine bins `2k` and `2k+1`. A final
+unmatched fine bin is omitted by the relevant resampling, just as in GROMACS. The requested width
+is not adjusted to make the final sample land on `r_max`. Reported radii are rounded to 15 decimal
+places for stable serialization, and the RDF sample count may not exceed 1,000,000.
 
 ## 6. In-process radial distribution function
 
@@ -202,22 +177,25 @@ intervals `[k*d, (k+1)*d)` without the RDF ideal-gas normalization. With
 `N_ref_obs = F * N_R`:
 
 ```text
-N_k = (sum_(j=0..k) H_j) / N_ref_obs
+cumulative_number[k] = (sum_(j=0..k) H_j) / N_ref_obs
 ```
 
-`N_k` is reported at radius `(k+1)*d` and is the mean number of selection particles inside that
-upper edge around one reference particle. This is the discrete form corresponding to
+`cumulative_number[k]` is reported at radius `(k+1)*d` and is the mean number of selection
+particles inside that upper edge around one reference particle. This is the discrete form
+corresponding to
 
 ```text
-N(r) = 4 * pi * rho_selection * integral_0^r g_ref,selection(r') * r'^2 dr'
+cumulative_number(r) =
+    4 * pi * rho_selection * integral_0^r g_ref,selection(r') * r'^2 dr'
 ```
 
-The result field is `cumulative_number`; the analysis identifier is `cumulative_rdf`. The UI calls
-the curve **Cumulative Coordination Number (CN)** and labels its Y axis **Coordination number**.
-A single value evaluated at a shell boundary is a first-shell `coordination_number` diagnostic,
-not the name of the complete distance-dependent array.
+The result field is `cumulative_number`; the analysis identifier is `cumulative_rdf`. Following
+GROMACS, the UI calls the curve **Cumulative Number RDF**, uses **Cumulative RDF** as its plotted
+quantity, and labels its Y axis **number**. A single value evaluated at a shell boundary is a
+first-shell `coordination_number` diagnostic, not the name of the complete distance-dependent
+array.
 
-### GROMACS RDF/CN backend
+### GROMACS RDF/cumulative-RDF backend
 
 An explicit `gromacs` request does not use the formulas above as its curve source. The default
 `0:end:1` range invokes `gmx rdf` once, passing the selected topology and trajectory directly. RDF
@@ -262,7 +240,7 @@ reported as unavailable. Confirmation metadata never changes selections or numer
 ## 10. Plot construction
 
 - RDF plots `g_r` as `g(r)` against angstrom distance.
-- Cumulative RDF plots `cumulative_number` as `N(r)` with Y label `Coordination number`.
+- Cumulative RDF plots `cumulative_number` as `Cumulative RDF` with Y label `number`.
 - Energy plots each explicitly selected EDR term against time in ps.
 
 RDF and cumulative RDF share the `radial_distance` domain. If both are selected, RDF uses the
@@ -325,15 +303,14 @@ next to the executable. Saved TOML is validated before atomic replacement. Templ
 path order, decoded as non-empty ASCII, and rejected on duplicate case-insensitive keys.
 
 Background jobs move through pending, running, and a terminal state. Cancellation is cooperative
-at file-hash chunks, analysis-frame boundaries, and external-process polling. Pair chunking bounds
-memory but does not itself guarantee cancellation latency within a very large frame.
+at file-hash chunks, analysis-frame boundaries, and external-process polling. A very large frame
+can delay cancellation until its distance search completes.
 
 ## 13. Complexity and change checks
 
 | Operation | Worst-case time | Main additional memory |
 | --- | --- | --- |
-| RDF/cumulative RDF | worst-case `O(F * N_R * N_S)`; k-d trees or local cells reduce candidates | `O(N_R + N_S + M + B)` |
-| MDHelper GRO Reader scan | `O(F * N_atoms)` | one frame |
+| RDF/cumulative RDF | worst-case `O(F * N_R * N_S)`; MDAnalysis selects the search method | `O(N_R + N_S + B)` |
 | File fingerprint | input bytes | 4 MiB |
 
 Any algorithm change must preserve or explicitly revise formulas, units, endpoint inclusion,

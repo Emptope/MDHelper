@@ -32,7 +32,7 @@
         "r_max_nm": {"type": "number", "exclusiveMinimum": 0},
         "bin_width_nm": {"type": "number", "exclusiveMinimum": 0},
         "frames": {"$ref": "#/$defs/frames"},
-        "analysis_backend": {"enum": ["auto", "native", "mdanalysis", "gromacs"]},
+        "analysis_backend": {"enum": ["auto", "mdanalysis", "gromacs"]},
         "species_roles": {"$ref": "#/$defs/species_roles"},
         "parameter_provenance": {"type": "object"},
         "schema_version": {"const": 1}

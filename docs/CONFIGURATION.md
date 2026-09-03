@@ -43,12 +43,11 @@ controls.
 
 ## Backend
 
-One complete Backend is selected per analysis request (`auto`, `native`, `mdanalysis`, or
-`gromacs`) in the GUI, TUI, or CLI. It is intentionally not a machine-wide TOML setting: it fixes
+One complete Backend is selected per analysis request (`auto`, `mdanalysis`, or `gromacs`) in the
+GUI, TUI, or CLI. It is intentionally not a machine-wide TOML setting: it fixes
 the reader, selection language, frame handling, and computation for that request. The value is
-visible in setup review and stored in the request. Auto considers Native only for GRO/GRO plus
-NDX, then MDAnalysis, then an available GROMACS pipeline; expression mode resolves to MDAnalysis.
-Energy considers MDAnalysis before available GROMACS. Explicit selections never fall back.
+visible in setup review and stored in the request. Auto considers MDAnalysis before an available
+GROMACS pipeline. Explicit selections never fall back.
 GROMACS RDF passes the original inputs directly to `gmx rdf`; cumulative RDF adds `-cn` for the
 default full frame range. Energy uses `gmx energy`. A non-default frame range uses one
 `gmx trjconv -fr` command to create an exact temporary XTC subset and keeps the original topology

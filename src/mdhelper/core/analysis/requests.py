@@ -14,13 +14,13 @@ from ..system import FrameRange
 from .validation import json_issue
 
 AnalysisType = Literal["rdf", "cumulative_rdf", "energy"]
-AnalysisBackend = Literal["auto", "native", "mdanalysis", "gromacs"]
-RadialBackend = Literal["auto", "native", "mdanalysis", "gromacs"]
+AnalysisBackend = Literal["auto", "mdanalysis", "gromacs"]
+RadialBackend = Literal["auto", "mdanalysis", "gromacs"]
 EnergyBackend = Literal["auto", "mdanalysis", "gromacs"]
 
 ANALYSIS_LABELS: dict[str, str] = {
     "rdf": "Radial Distribution Function (RDF)",
-    "cumulative_rdf": "Cumulative Coordination Number (CN)",
+    "cumulative_rdf": "Cumulative Number RDF",
     "energy": "Energy Analysis",
 }
 
@@ -34,7 +34,7 @@ def analysis_label(analysis_type: str) -> str:
 @dataclass(frozen=True, kw_only=True)
 class AnalysisRequest(ABC):
     analysis_type: AnalysisType
-    analysis_backend: AnalysisBackend = "native"
+    analysis_backend: AnalysisBackend = "auto"
     parameter_provenance: dict[str, Any] = field(default_factory=dict)
     schema_version: int = 1
 
@@ -46,7 +46,7 @@ class AnalysisRequest(ABC):
             )
         if self.analysis_type not in {"rdf", "cumulative_rdf", "energy"}:
             raise InputError(f"Unknown analysis type: {self.analysis_type}")
-        if self.analysis_backend not in {"auto", "native", "mdanalysis", "gromacs"}:
+        if self.analysis_backend not in {"auto", "mdanalysis", "gromacs"}:
             raise InputError(f"Unknown analysis backend: {self.analysis_backend!r}.")
         if not isinstance(self.parameter_provenance, dict):
             raise InputError("parameter_provenance must be an object.")
@@ -148,9 +148,9 @@ class RadialRequest(AnalysisRequest):
 
     def validate(self) -> None:
         super().validate()
-        if self.analysis_backend not in {"auto", "native", "mdanalysis", "gromacs"}:
+        if self.analysis_backend not in {"auto", "mdanalysis", "gromacs"}:
             raise InputError(
-                "RDF and CN require Auto, Native, MDAnalysis, or GROMACS."
+                "RDF and cumulative RDF require Auto, MDAnalysis, or GROMACS."
             )
         if self.analysis_type not in {"rdf", "cumulative_rdf"}:
             raise InputError(f"Unknown radial analysis type: {self.analysis_type}")

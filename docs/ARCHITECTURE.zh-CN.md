@@ -8,13 +8,13 @@
 ## 1. 系统边界
 
 MDHelper 是一个面向分子动力学分析的本地 Python 3.12 应用。CLI、TUI 和 Qt GUI 通过
-不同表现层适配器提供相同的应用能力。当前版本支持 RDF、累积配位数和 EDR energy 提取。
+不同表现层适配器提供相同的应用能力。当前版本支持 RDF、Cumulative Number RDF 和 EDR
+energy 提取。
 
 每次分析使用一个完整 Backend：
 
 | Backend | RDF | 累积 RDF | Energy | 执行方式 |
 | --- | --- | --- | --- | --- |
-| Native | 支持 | 支持 | 不支持 | 进程内 GRO 读取和数值分析 |
 | MDAnalysis | 支持 | 支持 | 支持 | 进程内库适配和数值分析 |
 | GROMACS | 支持 | 支持 | 支持 | 通过 Integration 边界调用本地 GROMACS 命令 |
 
@@ -129,12 +129,12 @@ AnalysisRequest
 建立条目。每个 Backend 声明支持的分析类型、Auto 优先级、外部能力要求、输入加载方式和
 执行方法。
 
-Auto 按优先级排列符合条件的完整 Backend。Native 适用于带 NDX 的 GRO/GRO 径向分析，
-MDAnalysis 是通用进程内候选，GROMACS 在所需能力可用时成为外部候选。Fallback 只发生在
-完整尝试之间。显式 Backend 只解析一个实现，并直接返回该实现的失败。
+Auto 按优先级排列符合条件的完整 Backend。MDAnalysis 是通用进程内候选，GROMACS 在所需
+能力可用时成为外部候选。Fallback 只发生在完整尝试之间。显式 Backend 只解析一个实现，
+并直接返回该实现的失败。
 
-Native 和 MDAnalysis 径向链路将输入转换为窄接口 `TrajectorySource`，并共享径向累计链路。
-GROMACS 链路通过 `integrations` 直接调用原生命令，并把命令记录保存在 provenance 中。
+MDAnalysis 径向链路将输入转换为窄接口 `TrajectorySource`。GROMACS 链路通过
+`integrations` 直接调用本地命令，并把命令记录保存在 provenance 中。
 外部库对象和子进程对象不会越过各自的适配边界。
 
 ## 6. 数据契约

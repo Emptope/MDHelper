@@ -15,7 +15,7 @@
 
 | 类别 | 内容 | 主要实现 |
 | --- | --- | --- |
-| 数值算法 | PBC、pair 距离、RDF、累计 RDF、第一壳层、energy 提取 | `analysis/radial/`、`analysis/rdf.py`、`analysis/cumulative_rdf.py`、`analysis/native.py`、`analysis/mdanalysis.py`、`analysis/gromacs/`、`analysis/energy.py` |
+| 数值算法 | PBC、pair 距离、RDF、累计 RDF、第一壳层、energy 提取 | `analysis/radial/`、`analysis/rdf.py`、`analysis/cumulative_rdf.py`、`analysis/mdanalysis.py`、`analysis/gromacs/`、`analysis/energy.py` |
 | 输入解释算法 | reader 分派、轨迹适配、选择解析、物种角色建议 | `backends/`、`io/ndx.py`、`services/selection.py`、`services/system.py` |
 | 工程确定性算法 | 绘图分组/配色/范围、hash、项目提交、外部软件检测、job 取消 | `core/plotting/`、`services/provenance.py`、`project/`、`integrations/`、`runtime/`、`jobs/` |
 
@@ -29,7 +29,6 @@
 - 内部坐标和距离统一为 nm；
 - 内部时间统一为 ps；
 - 盒体积为 nm^3；
-- MDHelper GRO Reader 的坐标不缩放，因为 GRO 本身使用 nm；
 - MDAnalysis 坐标和三斜盒矢量从埃除以 10 转成 nm；
 - 径向绘图把 nm 转为埃，持久化结果仍保存 nm。
 
@@ -41,7 +40,7 @@
 - `O = |R intersect S|`：两选择重叠原子数；
 - `H`：3 x 3 盒矩阵，三个盒矢量按行保存；
 - `V_f = |det(H_f)|`：第 `f` 帧盒体积；
-- `r_max`：RDF/CN 最大半径；
+- `r_max`：RDF/cumulative RDF 最大半径；
 - `d_req`：请求的最大 bin width。
 
 选择只在运行开始时解析一次。所有帧使用同一原子索引，因此结果不包含动态空间选择的
@@ -78,40 +77,16 @@ start, start + stride, start + 2 * stride, ... < stop
 显式分析 Backend 对应一条完整策略：
 
 ```text
-native     -> Native reader + NDX selection + Native frame/distance computation
 mdanalysis -> MDAnalysis reader + MDAnalysis selection/frame/distance or Energy
-gromacs    -> GROMACS input processing + GROMACS selection + RDF/CN or Energy
+gromacs    -> GROMACS input processing + GROMACS selection + RDF/cumulative RDF or Energy
 ```
 
-Auto 按优先级排列可用完整策略。径向请求只有在 GRO/GRO 加 NDX 时才先考虑 Native，随后
-是 MDAnalysis，再随后是具备 `rdf` capability 的 GROMACS；GROMACS 帧子集额外需要
-`trjconv` 和 `check`。Energy 先考虑
-MDAnalysis，再考虑具备 `energy` capability 的 GROMACS。source 加载错误可以进入下一条
-完整策略；显式请求不 fallback；同一次尝试不会组合不同 Backend 的组件。独立体系检查仍
-使用 reader-only Auto：GRO/GRO 选择 Native，其他输入选择 MDAnalysis。provenance 记录解析
-出的完整分析 Backend。
+Auto 按优先级排列可用完整策略。径向和 Energy 请求先考虑 MDAnalysis，再考虑具备所需
+capability 的 GROMACS；GROMACS 帧子集额外需要 `trjconv` 和 `check`。source 加载错误可以
+进入下一条完整策略；显式请求不 fallback；同一次尝试不会组合不同 Backend 的组件。独立
+体系检查使用 MDAnalysis reader。provenance 记录解析出的完整分析 Backend。
 
-### 3.1 MDHelper GRO Reader
-
-MDHelper GRO Reader 的处理顺序是：
-
-1. 验证 topology 和 trajectory 都存在且扩展名为 GRO；
-2. 从 topology 第一帧建立原子元数据；
-3. 完整扫描 trajectory 计算帧数，并逐帧验证原子身份；
-4. 分析时重新流式扫描 trajectory，只 yield 请求帧。
-
-原子记录按 GRO 固定列读取：residue id `[0:5]`、residue name `[5:10]`、atom name
-`[10:15]`，坐标分别为 `[20:28]`、`[28:36]`、`[36:44]`。`molecule_id` 为
-`residue_name:residue_id`。标题中匹配 `t = number` 时使用该时间，否则以帧索引作为时间。
-
-盒行有 3 个数时生成对角矩阵；有 9 个数时按 GRO 规定的交错顺序重排为三个行矢量。
-其他数量失败。后续帧的原子数以及每个索引处的 residue id、residue name、atom name 必须
-与 topology 一致。
-
-该实现会在构造 source 时完整扫描一次、分析时再扫描一次，因此时间复杂度包含两次顺序
-读取；优点是运行前已知 `n_frames` 且分析阶段保持低内存。
-
-### 3.2 MDAnalysis 适配
+### 3.1 MDAnalysis 适配
 
 MDAnalysis reader 创建一个 `Universe(topology, trajectory)`，然后：
 
@@ -124,9 +99,9 @@ MDAnalysis reader 创建一个 `Universe(topology, trajectory)`，然后：
 7. positions 与 triclinic dimensions 除以 10 转成 nm；
 8. 缺少或退化盒矩阵最终在 `Box.validate()` 失败。
 
-适配器只转换格式和单位，不执行 RDF/CN 公式。
+适配器只转换格式和单位，不执行 RDF/cumulative RDF 公式。
 
-### 3.3 通用元素推断
+### 3.2 通用元素推断
 
 当格式不提供可靠 element 时，`backends/common.py` 从 atom name 中只保留字母并转大写。
 没有字母时返回 `X`；前两个字母若属于 `BR`、`CA`、`CL`、`FE`、`LI`、`MG`、`NA`、
@@ -151,8 +126,9 @@ else:
 ```
 
 多个表达式通过一次 `resolve_many` 解析，返回顺序与输入顺序一致。空选择始终失败。
-该分派用于进程内分析。显式 GROMACS RDF/CN 有 NDX 时把组名写成 `group "name"`；没有
-NDX 时把 request 值直接作为 GROMACS selection expression 传给 `gmx rdf`。
+该分派用于进程内分析。显式 GROMACS RDF/cumulative RDF 有 NDX 时把组名写成
+`group "name"`；没有 NDX 时把 request 值直接作为 GROMACS selection expression 传给
+`gmx rdf`。
 
 ### 4.2 NDX 算法
 
@@ -221,43 +197,14 @@ r <= r_limit + max(1e-12, r_limit * 1e-10)
 
 该检查对每一个实际帧执行。盒矩阵奇异或任一帧不满足时立即失败。
 
-### 5.3 三斜盒最小镜像
+### 5.3 周期距离搜索
 
-对 reference 坐标 `x_r` 和 selection 坐标 `x_s`：
+进程内链路先把行盒矢量转换成 MDAnalysis triclinic dimensions，再调用 `capped_distance`
+计算周期最小镜像距离。pair 只有在 topology 原子索引不同且距离不大于 cutoff 时保留；不同
+原子坐标重合仍是合法 pair。搜索方法选择和临时 pair 存储由内置 MDAnalysis 版本负责。
 
-```text
-delta = x_s - x_r
-s = delta @ inverse(H)
-s = s - round(s)
-delta_mic = s @ H
-distance_squared = delta_mic dot delta_mic
-```
-
-这里 `round` 由 NumPy `rint` 实现。pair 只有在原子索引不同且
-`distance_squared <= cutoff^2` 时保留。self pair 由原子索引判断，距离是否为零不参与判断，
-因此不同原子坐标重合仍是合法 pair。
-
-### 5.4 空间索引和有界分块
-
-轴对齐正交盒的大搜索使用周期 k-d tree。selection 按配置的 pair 上限分块建树，并先计算
-每个 reference 的精确邻居数；随后按邻居数划分 reference，使每个稀疏距离结果不超过该
-上限。小规模搜索和通用三斜盒搜索使用直接分块或周期性分数坐标分胞。倒易盒矢量给出各轴
-上的保守分数坐标 cutoff，只有相邻且非空的分胞可能包含保留 pair。候选 pair 仍使用 5.3 节
-的三斜盒最小镜像公式。两种空间索引都不改变 pair 身份和与顺序无关的 histogram 结果。
-
-RDF/CN 邻居搜索的 cutoff 严格等于 request 中由用户或模板设置的 `r_max`。空间索引不会
-另行推断、缩小或调整这个 cutoff。
-
-若配置的 pair 上限为 `M`，每个候选块的目标和参考 chunk 大小为：
-
-```text
-selection_chunk = max(1, min(N_S, floor(sqrt(M))))
-reference_chunk = max(1, floor(M / selection_chunk))
-```
-
-直接路径的每个临时距离矩阵至多约有 `M` 个元素。所有路径只 yield 通过 cutoff 的
-reference slot、selection slot 和距离。局部 cutoff 不再枚举完整 `N_R x N_S` 笛卡尔积；
-不适合空间索引时仍不构造完整距离矩阵。
+RDF/cumulative-RDF 邻居搜索的 cutoff 严格等于 request 中由用户或模板设置的 `r_max`，
+不会另行推断、缩小或调整。
 
 ## 6. 进程内径向网格
 
@@ -266,7 +213,7 @@ reference slot、selection slot 和距离。局部 cutoff 不再枚举完整 `N_
 ```text
 Q = max(1, round(2 * r_max / d))
 B_rdf = floor((Q + 1) / 2)
-B_cn = floor(Q / 2)
+B_cumulative = floor(Q / 2)
 h = d / 2
 ```
 
@@ -278,9 +225,10 @@ dV_0 = (4 * pi / 3) * (d/2)^3
 dV_k = (4 * pi / 3) * ((k+1/2)^3 - (k-1/2)^3) * d^3, k > 0
 ```
 
-CN 第 `k` 个 sample 位于 `(k+1)*d`，合并细 bin `2k` 和 `2k+1`。相关重采样会像
-GROMACS 一样忽略末尾无法配对的细 bin。请求宽度不会为了让最后 sample 落在 `r_max` 而
-调整。radius 舍入到小数点后 15 位以稳定序列化，RDF sample 数不能超过 1,000,000。
+Cumulative-RDF 第 `k` 个 sample 位于 `(k+1)*d`，合并细 bin `2k` 和 `2k+1`。相关重采样
+会像 GROMACS 一样忽略末尾无法配对的细 bin。请求宽度不会为了让最后 sample 落在
+`r_max` 而调整。radius 舍入到小数点后 15 位以稳定序列化，RDF sample 数不能超过
+1,000,000。
 
 ## 7. 进程内 RDF 算法
 
@@ -302,7 +250,7 @@ N_pair = N_R * N_S - O
 
 1. 检查取消；
 2. 验证 `r_max` 不超过该帧可靠半径；
-3. 分块计算最小镜像距离；
+3. 使用 MDAnalysis 计算 cutoff 内的最小镜像距离；
 4. 累积半宽细 histogram，再重采样为 RDF count `H_(f,k)`。
 
 定义：
@@ -328,7 +276,7 @@ volume 和平均 selection number density。它逐帧使用实际盒体积，适
 
 ## 8. 进程内累积 RDF 算法
 
-CN 将同一个半宽细 histogram 重采样为 `[k*d,(k+1)*d)` 区间，不使用 RDF 的理想气体
+Cumulative RDF 将同一个半宽细 histogram 重采样为 `[k*d,(k+1)*d)` 区间，不使用 RDF 的理想气体
 归一化。
 参考原子观测总数为：
 
@@ -339,17 +287,17 @@ N_ref_obs = F * N_R
 第 `k` 个 sample 的累计数为：
 
 ```text
-N_k = (sum_(j=0..k) H_j) / N_ref_obs
+cumulative_number[k] = (sum_(j=0..k) H_j) / N_ref_obs
 ```
 
 该值在 `(k+1)*d` 处输出，语义是“每个 reference 原子周围从 0 到该上边界范围内，平均有
 多少 selection 原子”。当前实现直接
 累计离散 pair counts，不通过数值积分 `4*pi*r^2*rho*g(r)` 再计算；两者在理想离散条件下
-相关，但代码路径和浮点行为不同。完整曲线内部字段为 `cumulative_number`；UI 将其显示为
-`Cumulative Coordination Number (CN)`，纵轴标签为 `Coordination number`。仅在壳层边界取得的
-单值使用 `coordination_number`。
+相关，但代码路径和浮点行为不同。完整曲线内部字段为 `cumulative_number`；按照 GROMACS
+表述，UI 将其显示为 `Cumulative Number RDF`，绘图 quantity 为 `Cumulative RDF`，纵轴
+标签为 `number`。仅在壳层边界取得的单值使用 `coordination_number`。
 
-### GROMACS RDF/CN 后端
+### GROMACS RDF/cumulative-RDF 后端
 
 显式 `gromacs` request 不用上述公式作为曲线数据源。默认 `0:end:1` 范围把所选 topology
 和 trajectory 直接传给一次 `gmx rdf`。RDF request 只使用 `-o`；cumulative RDF request
@@ -367,7 +315,7 @@ Integration run。程序不重算或替换曲线。
 
 ## 9. 第一配位壳诊断
 
-该算法只消费已完成的 RDF 数组，不改变 RDF 或 CN。
+该算法只消费已完成的 RDF 数组，不改变 RDF 或 cumulative RDF。
 
 ### 9.1 预处理
 
@@ -410,8 +358,8 @@ contrast = smoothed_peak - smoothed_minimum
 - `contrast < 0.2`：low。
 
 可用诊断始终带 `requires_user_confirmation = true`。low 产生检查曲线警告；不可用产生
-没有可靠第一最小值的警告。CN 分析若得到 minimum index，会把该 index 的离散 CN 值附加
-到诊断中。
+没有可靠第一最小值的警告。cumulative RDF 分析若得到 minimum index，会把该 index 的
+离散累计值附加到诊断中。
 
 该诊断不包含误差分析，也不自动修改 cutoff 或 `r_max`。
 
@@ -455,11 +403,11 @@ range、mean charge、方法、理由、置信度和候选角色。持久化 req
 ### 11.1 从结果生成序列
 
 - RDF：x 从 nm 转埃，y 为 `g_r`，quantity 为 `g(r)`，domain 为 `radial_distance`；
-- cumulative RDF：x 从 nm 转埃，y 为 `cumulative_number`，quantity 为 `N(r)`，同一 domain；
+- cumulative RDF：x 从 nm 转埃，y 为 `cumulative_number`，quantity 为 `Cumulative RDF`，同一 domain；
 - energy：x 为 `time_ps`，每个显式选择的 EDR term 形成一条序列。
 
-RDF 的 axis order 为 0，CN 为 1。组合时最小 axis order 成为 primary，因此 RDF+CN 图中
-RDF 使用左轴、CN 使用右轴。不同 domain 或不兼容横轴形成不同 panel。
+RDF 的 axis order 为 0，cumulative RDF 为 1。组合时最小 axis order 成为 primary，因此
+组合图中 RDF 使用左轴、cumulative RDF 使用右轴。不同 domain 或不兼容横轴形成不同 panel。
 
 ### 11.2 结果合并与标签
 
@@ -491,7 +439,7 @@ RDF/cumulative RDF 使用 selection 诊断中的 `residue_names`。算法：
 
 `Fixed color` 直接使用 `PlotSelection.color_id` 查固定颜色表。当前没有 Atom name 配色。
 
-secondary axis 颜色的 RGB 每个通道乘 `0.5` 并取整，同时使用虚线；这使 RDF/CN 同选择
+secondary axis 颜色的 RGB 每个通道乘 `0.5` 并取整，同时使用虚线；这使 RDF/cumulative RDF 同选择
 既保持颜色关系又可辨别量纲。
 
 ### 11.4 自动坐标范围
@@ -693,8 +641,8 @@ CLI/TUI 的 `run_sync()` 直接调用同一应用分析用例。
 - 每个分析帧；
 - 外部进程轮询。
 
-pair 分块迭代自身当前没有单独的 cancel 参数；取消通常在下一帧开始或其外层调用点生效。
-因此 `max_pairs_per_chunk` 只约束临时内存，不保证改善取消响应；一个超大帧可能延迟取消。
+当前帧的距离搜索没有单独的 cancel 参数；取消通常在下一帧开始或其外层调用点生效，因此
+一个超大帧可能延迟取消。
 
 ## 17. 契约解析和验证
 
@@ -708,20 +656,16 @@ pair 分块迭代自身当前没有单独的 cancel 参数；取消通常在下�
 
 ## 18. 复杂度与资源上界
 
-令平均帧数为 `F`，reference 原子数为 `N_R`，selection 原子数为 `N_S`，bin 数为 `B`，pair chunk
-上限为 `M`：
+令平均帧数为 `F`，reference 原子数为 `N_R`，selection 原子数为 `N_S`，bin 数为 `B`：
 
 | 算法 | 最坏时间量级 | 主要额外内存 |
 | --- | --- | --- |
-| RDF/累积 RDF pair 遍历 | 最坏 `O(F * N_R * N_S)`；k-d tree 或局部分胞按候选 pair 缩减 | `O(N_R + N_S + M + B)` |
-| GRO source 构造 | `O(F * N_atoms)` 扫描 | `O(N_atoms)` 每帧 |
+| RDF/累积 RDF pair 遍历 | 最坏 `O(F * N_R * N_S)`；MDAnalysis 选择搜索方法 | `O(N_R + N_S + P + B)`，`P` 为当前帧返回的 pair 数 |
 | 文件 SHA-256 | `O(file bytes)` | 4 MiB chunk |
 | 绘图模型 | `O(result points)` | `O(result points)` |
 
-chunking 限制临时距离矩阵。轴对齐正交盒的大搜索使用周期 k-d tree，先分块建立 selection
-tree 并计算精确邻居数，再按邻居数约束 reference 块，使稀疏距离结果不超过 `M`。三斜盒
-继续使用周期分胞；两种索引都在局部 cutoff 下减少候选 pair，但最坏时间复杂度仍不变。
-后续优化若改变 pair 枚举方式，必须保持 self exclusion、三斜 PBC、cutoff 边界和结果容差。
+MDAnalysis 的搜索实现可在局部 cutoff 下减少候选 pair，但最坏时间复杂度仍不变。后续优化
+若改变 pair 枚举方式，必须保持 self exclusion、三斜 PBC、cutoff 边界和结果容差。
 
 ## 19. 算法修改检查表
 

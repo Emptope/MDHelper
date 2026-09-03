@@ -138,7 +138,7 @@ def test_analysis_progress_leaves_busy_state_when_a_job_stops() -> None:
 
 
 def test_job_log_dialog_is_non_modal_and_copies_raw_messages() -> None:
-    job = JobHandle(name="Cumulative Coordination Number (CN): Li - O")
+    job = JobHandle(name="Analysis: Li - O")
     job.update_progress(1, 2, "Reading frame 0")
     job.update_progress(2, 2, "Reading frame 1")
     dialog = JobLogDialog()
@@ -248,19 +248,19 @@ def test_selection_hints_follow_index_file_and_use_a_table() -> None:
     parameters = panel.parameters
 
     assert not parameters.rdf.inputs.hint_button.isHidden()
-    assert not parameters.cn.inputs.hint_button.isHidden()
+    assert not parameters.cumulative.inputs.hint_button.isHidden()
     parameters.set_selection_groups(True, {"System": 10})
     assert parameters.rdf.inputs.hint_button.isHidden()
-    assert parameters.cn.inputs.hint_button.isHidden()
+    assert parameters.cumulative.inputs.hint_button.isHidden()
     parameters.set_selection_groups(False, {})
     assert not parameters.rdf.inputs.hint_button.isHidden()
-    assert not parameters.cn.inputs.hint_button.isHidden()
+    assert not parameters.cumulative.inputs.hint_button.isHidden()
 
     parameters.set_gromacs_configured(True)
     parameters.set_gromacs_available(True)
     parameters.set_analysis_backend("gromacs")
     assert not parameters.rdf.inputs.hint_button.isHidden()
-    assert not parameters.cn.inputs.hint_button.isHidden()
+    assert not parameters.cumulative.inputs.hint_button.isHidden()
     parameters.rdf.inputs.hint_button.click()
     dialog = window.windows.get(SelectionHintDialog)
     assert dialog is not None
@@ -273,18 +273,18 @@ def test_selection_hints_follow_index_file_and_use_a_table() -> None:
 
     parameters.set_selection_groups(True, {"System": 10})
     assert parameters.rdf.inputs.hint_button.isHidden()
-    assert parameters.cn.inputs.hint_button.isHidden()
+    assert parameters.cumulative.inputs.hint_button.isHidden()
     assert parameters.rdf.reference.currentWidget() is parameters.rdf.reference.group
     assert parameters.rdf.reference.group.count() == 1
     assert parameters.rdf.reference.group.currentData() == "System"
 
     parameters.set_analysis_backend("mdanalysis")
     assert parameters.rdf.inputs.hint_button.isHidden()
-    assert parameters.cn.inputs.hint_button.isHidden()
+    assert parameters.cumulative.inputs.hint_button.isHidden()
 
     parameters.set_selection_groups(False, {})
     assert not parameters.rdf.inputs.hint_button.isHidden()
-    assert not parameters.cn.inputs.hint_button.isHidden()
+    assert not parameters.cumulative.inputs.hint_button.isHidden()
 
     parameters.rdf.inputs.hint_button.click()
     dialog = window.windows.get(SelectionHintDialog)
@@ -1073,7 +1073,7 @@ def test_result_panel_keeps_mixed_analysis_types_in_one_figure() -> None:
         "Ion coordination comparison",
     )
     panel.plot_series.item(0, 2).setText("RDF saved")
-    panel.plot_series.item(1, 2).setText("CN saved")
+    panel.plot_series.item(1, 2).setText("Cumulative saved")
     panel.plot_series.item(1, 0).setCheckState(Qt.CheckState.Unchecked)
     panel.color_scheme.setCurrentIndex(panel.color_scheme.findData("fixed"))
     panel.x_min.setText("0")

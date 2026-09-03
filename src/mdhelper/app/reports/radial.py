@@ -1,4 +1,4 @@
-"""RDF and coordination-number result reports."""
+"""RDF and cumulative RDF result reports."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ class RdfReport(RadialReport):
         return self.radial_configuration_rows()
 
 
-class CoordinationReport(RadialReport):
+class CumulativeRdfReport(RadialReport):
     def result_rows(self) -> ReportRows:
         rows = [("Pair", f"{self.request.reference} - {self.request.selection}")]
         rows.extend(

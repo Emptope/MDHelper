@@ -21,16 +21,15 @@ average number of reference positions, shell volume, and average selection numbe
 order matters only when the selected sets differ; self pairs are excluded by topology atom index,
 but, as in GROMACS, exclusions do not change the normalization from `|A||B|` to
 `|A||B|-|A intersection B|`. No smoothing is applied to stored, exported, or plotted `g(r)`.
-Reports, JSON, CSV, and plots retain the direct full-frame curve. CN is a separate, explicit
-analysis and is never added to an RDF result or plot implicitly. The method is applicable to
+Reports, JSON, CSV, and plots retain the direct full-frame curve. Cumulative RDF is a separate,
+explicit analysis and is never added to an RDF result or plot implicitly. The method is applicable to
 three-dimensional periodic bulk trajectories with a valid box on every processed frame. It does
 not define slab, non-periodic, orientational, center-of-mass, site-exclusion, or
 intermolecular-only RDFs.
 
 ## Selection, frames, units, and PBC
 
-Native requires a provided `.ndx` file and treats request values as exact group names. MDAnalysis
-uses the same exact NDX names when supplied and otherwise accepts static MDAnalysis expressions.
+MDAnalysis uses exact NDX names when supplied and otherwise accepts static MDAnalysis expressions.
 GROMACS RDF uses exact NDX names or, without NDX, explicit GROMACS selection expressions. Frame
 sampling always follows Python slicing: `start` is an inclusive zero-based index, `stop` is
 exclusive, and `stride` is applied relative to `start`.
@@ -61,7 +60,7 @@ the default full range reads the original inputs directly, while non-default ran
 converted subset rather than `gmx rdf -dt`. Every non-default range first obtains the frame count
 with `gmx check`. Integration arguments,
 executable identity, version, outputs, and frame audit are retained in provenance. MDHelper does
-not recompute the GROMACS curve. Native float64 values can still differ below practical tolerance
+not recompute the GROMACS curve. MDAnalysis in-process values can differ below practical tolerance
 from serialized XVG values because GROMACS versions use finite output precision.
 
 ## Parameters

@@ -4,7 +4,6 @@ from mdhelper.services.config.contracts import (
     SCHEMA_VERSION,
     THEME_MODES,
     GuiConfig,
-    ResourceConfig,
     ThemeMode,
     UserConfig,
 )
@@ -22,7 +21,6 @@ __all__ = [
     "SCHEMA_VERSION",
     "THEME_MODES",
     "GuiConfig",
-    "ResourceConfig",
     "ThemeMode",
     "UserConfig",
     "config_path",

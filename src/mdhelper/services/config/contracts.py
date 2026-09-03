@@ -13,11 +13,6 @@ THEME_MODES: tuple[ThemeMode, ...] = ("system", "light", "dark")
 
 
 @dataclass
-class ResourceConfig:
-    max_pairs_per_chunk: int = 500_000
-
-
-@dataclass
 class GuiConfig:
     theme: ThemeMode = "system"
     font_size: float = 11.0
@@ -27,7 +22,6 @@ class GuiConfig:
 class UserConfig:
     schema_version: int = SCHEMA_VERSION
     gui: GuiConfig = field(default_factory=GuiConfig)
-    resources: ResourceConfig = field(default_factory=ResourceConfig)
     integrations: dict[str, IntegrationConfig] = field(
         default_factory=lambda: {
             "gromacs": IntegrationConfig(),
@@ -42,7 +36,6 @@ class UserConfig:
         return {
             "schema_version": self.schema_version,
             "gui": asdict(self.gui),
-            "resources": asdict(self.resources),
             "integrations": {
                 name: asdict(config) for name, config in sorted(self.integrations.items())
             },

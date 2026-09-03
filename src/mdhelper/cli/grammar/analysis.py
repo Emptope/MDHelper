@@ -28,7 +28,7 @@ def _add_radial(parser: ArgumentParser) -> None:
     )
     parser.add_argument(
         "--analysis-backend",
-        choices=("auto", "native", "mdanalysis", "gromacs"),
+        choices=("auto", "mdanalysis", "gromacs"),
         default="auto",
     )
     parser.add_argument("--r-max", type=float, default=1.0, help="Maximum radius in nm.")
@@ -48,7 +48,7 @@ def add_analysis_commands(commands: Any) -> None:
     cumulative_parser = command(
         analyses,
         "cumulative-rdf",
-        "Compute a cumulative radial distribution N(r).",
+        "Compute the cumulative number RDF.",
     )
     _add_radial(cumulative_parser)
 

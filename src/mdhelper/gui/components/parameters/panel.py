@@ -60,11 +60,11 @@ class ParameterPanel(QGroupBox):
         layout.addLayout(choice)
 
         self.rdf = RadialParameters(self._request_selection_hint)
-        self.cn = RadialParameters(self._request_selection_hint)
+        self.cumulative = RadialParameters(self._request_selection_hint)
         self.energy = EnergyParameters()
         self.stack = QStackedWidget()
         self.stack.addWidget(self.rdf)
-        self.stack.addWidget(self.cn)
+        self.stack.addWidget(self.cumulative)
         self.stack.addWidget(self.energy)
         layout.addWidget(self.stack, 1)
 
@@ -118,13 +118,13 @@ class ParameterPanel(QGroupBox):
 
     def set_selection_groups(self, use_index: bool, groups: dict[str, int]) -> None:
         self.rdf.set_selection_groups(use_index, groups)
-        self.cn.set_selection_groups(use_index, groups)
+        self.cumulative.set_selection_groups(use_index, groups)
         self._sync_selection_hints()
 
     def _sync_selection_hints(self) -> None:
         backend = cast(RadialBackend, self.analysis_backend_value())
         self.rdf.set_backend(backend)
-        self.cn.set_backend(backend)
+        self.cumulative.set_backend(backend)
 
     def _request_selection_hint(self) -> None:
         self.selection_hint_requested.emit(self.analysis_backend_value())
@@ -135,7 +135,7 @@ class ParameterPanel(QGroupBox):
             return self.energy.request(
                 cast(EnergyBackend, self.analysis_backend_value())
             )
-        parameters = self.rdf if analysis_type == "rdf" else self.cn
+        parameters = self.rdf if analysis_type == "rdf" else self.cumulative
         return parameters.request(
             analysis_type,
             common,
@@ -150,7 +150,7 @@ class ParameterPanel(QGroupBox):
         analysis_type = self._analysis_type()
         if analysis_type == "energy":
             return ((self.request(common), ""),)
-        parameters = self.rdf if analysis_type == "rdf" else self.cn
+        parameters = self.rdf if analysis_type == "rdf" else self.cumulative
         return parameters.request_series(
             analysis_type,
             common,
@@ -161,7 +161,7 @@ class ParameterPanel(QGroupBox):
         if isinstance(request, RadialRequest):
             self.frames.apply(request.frames)
             self._set_analysis(request.analysis_type)
-            parameters = self.rdf if request.analysis_type == "rdf" else self.cn
+            parameters = self.rdf if request.analysis_type == "rdf" else self.cumulative
             parameters.apply_request(request)
         elif isinstance(request, EnergyRequest):
             self._set_analysis("energy")
@@ -173,7 +173,7 @@ class ParameterPanel(QGroupBox):
     def reset(self) -> None:
         self._set_analysis("rdf")
         self.rdf.reset()
-        self.cn.reset()
+        self.cumulative.reset()
         self.energy.reset()
         self.frames.reset()
 

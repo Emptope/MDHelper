@@ -2,8 +2,8 @@
 
 [English](SELECTIONS.md) | [简体中文](SELECTIONS.zh-CN.md)
 
-MDHelper 0.1.0 把 selection syntax 留在所选完整 Backend 内。Native 要求 GROMACS `.ndx`
-组。MDAnalysis 有 NDX 时使用精确组名，否则把静态 MDAnalysis expression 解析为固定、有序、
+MDHelper 0.1.0 把 selection syntax 留在所选完整 Backend 内。MDAnalysis 有 NDX 时使用精确
+组名，否则把静态 MDAnalysis expression 解析为固定、有序、
 零基原子索引 tuple。GROMACS 使用精确 NDX 组，或把 request expression 作为 GROMACS
 selection syntax 传给 `gmx rdf`。所有路径都在统一结果契约中记录 selection language 和
 source。
@@ -44,12 +44,13 @@ NDX 使用一基编号，MDHelper 转为内部零基索引。组名大小写敏�
 项目的指纹输入。
 
 选择 topology、trajectory 和可选 index 文件后，GUI 会自动加载解析出的组。存在 index
-文件时，RDF 和 Cumulative Coordination Number 使用组选择器；否则使用自由表达式编辑器。
+文件时，RDF 和 Cumulative Number RDF 使用组选择器；否则使用自由表达式编辑器。
 
 ## 按 Backend 选择 expression syntax
 
-没有 NDX 时 Native 不可用。显式 `mdanalysis` 使用下述 MDAnalysis Atom Selection
-Language；显式 `gromacs` RDF/CN 把两个 expression 直接传给 GROMACS，应使用已安装版本的
+显式 `mdanalysis` 使用下述 MDAnalysis Atom Selection Language；显式 `gromacs`
+RDF/cumulative RDF
+把两个 expression 直接传给 GROMACS，应使用已安装版本的
 `gmx rdf -ref` 和 `-sel` 语法。Auto 从第一条可用且支持 expression 的完整 Backend 开始，
 通常是 MDAnalysis，不会把它的 parser 借给另一个 Backend。
 

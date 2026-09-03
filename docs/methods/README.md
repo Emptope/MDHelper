@@ -7,12 +7,12 @@ These documents are normative for MDHelper 0.1.0 analysis results. A result iden
 | Analysis | Method specification | Validation report |
 | --- | --- | --- |
 | RDF | [rdf-1.0.0.md](rdf-1.0.0.md) | [rdf-1.0.0.md](../validation/rdf-1.0.0.md) |
-| Cumulative RDF (UI: Cumulative Coordination Number) | [cumulative-rdf-1.0.0.md](cumulative-rdf-1.0.0.md) | [cumulative-rdf-1.0.0.md](../validation/cumulative-rdf-1.0.0.md) |
+| Cumulative Number RDF | [cumulative-rdf-1.0.0.md](cumulative-rdf-1.0.0.md) | [cumulative-rdf-1.0.0.md](../validation/cumulative-rdf-1.0.0.md) |
 
 All methods store nm and ps. In-process trajectory methods use fixed atom identity, streaming
-frames, and the shared [selection contract](../SELECTIONS.md). Explicit GROMACS RDF/CN follows
-`gmx rdf` selection and sampling rules described by the corresponding method sections; the chosen
-backend is part of the result definition and provenance.
+frames, and the shared [selection contract](../SELECTIONS.md). Explicit GROMACS RDF/cumulative RDF
+follows `gmx rdf` selection and sampling rules described by the corresponding method sections;
+the chosen backend is part of the result definition and provenance.
 
 Base results are deterministic functions of the recorded trajectory, selections, frame range,
 and method parameters. They do not include a fixed block size or a standard-error estimate.

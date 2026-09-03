@@ -13,8 +13,7 @@ MDHelper 是一款为分子动力学模拟设计的本地数据后处理应用�
 
 ## 主要特性
 
-- **三轨分析流水线 (Pipelines)**
-  - **Native**：内置高效 `MDHelper GRO Reader`，配合 NDX 索引文件进行原生分析。
+- **两条分析流水线 (Pipelines)**
   - **MDAnalysis**：集成 MDAnalysis 生态，支持主流轨迹格式的读取与处理。
   - **GROMACS**：直接调用本机 `gmx` 或 `gmx_mpi` 可执行文件，完成原生输入解析与分析。
 - **周期性边界处理**：完整支持正交 (Orthogonal) 与三斜 (Triclinic) 周期性边界条件 (PBC)。

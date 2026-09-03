@@ -55,14 +55,14 @@ def test_job_runner_tracks_progress_and_completion() -> None:
             on_progress=lambda handle: updates.append(
                 (handle.current, handle.total, handle.message)
             ),
-            name="CN: ion pair",
+            name="Analysis: ion pair",
         )
         analyses.release.set()
 
         assert job.future is not None
         assert job.future.result(timeout=2) is result
         assert job.status == JobStatus.COMPLETED
-        assert job.name == "CN: ion pair"
+        assert job.name == "Analysis: ion pair"
         assert runner.get(job.job_id) is job
         assert updates == [
             (1, 2, "Reading frame 1"),

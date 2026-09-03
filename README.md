@@ -13,10 +13,9 @@ MDHelper is a local data post-processing application designed for molecular dyna
 
 ## Highlights
 
-- **Three Analysis Pipelines**
-  - **Native**: Uses the efficient built-in `MDHelper GRO Reader` with NDX index files for native analysis.
+- **Two Analysis Pipelines**
   - **MDAnalysis**: Integrates the MDAnalysis ecosystem to read and process widely used trajectory formats.
-  - **GROMACS**: Directly invokes a local `gmx` or `gmx_mpi` executable for native input parsing and analysis.
+  - **GROMACS**: Directly invokes a local `gmx` or `gmx_mpi` executable for input parsing and analysis.
 - **Periodic Boundary Handling**: Full support for orthogonal and triclinic periodic boundary conditions (PBC).
 - **One-Click Multi-Format Export**: Generates complete analysis JSON, structured CSV data, and publication-ready PNG, SVG, and PDF vector/raster figures in one click.
 - **Integrations**: Completes tasks by invoking molecular simulation software already installed locally.

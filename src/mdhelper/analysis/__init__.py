@@ -10,10 +10,9 @@ from mdhelper.analysis.pipeline import (
 
 from .gromacs import GromacsBackend
 from .mdanalysis import MDAnalysisBackend
-from .native import NativeBackend
 
 DEFAULT_ANALYSIS_REGISTRY = AnalysisRegistry(
-    (NativeBackend(), MDAnalysisBackend(), GromacsBackend())
+    (MDAnalysisBackend(), GromacsBackend())
 )
 
 __all__ = [
@@ -23,5 +22,4 @@ __all__ = [
     "BackendAdapter",
     "GromacsBackend",
     "MDAnalysisBackend",
-    "NativeBackend",
 ]

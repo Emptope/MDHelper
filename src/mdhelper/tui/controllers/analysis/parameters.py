@@ -92,8 +92,6 @@ class AnalysisParameterController(AnalysisExecutionController):
         ]
         configured = self.application.integrations.is_configured("gromacs")
         if draft.analysis_type != "energy":
-            if self.workspace.index_file:
-                choices.insert(1, ("Native", "native"))
             gromacs = configured and self._gromacs_supports(
                 draft.analysis_type,
                 draft.frames,

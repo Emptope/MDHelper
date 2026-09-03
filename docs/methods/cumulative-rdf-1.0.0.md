@@ -1,13 +1,14 @@
-# Cumulative number RDF - method 1.0.0
+# Cumulative Number RDF - method 1.0.0
 
 [English](cumulative-rdf-1.0.0.md) | [Simplified Chinese](cumulative-rdf-1.0.0.zh-CN.md)
 
 Status: release method specification for MDHelper 0.1.0.
 
-The serialized analysis type is `cumulative_rdf`. The CLI command remains `cn`, following the
-GROMACS `gmx rdf -cn` option. GROMACS 2026.1 calls this output the **cumulative number RDF** and
-classifies the output file under **Cumulative RDFs**. MDHelper uses **Cumulative Coordination
-Number (CN)** in the user interface because it states the physical interpretation more directly.
+The serialized analysis type is `cumulative_rdf`, and the MDHelper CLI command is
+`cumulative-rdf`. GROMACS 2026.3 documents that `gmx rdf -cn` produces the **cumulative number
+RDF**, describes the output file as **Cumulative RDFs**, and uses `rdf_cn` as its default basename.
+The GROMACS implementation sets the plot title to **Cumulative Number RDF** and the Y-axis label
+to **number**. MDHelper uses those same user-facing terms.
 
 ## Quantity and applicability
 
@@ -17,27 +18,29 @@ obtained by pairing the same half-width fine histogram used for RDF. The reporte
 at radius `(k+1)*d` is
 
 ```text
-N_k = sum_f sum_{j <= k} H_fj / (number_of_frames * |A|).
+cumulative_number[k] = sum_f sum_{j <= k} H_fj / (number_of_frames * |A|).
 ```
 
 For the bulk RDF normalization used by this method, the same quantity is
 
 ```text
-N(r) = 4 * pi * rho_selection * integral_0^r g_reference,selection(r') * r'^2 dr'.
+cumulative_number(r) =
+    4 * pi * rho_selection * integral_0^r g_reference,selection(r') * r'^2 dr'.
 ```
 
-`N(r)` is the mean number of selection atoms within radius `r` of each reference atom. A
+The cumulative number is the mean number of selection atoms within radius `r` of each reference
+atom. A
 selection atom with the same topology index as the reference atom is excluded. The result data
 contains only `radius_nm` and `cumulative_number`. It does not calculate a fixed-cutoff time
-series, per-reference counts, residue-grouped counts, or a `P(N)` probability distribution.
+series, per-reference counts, residue-grouped counts, or a count probability distribution.
 
 The selection defines the counting basis and is always shown in the report. For example,
 `Li-O_FSI` reports selected FSI oxygen contacts per selected Li atom. It is not the number of
 distinct FSI anions unless the selection contains one representative atom per anion. MDHelper
 does not silently convert atom contacts into molecule counts.
 
-The cumulative analysis is explicit. RDF results contain only `g(r)`, and an `N(r)` curve is
-plotted only when the user runs or loads a `cumulative_rdf` result and enables it in the plot
+The cumulative analysis is explicit. RDF results contain only `g(r)`, and a cumulative RDF curve
+is plotted only when the user runs or loads a `cumulative_rdf` result and enables it in the plot
 selection.
 
 ## GROMACS backend
@@ -56,27 +59,27 @@ branch follows the corresponding GROMACS RDF rules. Distance is in nm and cumula
 count.
 
 The request records `reference`, `selection`, `r_max_nm`, and `bin_width_nm`. The in-process backend
-creates `Q = round(2*r_max_nm/bin_width_nm)` half-width fine bins. CN contains `floor(Q/2)` samples
-at `d,2d,...`; an unmatched final fine bin is omitted, matching `gmx rdf -cn`. The requested width
-is preserved rather than adjusted to end at `r_max_nm`. `r_max_nm` is validated against every
-selected frame's reliable minimum-image radius. Empty selections, an all-self pair set, invalid
-boxes, invalid radial parameters, or a grid above one million RDF samples fail with actionable
-errors.
+creates `Q = round(2*r_max_nm/bin_width_nm)` half-width fine bins. The cumulative RDF contains
+`floor(Q/2)` samples at `d,2d,...`; an unmatched final fine bin is omitted, matching
+`gmx rdf -cn`. The requested width is preserved rather than adjusted to end at `r_max_nm`.
+`r_max_nm` is validated against every selected frame's reliable minimum-image radius. Empty
+selections, an all-self pair set, invalid boxes, invalid radial parameters, or a grid above one
+million RDF samples fail with actionable errors.
 
 ## First-shell coordination reporting
 
-`N(r)` is a nondecreasing running count. Its global minimum is normally the zero-distance end,
-and its global maximum is normally the requested outer radius. Neither is, by itself, a
-chemically meaningful shell coordination number. MDHelper therefore never summarizes the curve
-using global extrema or the terminal value at `r_max_nm`.
+The cumulative RDF is a nondecreasing running count. Its global minimum is normally the
+zero-distance end, and its global maximum is normally the requested outer radius. Neither is, by
+itself, a chemically meaningful shell coordination number. MDHelper therefore never summarizes
+the curve using global extrema or the terminal value at `r_max_nm`.
 
 The reported first-shell coordination follows the common electrolyte-simulation convention:
 
 1. derive the RDF from the same pair histogram and normalization used by the cumulative run;
 2. resolve the first prominent RDF peak and first following minimum with RDF method 1.0.0;
 3. use that first-minimum radius as the first-shell boundary;
-4. report `N(r)` at the first CN endpoint greater than or equal to that RDF radius as the
-   `coordination_number`, together with the boundary and detection confidence.
+4. report `cumulative_number` at the first cumulative-RDF endpoint greater than or equal to that
+   RDF radius as the `coordination_number`, together with the boundary and detection confidence.
 
 This single value is a first-shell coordination number; the complete distance-dependent array
 remains the cumulative number. If the RDF has no resolved following minimum, MDHelper reports
@@ -103,15 +106,21 @@ start from an auditable time series, and leave the base cumulative curve unchang
 
 ## Plot composition and export
 
-A standalone result uses distance in &Aring; on the X axis and **Coordination number** on the Y axis.
+A standalone result uses distance in &Aring; on the X axis and **number** on the Y axis.
 The plotted radius is converted from the stored `radius_nm` field. When explicit RDF and
 cumulative results are both selected, their shared radial-distance domain allows one figure with
-`g(r)` on the primary Y axis and `N(r)` on the secondary Y axis. The two Y scales remain
-independent, while the automatic X range is the intersection of visible series domains.
+`g(r)` on the primary Y axis and the **Cumulative RDF** series on the secondary Y axis. The two Y
+scales remain independent, while the automatic X range is the intersection of visible series
+domains.
 
-CSV export is `cn.csv` with `radius_nm` and `cumulative_number`. No uncertainty, probability, or
+CSV export is `rdf_cn.csv` with `radius_nm` and `cumulative_number`. No uncertainty, probability, or
 distribution column is produced. JSON and CSV exports use at most 15 significant decimal digits.
 This formatting does not change the in-memory calculation.
+
+## GROMACS terminology source
+
+- [GROMACS 2026.3 `gmx rdf` manual](https://manual.gromacs.org/current/onlinehelp/gmx-rdf.html)
+- [GROMACS `rdf.cpp` implementation](https://gitlab.com/gromacs/gromacs/-/blob/main/src/gromacs/trajectoryanalysis/modules/rdf.cpp)
 
 ## Validation contract
 

@@ -15,7 +15,7 @@ contracts, schemas, documentation, and tests; compatibility and migration branch
 The current product goal is a reproducible vertical slice from trajectory or EDR input and explicit
 atom or energy-term selection through analysis, interpretation, export, and project persistence in
 CLI, TUI, and GUI. The released analyses are RDF, cumulative RDF, and energy
-extraction. Native, MDAnalysis, and optional GROMACS are complete, non-mixing pipelines. Each owns
+extraction. MDAnalysis and optional GROMACS are complete, non-mixing pipelines. Each owns
 its reader, selection path, frame handling, and analysis implementation. The requested and resolved
 backend are always recorded.
 
@@ -104,15 +104,15 @@ loadable, with no false manifest entry.
 
 ## 10. G9: bounded resources and cancellation
 
-Trajectory frames stream, pair matrices are chunked, and file hashing is chunked. MDAnalysis XDR
-frame offsets are stored as rebuildable, locked, atomically replaced entries in a dedicated cache
-directory instead of sidecars beside the trajectory, and are invalidated by source metadata.
-Background jobs have explicit state and cooperative cancellation. No analysis may materialize
-every frame or an unbounded
-`N_reference x N_selection` matrix.
+Trajectory frames stream, and file hashing is chunked. MDAnalysis owns the neighbor-search method
+and temporary pair storage for one frame; a dense cutoff can therefore require memory proportional
+to the matching pairs in that frame. MDAnalysis XDR frame offsets are stored as rebuildable,
+locked, atomically replaced entries in a dedicated cache directory instead of sidecars beside the
+trajectory, and are invalidated by source metadata. Background jobs have explicit state and
+cooperative cancellation. No analysis may materialize every frame.
 
-Acceptance covers configured pair bounds, multi-frame streaming, progress, cancellation, timeout,
-and deterministic cleanup.
+Acceptance covers multi-frame streaming, progress, cancellation, timeout, and deterministic
+cleanup.
 
 ## 11. G10: deterministic complete backends
 
@@ -141,7 +141,7 @@ visible series, axis limits, legends, grids, line widths, or font sizes never re
 arrays. Compatible RDF and cumulative RDF curves can share a distance axis while retaining
 independent Y scales.
 
-The cumulative curve is `N(r)` and its Y-axis label is `Coordination number`. Plot state stores
+The cumulative curve is `Cumulative RDF` and its Y-axis label is `number`. Plot state stores
 custom titles, explicit primary and secondary bounds, strict color identifiers, and validated
 appearance settings shared by GUI previews and figure exports.
 

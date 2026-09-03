@@ -35,7 +35,7 @@ class AnalysisExecutionController(ControllerContext):
         if not draft.queue:
             raise InputError(
                 "The task queue is empty.",
-                "Use Add task to configure at least one RDF or CN task.",
+                "Use Add task to configure at least one RDF or cumulative RDF task.",
             )
         runs: list[AnalysisDraft] = []
         for task in draft.queue:

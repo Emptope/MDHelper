@@ -9,10 +9,10 @@
 | 分析 | 方法规范 | 验证报告 |
 | --- | --- | --- |
 | RDF | [rdf-1.0.0.zh-CN.md](rdf-1.0.0.zh-CN.md) | [rdf-1.0.0.zh-CN.md](../validation/rdf-1.0.0.zh-CN.md) |
-| 累积 RDF（UI：Cumulative Coordination Number） | [cumulative-rdf-1.0.0.zh-CN.md](cumulative-rdf-1.0.0.zh-CN.md) | [cumulative-rdf-1.0.0.zh-CN.md](../validation/cumulative-rdf-1.0.0.zh-CN.md) |
+| Cumulative Number RDF | [cumulative-rdf-1.0.0.zh-CN.md](cumulative-rdf-1.0.0.zh-CN.md) | [cumulative-rdf-1.0.0.zh-CN.md](../validation/cumulative-rdf-1.0.0.zh-CN.md) |
 
 所有方法存储 nm 和 ps。进程内轨迹方法使用固定 atom identity、流式帧和共享的
-[选择契约](../SELECTIONS.zh-CN.md)。显式 GROMACS RDF/CN 遵循对应方法章节记录的
+[选择契约](../SELECTIONS.zh-CN.md)。显式 GROMACS RDF/cumulative RDF 遵循对应方法章节记录的
 `gmx rdf` selection 与 sampling 规则；所选 Backend 是结果定义和 provenance 的一部分。
 
 基础结果是记录的轨迹、选择、帧范围和参数的确定函数，不包含固定 block size 或 standard

@@ -40,7 +40,7 @@ def test_frame_range_uses_python_stop_semantics(tmp_path: Path) -> None:
         list(source.iter_frames(FrameRange(start=1, stop=1)))
 
 
-def test_native_gro_reader_accepts_extended_coordinate_precision(tmp_path: Path) -> None:
+def test_gro_reader_accepts_extended_coordinate_precision(tmp_path: Path) -> None:
     path = tmp_path / "precise.gro"
     path.write_text(
         "precise t=2.5\n"
@@ -60,7 +60,7 @@ def test_native_gro_reader_accepts_extended_coordinate_precision(tmp_path: Path)
     )
 
 
-def test_explicit_in_process_backends_select_distinct_trajectory_adapters(
+def test_auto_and_explicit_in_process_loading_use_mdanalysis(
     tmp_path: Path,
 ) -> None:
     from test_synthetic_system import _write_trajectory
@@ -68,14 +68,13 @@ def test_explicit_in_process_backends_select_distinct_trajectory_adapters(
     trajectory = tmp_path / "trajectory.gro"
     _write_trajectory(trajectory)
 
-    native = load_trajectory(trajectory, trajectory, "native")
     with warnings.catch_warnings():
         warnings.simplefilter("error")
+        automatic = load_trajectory(trajectory, trajectory, "auto")
         mdanalysis = load_trajectory(trajectory, trajectory, "mdanalysis")
         frame = next(mdanalysis.iter_frames(FrameRange(stop=1)))
 
-    assert isinstance(native, GroTrajectorySource)
-    assert native.backend_name == "native"
+    assert isinstance(automatic, MDAnalysisTrajectorySource)
     assert isinstance(mdanalysis, MDAnalysisTrajectorySource)
     assert mdanalysis.backend_name == "mdanalysis"
     assert frame.time_ps == 0.0
@@ -184,14 +183,14 @@ def test_mdanalysis_xdr_offsets_are_stored_in_cache(tmp_path: Path) -> None:
     assert MDAnalysisTrajectorySource(topology, trajectory, cache).n_frames == 2
 
 
-def test_native_gro_rejects_identity_mismatch_and_empty_system(tmp_path: Path) -> None:
+def test_gro_reader_rejects_identity_mismatch_and_empty_system(tmp_path: Path) -> None:
     from test_synthetic_system import _write_trajectory
 
     topology = tmp_path / "topology.gro"
     trajectory = tmp_path / "trajectory.gro"
     _write_trajectory(topology)
     trajectory.write_text(
-        topology.read_text(encoding="utf-8").replace("   A1", "   Q1"),
+        topology.read_text(encoding="utf-8").replace("   O1", "   Q1"),
         encoding="utf-8",
     )
 

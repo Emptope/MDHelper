@@ -10,13 +10,12 @@ details live in the other documents linked at the end.
 
 MDHelper is a local Python 3.12 application for molecular-dynamics analysis. It exposes the same
 application capabilities through CLI, TUI, and Qt GUI adapters. The current release supports RDF,
-cumulative coordination number, and EDR energy extraction.
+Cumulative Number RDF, and EDR energy extraction.
 
 Each analysis runs through one complete backend:
 
 | Backend | RDF | Cumulative RDF | Energy | Execution model |
 | --- | --- | --- | --- | --- |
-| Native | yes | yes | no | In-process GRO reader and numerical analysis |
 | MDAnalysis | yes | yes | yes | In-process library adapters and numerical analysis |
 | GROMACS | yes | yes | yes | Local GROMACS commands through the integration boundary |
 
@@ -136,13 +135,13 @@ AnalysisRequest
 each backend-analysis pair. A backend declares its supported analysis types, automatic priority,
 required external capabilities, input-loading behavior, and execution method.
 
-Automatic resolution orders eligible complete backends by priority. Native is eligible for radial
-analysis of GRO/GRO inputs with an NDX file, MDAnalysis is the general in-process candidate, and
-GROMACS is eligible when its required capabilities are available. Fallback occurs only between
-complete attempts. Explicit backend selection resolves one backend and reports its failure directly.
+Automatic resolution orders eligible complete backends by priority. MDAnalysis is the general
+in-process candidate, and GROMACS is eligible when its required capabilities are available.
+Fallback occurs only between complete attempts. Explicit backend selection resolves one backend
+and reports its failure directly.
 
-Native and MDAnalysis radial paths convert inputs to the narrow `TrajectorySource` protocol and
-share the radial accumulation path. The GROMACS path invokes native commands directly through
+The MDAnalysis radial path converts inputs to the narrow `TrajectorySource` protocol. The GROMACS
+path invokes local commands directly through
 `integrations` and retains command records in provenance. External library objects and subprocess
 objects do not cross their adapter boundaries.
 

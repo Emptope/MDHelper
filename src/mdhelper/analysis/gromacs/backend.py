@@ -100,8 +100,8 @@ class GromacsBackend:
             subset = root / "selected.xtc"
             frame_index = root / "frames.ndx"
             rdf_output = root / "rdf.xvg"
-            cn_output = root / "cn.xvg"
-            cn_radius: NDArray[np.float64] | None = None
+            cumulative_output = root / "rdf_cn.xvg"
+            cumulative_radius: NDArray[np.float64] | None = None
             cumulative: NDArray[np.float64] | None = None
             metadata_record: IntegrationRunRecord | None = None
             indices: tuple[int, ...]
@@ -180,8 +180,8 @@ class GromacsBackend:
             )
             output_files: list[str | Path] = [rdf_output]
             if request.analysis_type == "cumulative_rdf":
-                arguments.extend(("-cn", str(cn_output)))
-                output_files.append(cn_output)
+                arguments.extend(("-cn", str(cumulative_output)))
+                output_files.append(cumulative_output)
             arguments.extend(
                 (
                     "-bin",
@@ -214,17 +214,22 @@ class GromacsBackend:
                 audit = _run_audit(record.stdout, record.stderr, indices)
             rdf_radius, rdf = _parse_curve(rdf_output, "RDF")
             if request.analysis_type == "cumulative_rdf":
-                cn_radius, cumulative = _parse_curve(cn_output, "cumulative RDF")
+                cumulative_radius, cumulative = _parse_curve(
+                    cumulative_output, "cumulative RDF"
+                )
         check_cancel(inputs.cancel_event)
         shell = first_shell(rdf_radius, rdf)
         if request.analysis_type == "cumulative_rdf" and shell.get("available"):
-            assert cn_radius is not None
+            assert cumulative_radius is not None
             assert cumulative is not None
             raw_minimum = shell.get("first_minimum_nm")
             if isinstance(raw_minimum, bool) or not isinstance(raw_minimum, (int, float)):
                 raise FormatError("The GROMACS RDF shell diagnostic has no numeric minimum.")
             minimum = float(raw_minimum)
-            index = min(int(np.searchsorted(cn_radius, minimum)), len(cn_radius) - 1)
+            index = min(
+                int(np.searchsorted(cumulative_radius, minimum)),
+                len(cumulative_radius) - 1,
+            )
             shell["coordination_number"] = float(cumulative[index])
         records, n_reference, n_selection, possible_pairs = _selection_records(
             inputs.source, inputs
@@ -276,10 +281,10 @@ class GromacsBackend:
                 "normalization": "GROMACS gmx rdf norm=rdf",
             }
         else:
-            assert cn_radius is not None
+            assert cumulative_radius is not None
             assert cumulative is not None
             data = {
-                "radius_nm": cn_radius.tolist(),
+                "radius_nm": cumulative_radius.tolist(),
                 "cumulative_number": cumulative.tolist(),
             }
             units = {"radius_nm": "nm", "cumulative_number": "count"}

@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 from typing import Literal
 
-from ..analysis import AnalysisRequest, AnalysisResult, RadialRequest
+from ..analysis import AnalysisRequest, AnalysisResult, RadialRequest, analysis_label
 from ..errors import ConfigurationError
 from ..units import convert_distance
 from .appearance import plot_color
@@ -86,7 +86,7 @@ def result_plot(result: AnalysisResult) -> PlotModel:
             reference_y=1.0,
             domain="radial_distance",
             axis_order=0,
-            combined_title="RDF and Cumulative Coordination Number",
+            combined_title=f"RDF and {analysis_label('cumulative_rdf')}",
         )
     if result.analysis_type == "cumulative_rdf":
         if radial_request is None:
@@ -113,17 +113,17 @@ def result_plot(result: AnalysisResult) -> PlotModel:
                     y,
                     selection,
                     None,
-                    "N(r)",
+                    "Cumulative RDF",
                     color_key=selection,
                     residue_name_key=residue_key,
                 ),
             ),
             r"$r$ ($\mathrm{\AA}$)",
-            "Coordination number",
-            "Cumulative Coordination Number",
+            "number",
+            analysis_label("cumulative_rdf"),
             domain="radial_distance",
             axis_order=1,
-            combined_title="RDF and Cumulative Coordination Number",
+            combined_title=f"RDF and {analysis_label('cumulative_rdf')}",
         )
     if result.analysis_type == "energy":
         x = _numbers(result.data.get("time_ps"), "time_ps")

@@ -130,7 +130,7 @@ def _export_csv(result: AnalysisResult, output: Path) -> list[Path]:
         )
         paths.append(path)
     elif result.analysis_type == "cumulative_rdf":
-        path = output / "cn.csv"
+        path = output / "rdf_cn.csv"
         _atomic_csv(
             path,
             ["radius_nm", "cumulative_number"],

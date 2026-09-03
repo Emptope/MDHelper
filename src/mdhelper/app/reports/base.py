@@ -15,7 +15,6 @@ ReportSections = tuple[tuple[str, ReportRows], ...]
 
 RESULT_ANALYSIS_LABELS = {
     "rdf": "RDF",
-    "cumulative_rdf": "CN",
     "energy": "Energy",
 }
 

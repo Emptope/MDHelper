@@ -68,9 +68,6 @@ class ToolController(ControllerContext):
         config = self.application.config
         self.terminal.heading("Resolved configuration")
         self.terminal.write(f"Path: {self.application.config_file}")
-        self.terminal.write(
-            f"Maximum pairs per chunk: {config.resources.max_pairs_per_chunk}"
-        )
         self.terminal.write(f"GUI theme: {config.gui.theme}")
         self.terminal.write(f"GUI font size: {config.gui.font_size:g} pt")
         self.terminal.write("Configured integrations:")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from mdhelper.app.analysis import result_exports
 from mdhelper.app.reports import (
-    CoordinationReport,
+    CumulativeRdfReport,
     EnergyReport,
     RdfReport,
     Report,
@@ -109,7 +109,7 @@ def test_every_analysis_report_inherits_the_shared_contract() -> None:
         issubclass(report_type, Report)
         for report_type in (
             RdfReport,
-            CoordinationReport,
+            CumulativeRdfReport,
             EnergyReport,
         )
     )

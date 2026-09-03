@@ -146,7 +146,6 @@ class AnalysisUseCases:
                 self.context.integrations,
                 progress,
                 cancel_event,
-                self.context.config.resources.max_pairs_per_chunk,
                 cache_dir,
             )
         )
@@ -242,7 +241,6 @@ class AnalysisUseCases:
                 self.context.integrations,
                 progress,
                 cancel_event,
-                self.context.config.resources.max_pairs_per_chunk,
                 cache_dir,
             )
         )

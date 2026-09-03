@@ -8,10 +8,6 @@ theme = "system"
 # GUI font size in points (6-32).
 font_size = 11.0
 
-[resources]
-# Bounds temporary pair arrays; increase only after profiling.
-max_pairs_per_chunk = 500000
-
 [integrations.gromacs]
 enabled = true
 # Full executable path, for example C:/Program Files/GROMACS/bin/gmx.exe

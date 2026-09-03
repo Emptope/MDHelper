@@ -1,4 +1,4 @@
-"""Native streaming adapter for GRO topology and trajectory files."""
+"""Streaming adapter for GRO topology and trajectory files."""
 
 from __future__ import annotations
 
@@ -112,26 +112,30 @@ def _read_frame(handle: TextIO, frame_index: int) -> tuple[tuple[Atom, ...], Fra
     return tuple(atoms), frame
 
 
+def read_gro_topology(path: str | Path) -> tuple[Path, tuple[Atom, ...]]:
+    source = require_file(path, "Topology")
+    if source.suffix.casefold() != ".gro":
+        raise FormatError("The GRO reader supports GRO topology files only.")
+    with source.open("r", encoding="utf-8") as handle:
+        parsed = _read_frame(handle, 0)
+    if parsed is None:
+        raise TopologyError("The topology GRO file is empty.")
+    return source, parsed[0]
+
+
 class GroTrajectorySource:
     """Read single- or multi-frame GRO files through the trajectory port."""
 
-    backend_name = "native"
-    backend_display_name = "Native"
+    backend_name = "gro"
+    backend_display_name = "GRO"
 
     def __init__(self, topology: str | Path, trajectory: str | Path):
-        self.topology_path = require_file(topology, "Topology")
+        self.topology_path, self.atoms = read_gro_topology(topology)
         self.trajectory_path = require_file(trajectory, "Trajectory")
-        if self.topology_path.suffix.casefold() != ".gro":
-            raise FormatError("The MDHelper GRO Reader supports GRO topology files only.")
         if self.trajectory_path.suffix.casefold() != ".gro":
             raise FormatError(
-                "The MDHelper GRO Reader supports single- or multi-frame GRO trajectories only."
+                "The GRO reader supports single- or multi-frame GRO trajectories only."
             )
-        with self.topology_path.open("r", encoding="utf-8") as handle:
-            parsed = _read_frame(handle, 0)
-        if parsed is None:
-            raise TopologyError("The topology GRO file is empty.")
-        self.atoms = parsed[0]
         self.n_frames = self._count_frames()
         if self.n_frames == 0:
             raise TrajectoryError("The trajectory GRO file contains no frames.")

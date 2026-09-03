@@ -120,19 +120,19 @@ def test_initial_contract_rejects_retired_radial_names() -> None:
 @pytest.mark.parametrize("field", ["backend", "trajectory_backend"])
 def test_initial_contract_rejects_retired_backend_fields(field: str) -> None:
     value = _request().to_dict()
-    value[field] = "native"
+    value[field] = "unused"
 
     with pytest.raises(ConfigurationError, match="unknown fields"):
         AnalysisRequest.from_dict(value)
 
 
-def test_backend_values_are_scoped_to_the_analysis_family() -> None:
-    with pytest.raises(InputError, match="Energy analysis"):
+def test_requests_reject_unknown_backend() -> None:
+    with pytest.raises(InputError, match="Unknown analysis backend"):
         EnergyRequest(
             analysis_type="energy",
             energy_file="energy.edr",
             energy_terms=("Potential",),
-            analysis_backend="native",  # type: ignore[arg-type]
+            analysis_backend="removed",  # type: ignore[arg-type]
         ).validate()
 
 

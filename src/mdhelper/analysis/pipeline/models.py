@@ -31,7 +31,6 @@ class AnalysisInput:
     integrations: IntegrationManager
     progress: ProgressCallback | None
     cancel_event: Event | None
-    max_pairs_per_chunk: int
     cache_dir: Path | None
 
 
