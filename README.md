@@ -17,6 +17,7 @@ MDHelper is a local data post-processing application designed for molecular dyna
   - **MDAnalysis**: Integrates the MDAnalysis ecosystem to read and process widely used trajectory formats.
   - **GROMACS**: Directly invokes a local `gmx` or `gmx_mpi` executable for input parsing and analysis.
 - **Periodic Boundary Handling**: Full support for orthogonal and triclinic periodic boundary conditions (PBC).
+- **Workflow Design**: Supports reusable workflows defined in configuration files for batch processing and automated analysis.
 - **One-Click Multi-Format Export**: Generates complete analysis JSON, structured CSV data, and publication-ready PNG, SVG, and PDF vector/raster figures in one click.
 - **Integrations**: Completes tasks by invoking molecular simulation software already installed locally.
 
@@ -51,6 +52,13 @@ working-directory/
 |-- figures/                # Automatically generated figures (PNG/SVG/PDF)
 `-- cache/                  # Analysis cache
 ```
+
+## Workflow Design
+
+Workflows are stored in `config.toml` as named, ordered sequences of analysis types. Projects in a workflow retain separate parameters and plot series. After review, MDHelper submits them to the standard analysis queue in order for repeatable analysis and batch processing.
+
+For configuration and operation details, see [Configuration](docs/CONFIGURATION.md#workflows) and
+[Usage](docs/USAGE.md#gui-workflows).
 
 ## Integrations
 
