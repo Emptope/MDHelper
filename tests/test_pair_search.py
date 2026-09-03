@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mdhelper.analysis.common import iter_neighbor_pairs
+from mdhelper.analysis.radial.neighbors import iter_neighbor_pairs
 from mdhelper.core.system import Box
 
 

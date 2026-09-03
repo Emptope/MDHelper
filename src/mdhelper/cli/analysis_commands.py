@@ -133,7 +133,7 @@ def _run(
         signal.signal(signal.SIGINT, previous_handler)
     if sys.stderr.isatty() and not json_progress:
         sys.stderr.write("\n")
-    exported = app.analyses.export(result, output, include_figures=include_figures)
+    exported = app.exports.export(result, output, include_figures=include_figures)
     project_result = app.projects.commit_result(project, request, result) if project else None
     write_json(
         {

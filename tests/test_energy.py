@@ -9,6 +9,7 @@ import pytest
 
 from mdhelper.analysis.energy import parse_energy_terms
 from mdhelper.analysis.mdanalysis import MDAnalysisBackend
+from mdhelper.analysis.pipeline import BackendQuery
 from mdhelper.app import ApplicationService, TrajectoryLoader
 from mdhelper.core.analysis import EnergyRequest, RadialRequest
 from mdhelper.core.errors import BackendError, FormatError, InputError
@@ -20,7 +21,6 @@ from mdhelper.integrations.models import (
     IntegrationRegistry,
     IntegrationStatus,
 )
-from mdhelper.plugins.analysis import BackendQuery
 from mdhelper.services.config import UserConfig
 
 
@@ -192,7 +192,7 @@ def test_gromacs_energy_backend_standardizes_exports_and_project_data(
     model = result_plot(result)
     assert [series.label for series in model.series] == ["Potential", "Temperature"]
     output = tmp_path / "export"
-    paths = application.analyses.export(result, output, include_figures=False)
+    paths = application.exports.export(result, output, include_figures=False)
     assert {path.name for path in paths} == {
         "result.json",
         "energy.csv",
@@ -428,7 +428,7 @@ def test_gromacs_rdf_uses_native_commands_and_frame_range(
     )
     assert result.data == expected_data
     output = tmp_path / f"export-{analysis_type}"
-    paths = application.analyses.export(result, output, include_figures=False)
+    paths = application.exports.export(result, output, include_figures=False)
     assert {path.name for path in paths} == {
         "result.json",
         "rdf.csv" if analysis_type == "rdf" else "cn.csv",

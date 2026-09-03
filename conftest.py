@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-import mdhelper.io.export as export_module
+import mdhelper.io.export.figures as export_module
 from mdhelper.core.analysis import AnalysisResult, EnergyRequest
 from mdhelper.runtime.logging import LOGGER_NAME
 

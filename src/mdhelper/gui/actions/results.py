@@ -7,12 +7,12 @@ from collections.abc import Callable
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox
 
 from mdhelper.app import ApplicationService
-from mdhelper.app.exports import PlotExport, plot_exports, result_exports
+from mdhelper.app.analysis import PlotExport, plot_exports, result_exports
 from mdhelper.core.plotting import PlotSize
 from mdhelper.gui.controllers.session import ProjectSession
-from mdhelper.gui.dialogs.plot import PlotSettingsDialog
 from mdhelper.gui.dialogs.results import ResultDetailsDialog
 from mdhelper.gui.pages.results import ResultPanel
+from mdhelper.gui.plotting.settings import PlotSettingsDialog
 from mdhelper.gui.windows import WindowManager
 
 
@@ -69,7 +69,7 @@ class ResultActions:
             return
         plots = self.plot_exports()
         try:
-            paths = self.application.analyses.export_bundle(
+            paths = self.application.exports.export_bundle(
                 plots,
                 directory,
                 self.results.plot_scheme(),
@@ -97,7 +97,7 @@ class ResultActions:
         plots = self.plot_exports()
         directory = self.session.project.root / "figures"
         try:
-            paths = self.application.analyses.save_plots(
+            paths = self.application.exports.save_plots(
                 plots,
                 directory,
                 self.results.plot_scheme(),

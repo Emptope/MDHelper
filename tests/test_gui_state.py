@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from mdhelper.core.analysis import RadialRequest
+from mdhelper.core.analysis import AnalysisResult, EnergyRequest, RadialRequest
 from mdhelper.gui.controllers.analysis_state import AnalysisBatch, AnalysisPhase
 from mdhelper.gui.controllers.session_state import SessionPhase, SessionState
 from mdhelper.gui.controllers.system_state import InspectionPhase, InspectionState
+from mdhelper.gui.plotting.state import PlotSession
 
 
 def _request(selection: str) -> RadialRequest:
@@ -15,6 +16,30 @@ def _request(selection: str) -> RadialRequest:
         trajectory="trajectory.xtc",
         reference="reference",
         selection=selection,
+    )
+
+
+def _energy_result() -> AnalysisResult:
+    request = EnergyRequest(
+        analysis_type="energy",
+        energy_file="energy.edr",
+        energy_terms=("first", "second", "third"),
+    )
+    return AnalysisResult(
+        analysis_type="energy",
+        data={
+            "time_ps": [0.0, 1.0],
+            "series": {
+                "first": [1.0, 2.0],
+                "second": [2.0, 3.0],
+                "third": [3.0, 4.0],
+            },
+        },
+        parameters={},
+        units={"time_ps": "ps", "series": "value"},
+        diagnostics={},
+        provenance={},
+        request=request.to_dict(),
     )
 
 
@@ -113,3 +138,17 @@ def test_project_session_state_has_explicit_transitions() -> None:
 
     with pytest.raises(RuntimeError):
         state.complete()
+
+
+def test_plot_session_owns_grouping_and_singleton_normalization() -> None:
+    state = PlotSession()
+
+    assert state.add(_energy_result()) == (0, 1, 2)
+    assert state.combine((0, 1), 0)
+    assert state.entries[0].group == state.entries[1].group
+    assert len(state.models()) == 2
+
+    state.remove((0,))
+
+    assert all(not entry.group for entry in state.entries)
+    assert len(state.models()) == 2

@@ -4,11 +4,11 @@ from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.services.selection import selection_resolution_record
 
-from .common import preprocessing_record
 from .radial import (
     RadialProfile,
     first_shell,
     first_shell_warnings,
+    preprocessing_record,
 )
 
 METHOD_VERSION = "1.0.0"

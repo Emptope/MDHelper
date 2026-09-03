@@ -18,7 +18,7 @@ from mdhelper.integrations.models import (
     IntegrationStatus,
 )
 from mdhelper.runtime.detection import canonical_path, detect_candidate
-from mdhelper.runtime.execution import format_command, launch_in_terminal, run_integration
+from mdhelper.runtime.process import format_command, launch_in_terminal, run_integration
 
 
 class IntegrationManager:

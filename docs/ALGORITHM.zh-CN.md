@@ -15,9 +15,9 @@
 
 | 类别 | 内容 | 主要实现 |
 | --- | --- | --- |
-| 数值算法 | PBC、pair 距离、RDF、累计 RDF、第一壳层、energy 提取 | `analysis/common.py`、`analysis/radial.py`、`analysis/rdf.py`、`analysis/cumulative_rdf.py`、`analysis/native.py`、`analysis/mdanalysis.py`、`analysis/gromacs.py`、`analysis/energy.py` |
+| 数值算法 | PBC、pair 距离、RDF、累计 RDF、第一壳层、energy 提取 | `analysis/radial/`、`analysis/rdf.py`、`analysis/cumulative_rdf.py`、`analysis/native.py`、`analysis/mdanalysis.py`、`analysis/gromacs/`、`analysis/energy.py` |
 | 输入解释算法 | reader 分派、轨迹适配、选择解析、物种角色建议 | `backends/`、`io/ndx.py`、`services/selection.py`、`services/system.py` |
-| 工程确定性算法 | 绘图分组/配色/范围、hash、项目提交、外部软件检测、job 取消 | `core/plotting.py`、`services/provenance.py`、`project/`、`integrations/`、`runtime/`、`jobs/` |
+| 工程确定性算法 | 绘图分组/配色/范围、hash、项目提交、外部软件检测、job 取消 | `core/plotting/`、`services/provenance.py`、`project/`、`integrations/`、`runtime/`、`jobs/` |
 
 若本文与代码或版本化方法文档不一致，发布前必须消除差异；不能把“代码就是事实”作为
 长期保留文档漂移的理由。

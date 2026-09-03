@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-import mdhelper.app.exports as exports_module
-from mdhelper.app.exports import export_bundle, plot_exports, save_plots
+import mdhelper.app.analysis.exports as exports_module
+from mdhelper.app.analysis import export_bundle, plot_exports, save_plots
 from mdhelper.core.analysis import (
     AnalysisResult,
     AnalysisType,
@@ -243,10 +243,7 @@ def test_export_bundle_rebuilds_standalone_radial_plots(
     def fake_result(
         _result: AnalysisResult,
         output: str | Path,
-        *,
-        include_figures: bool,
     ) -> list[Path]:
-        assert not include_figures
         path = Path(output)
         path.mkdir(parents=True)
         return [path / "result.json"]
@@ -313,10 +310,7 @@ def test_export_bundle_maps_limits_by_source_axis(
     def fake_result(
         _result: AnalysisResult,
         output: str | Path,
-        *,
-        include_figures: bool,
     ) -> list[Path]:
-        assert not include_figures
         path = Path(output)
         path.mkdir(parents=True)
         return [path / "result.json"]

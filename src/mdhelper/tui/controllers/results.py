@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mdhelper.app.exports import default_plot_exports
+from mdhelper.app.analysis import default_plot_exports
 from mdhelper.core.analysis import AnalysisResult
 from mdhelper.core.errors import InputError
 from mdhelper.tui.controllers.execution import AnalysisExecutionController
@@ -56,7 +56,7 @@ class ResultController(AnalysisExecutionController):
                 "Open a project before saving plots to its figures directory.",
             )
         directory = project.root / "figures"
-        paths = self.application.analyses.save_plots(
+        paths = self.application.exports.save_plots(
             default_plot_exports(self._current_plots()),
             directory,
         )

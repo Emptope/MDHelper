@@ -7,10 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
 
+from mdhelper.analysis.pipeline import AnalysisRegistry
 from mdhelper.core.progress import ProgressCallback
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.integrations.manager import IntegrationManager
-from mdhelper.plugins.analysis import AnalysisRegistry
 from mdhelper.services.config import UserConfig
 from mdhelper.services.system import load_source
 

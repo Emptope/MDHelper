@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mdhelper.plugins.analysis import (
+from mdhelper.analysis.pipeline import (
     AnalysisInput,
     AnalysisRegistry,
     BackendAdapter,

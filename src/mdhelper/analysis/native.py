@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from mdhelper.analysis.pipeline import AnalysisInput, BackendQuery
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest
 from mdhelper.core.errors import BackendError, InputError
 from mdhelper.integrations.manager import IntegrationManager
-from mdhelper.plugins.analysis import AnalysisInput, BackendQuery
 
 from .cumulative_rdf import cumulative_result
 from .radial import radial_profile

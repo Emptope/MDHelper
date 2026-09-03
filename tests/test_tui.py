@@ -620,7 +620,7 @@ def test_tui_analysis_setup_queues_initial_radial_selection(monkeypatch) -> None
 
     monkeypatch.setattr(tui, "_edit_selections", edit_selections)
     monkeypatch.setattr(
-        "mdhelper.tui.controllers.analysis.draft_issues", lambda *_args: []
+        "mdhelper.tui.controllers.analysis.queue.draft_issues", lambda *_args: []
     )
 
     try:
@@ -808,7 +808,7 @@ def test_tui_radial_task_queue_adds_updates_and_loads(monkeypatch) -> None:
     tui.workspace.topology = "topology.gro"
     tui.workspace.trajectory = "trajectory.xtc"
     monkeypatch.setattr(
-        "mdhelper.tui.controllers.analysis.draft_issues", lambda *_args: []
+        "mdhelper.tui.controllers.analysis.queue.draft_issues", lambda *_args: []
     )
     draft = AnalysisDraft(
         "rdf",
@@ -850,7 +850,7 @@ def test_tui_mixed_queue_keeps_rdf_and_cn_for_same_pair(monkeypatch) -> None:
         output="results",
     )
     monkeypatch.setattr(
-        "mdhelper.tui.controllers.analysis.draft_issues", lambda *_args: []
+        "mdhelper.tui.controllers.analysis.queue.draft_issues", lambda *_args: []
     )
 
     try:

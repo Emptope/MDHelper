@@ -12,7 +12,7 @@ from threading import Event, Timer
 import pytest
 
 import mdhelper.integrations.manager as manager_module
-import mdhelper.runtime.execution as execution_module
+import mdhelper.runtime.process.terminal as terminal_module
 from mdhelper.app import ApplicationService
 from mdhelper.core.errors import BackendError, ConfigurationError, JobCancelled
 from mdhelper.integrations import DEFAULT_INTEGRATION_REGISTRY
@@ -31,8 +31,7 @@ from mdhelper.integrations.models import (
 )
 from mdhelper.integrations.vmd import VmdAdapter
 from mdhelper.project import Project
-from mdhelper.runtime.execution import launch_in_terminal
-from mdhelper.runtime.process import hidden_window_flags, terminal_command
+from mdhelper.runtime.process import hidden_window_flags, launch_in_terminal, terminal_command
 from mdhelper.services.config import UserConfig
 
 _PROGRESS_READY = "progress-ready"
@@ -211,17 +210,17 @@ def test_terminal_launch_preserves_argv_and_bounds_environment(
     launches: list[tuple[list[str], dict[str, object]]] = []
     logged: list[tuple[str, Path]] = []
     monkeypatch.setattr(
-        execution_module,
+        terminal_module,
         "terminal_command",
         lambda command: (["terminal", "-e", *command], 0),
     )
     monkeypatch.setattr(
-        execution_module.subprocess,
+        terminal_module.subprocess,
         "Popen",
         lambda command, **kwargs: launches.append((command, kwargs)) or object(),
     )
     monkeypatch.setattr(
-        execution_module,
+        terminal_module,
         "record_command",
         lambda command, cwd: logged.append((command, cwd)),
     )
@@ -414,7 +413,7 @@ def test_generic_detection_status_and_safe_argv(
     manager, _program_path, _ = _fake_integration(tmp_path)
     logged: list[tuple[str, Path]] = []
     monkeypatch.setattr(
-        "mdhelper.runtime.execution.record_command",
+        "mdhelper.runtime.process.lifecycle.record_command",
         lambda command, cwd: logged.append((command, cwd)),
     )
     status = manager.detect("fake")

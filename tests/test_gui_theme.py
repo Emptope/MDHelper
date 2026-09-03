@@ -28,9 +28,9 @@ from PySide6.QtWidgets import (
 )
 
 import mdhelper.gui.window as window_module
-import mdhelper.io.export as export_module
+import mdhelper.io.export.figures as export_module
 from mdhelper.app import ApplicationService
-from mdhelper.app.exports import export_directories, result_exports
+from mdhelper.app.analysis import export_directories, result_exports
 from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.errors import InputError
 from mdhelper.core.plotting import PlotAppearance, PlotLimits
@@ -41,12 +41,10 @@ from mdhelper.gui.components.inputs import InputPanel
 from mdhelper.gui.components.layout import PAGE_MARGIN, PAGE_SPACING, ActionBar
 from mdhelper.gui.components.parameters import ParameterPanel, RadialParameters
 from mdhelper.gui.components.paths import PathRow
-from mdhelper.gui.components.plot_controls import PlotControls
 from mdhelper.gui.components.selections import SelectionInput, SelectionSeries
 from mdhelper.gui.components.species import SpeciesPanel
 from mdhelper.gui.dialogs.integrations import IntegrationsDialog
 from mdhelper.gui.dialogs.log import JobLogDialog
-from mdhelper.gui.dialogs.plot import PlotSettingsDialog
 from mdhelper.gui.dialogs.results import ResultDetailsDialog
 from mdhelper.gui.dialogs.selection import (
     GROMACS_SELECTION_HINTS,
@@ -60,6 +58,8 @@ from mdhelper.gui.fonts import configure_ui_font
 from mdhelper.gui.formatting import result_details_html, result_summary_html
 from mdhelper.gui.pages.analysis import AnalysisPanel
 from mdhelper.gui.pages.results import ResultPanel
+from mdhelper.gui.plotting.controls import PlotControls
+from mdhelper.gui.plotting.settings import PlotSettingsDialog
 from mdhelper.gui.theme import ThemeController
 from mdhelper.gui.window import MainWindow
 from mdhelper.gui.windows import WindowManager
@@ -1390,7 +1390,7 @@ def test_export_preserves_open_plot_content_aspect_ratio(
         return []
 
     monkeypatch.setattr(export_module, "_save_figure", capture)
-    window.application.analyses.export_plot_model(
+    window.application.exports.export_plot_model(
         window.results.plot_models()[0],
         tmp_path,
         "rdf-LI-O_FSI",

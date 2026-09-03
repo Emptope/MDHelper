@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
-from mdhelper.app.exports import default_plot_exports
+from mdhelper.app.analysis import default_plot_exports
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, analysis_label
 from mdhelper.core.errors import InputError
 from mdhelper.tui.controllers.base import ControllerContext
@@ -91,9 +91,9 @@ class AnalysisExecutionController(ControllerContext):
         output: str | Path,
     ) -> list[Path]:
         plots = default_plot_exports(results)
-        paths = self.application.analyses.export_bundle(plots, output)
+        paths = self.application.exports.export_bundle(plots, output)
         if any(len(plot.items) > 1 for plot in plots):
-            paths.extend(self.application.analyses.save_plots(plots, output))
+            paths.extend(self.application.exports.save_plots(plots, output))
         return paths
 
     def _complete_batch(

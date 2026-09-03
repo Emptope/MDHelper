@@ -8,11 +8,11 @@ from threading import Event
 from typing import TYPE_CHECKING
 
 from mdhelper.analysis.common import analysis_directory, check_cancel
+from mdhelper.analysis.pipeline import AnalysisInput
 from mdhelper.core.analysis import AnalysisResult, EnergyRequest
 from mdhelper.core.errors import BackendError, FormatError, InputFileError
 from mdhelper.integrations.gromacs import output_message
 from mdhelper.integrations.manager import IntegrationManager
-from mdhelper.plugins.analysis import AnalysisInput
 
 if TYPE_CHECKING:
     from MDAnalysis.auxiliary.EDR import EDRReader

@@ -42,7 +42,7 @@ def handle(args: Namespace, app: ApplicationService) -> int:
     elif action == "export-result":
         project = app.projects.open(options.path, verify_inputs=False)
         result = app.projects.load_result(project, options.analysis_id)
-        paths = app.analyses.export(result, options.output, include_figures=options.figures)
+        paths = app.exports.export(result, options.output, include_figures=options.figures)
         write_json(
             {
                 "status": "completed",

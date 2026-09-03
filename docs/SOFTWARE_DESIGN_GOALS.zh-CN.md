@@ -323,7 +323,7 @@ CLI、TUI 和 GUI 可以有适合媒介的交互，但不能拥有不同的分�
 
 ### 当前机制
 
-- `core/plotting.py` 构造工具包无关的绘图模型；
+- `core/plotting/` 分离工具包无关的绘图模型、结果组装和渲染；
 - RDF 和 CN 按 radial domain 分组，可共享横轴并使用双纵轴；
 - 当前配色方案为 `Residue name` 与 `Fixed color`；
 - 当前所选绘图的自定义标题会进入绘图状态并用于项目恢复和图片导出；
@@ -352,7 +352,7 @@ CLI、TUI 和 GUI 可以有适合媒介的交互，但不能拥有不同的分�
 
 - `integrations/manager.py` 负责候选顺序与状态管理；
 - `integrations/gromacs.py` 描述 GROMACS 身份和能力；
-- `runtime/detection.py` 与 `runtime/execution.py` 提供通用安全检测和执行；
+- `runtime/detection.py` 与 `runtime/process/` 提供通用安全检测和执行；
 - 使用显式 argv、cwd、受控环境、超时和输出捕获；
 - 运行记录包含身份、版本、退出码、耗时和输出 hash。
 

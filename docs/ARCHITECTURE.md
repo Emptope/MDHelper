@@ -34,7 +34,7 @@ ApplicationService facade
         v
 app use cases --------------------------> jobs
         |                                  |
-        +--> analysis --> plugins          |
+        +--> analysis                      |
         +--> services --> backends         |
         +--> project                       |
         +--> io                            |
@@ -58,8 +58,7 @@ packages, and keep compatibility shells out of the package root.
 | `bootstrap` | unified interface dispatch and portable configuration bootstrap |
 | `core` | shared contracts, protocols, errors, units, and plotting models |
 | `app` | use-case orchestration and the public facade used by all frontends |
-| `analysis` | RDF, cumulative RDF, energy extraction, PBC, and shared numerical work |
-| `plugins` | in-process analysis-runner registry |
+| `analysis` | pipeline contracts and registry, RDF, cumulative RDF, energy extraction, PBC, and shared numerical work |
 | `services` | configuration, system inspection, selection, provenance, and templates |
 | `backends` | native GRO, MDAnalysis, and GROMACS trajectory/selection adapters |
 | `io` | NDX parsing and data/figure export |
@@ -90,18 +89,20 @@ which lets tests exercise the application boundary without a real GUI or externa
 `app/reports/` defines the shared readable result-report hierarchy consumed by both GUI and TUI.
 `Report` owns common sections and technical metadata; RDF, CN, and energy subclasses own
 their distinct result and configuration rows. Adapters only render a Report as HTML or terminal
-text. `app/exports.py` plans readable result directories and plot destinations for both interactive
-frontends; `AnalysisUseCases` executes those plans through the I/O boundary.
+text. `app/analysis/` separates backend execution, readable export plans, and export execution.
+`AnalysisUseCases` runs analyses while `ExportUseCases` writes results and figures through the I/O
+boundary.
 
 ## 5. Core contracts
 
-`core/analysis.py` defines the shared `AnalysisRequest` boundary plus disjoint
-`RadialRequest` and `EnergyRequest` records. Every frontend must build the matching request before
-an analysis runs; analysis code never reads presentation state. Serialized requests contain only
-fields used by that analysis family.
-Arrays are stored in result `data`, explanation in `diagnostics`, and reproduction information in
-`provenance`. Schema-1 parsing is strict: missing fields, unknown fields, old identifiers, invalid
-enums, and inconsistent arrays fail. Version 0.1.0 has no data-migration branch.
+`core/analysis/` separates shared JSON validation, request contracts, and the result contract.
+`requests.py` defines the `AnalysisRequest` boundary plus disjoint `RadialRequest` and
+`EnergyRequest` records; `results.py` validates `AnalysisResult` without adding request fields.
+Every frontend must build the matching request before an analysis runs; analysis code never reads
+presentation state. Arrays are stored in result `data`, explanation in `diagnostics`, and
+reproduction information in `provenance`. Schema-1 parsing is strict: missing fields, unknown
+fields, old identifiers, invalid enums, and inconsistent arrays fail. Version 0.1.0 has no
+data-migration branch.
 
 Internal radial data use nm, while plotting converts distance to angstrom without rewriting the
 result. The stable cumulative RDF contract is:
@@ -116,8 +117,9 @@ result. The stable cumulative RDF contract is:
 defines selection engines. `core/species.py` defines descriptive roles; roles cannot select atoms or
 modify numerical parameters.
 
-`core/plotting.py` builds GUI-independent plot series and panels. RDF and cumulative RDF share a
-distance domain and may use left/right Y axes. The cumulative curve is `N(r)` and its Y label is
+`core/plotting/` separates render data models, appearance catalogs, persisted state,
+result-to-plot builders, and rendering. RDF and cumulative RDF share a distance domain and may use
+left/right Y axes. The cumulative curve is `N(r)` and its Y label is
 `Coordination number`. Energy terms form separate plot windows by default and may be assigned an
 explicit shared group in one window. Each window renders one plot. Plot state stores the result ID,
 selected result series, panel group, visibility, legend, color, custom title, strict
@@ -169,17 +171,20 @@ input parameter.
 
 ## 7. Analysis implementations
 
+`analysis/pipeline/` owns the complete-backend protocol, execution input, backend query, and
+registry. These contracts describe analysis orchestration and therefore live beside the built-in
+pipeline implementations; there is no plugin-discovery or third-party extension package.
 `analysis/__init__.py` registers exactly one adapter for each built-in complete pipeline:
 `NativeBackend`, `MDAnalysisBackend`, and `GromacsBackend`. The registry is keyed by backend name,
-not by the Cartesian product of backend and analysis type. `analysis/radial.py` performs one
-shared half-width ordered-pair histogram accumulation, using periodic cell pruning for large local
-pair searches, then resamples it onto the centered RDF grid and edge-aligned cumulative grid.
-`rdf.py` publishes `g_r`; `cumulative_rdf.py` publishes `cumulative_number`. `common.py` owns frame
-auditing, triclinic minimum image, reliable-radius checks, bounded pair chunks, progress, and
-cancellation checks.
+not by the Cartesian product of backend and analysis type. `analysis/radial/` separates frame
+selection and audit, bounded neighbor search, curve accumulation, shell diagnostics, and execution.
+Native and MDAnalysis searches feed the same half-width histogram and normalization path.
+`rdf.py` publishes `g_r`; `cumulative_rdf.py` publishes `cumulative_number`. `common.py` retains
+only analysis workspace, progress, and cancellation infrastructure.
 
-`gromacs.py` is the complete GROMACS adapter. Its radial path preserves zero-based Python frame
-slicing and invokes `gmx rdf` through Integrations. RDF requests use only `-o`; cumulative RDF adds
+`gromacs/` separates input preparation, run auditing, curve parsing, and complete backend
+orchestration. Its radial path preserves zero-based Python frame slicing and invokes `gmx rdf`
+through Integrations. RDF requests use only `-o`; cumulative RDF adds
 `-cn` and parses both XVG curves. Both retain every metadata-inspection, trajectory-conversion, and
 RDF run record. The default full range reads the original trajectory directly; non-default ranges
 obtain the frame count with `gmx check` and use one exact converted subset.
@@ -203,6 +208,9 @@ Integrations own external-software configuration,
 detection, status, and execution;
 configuration, template discovery, and provenance remain separate services so the analysis layer
 stays free of machine-specific executable handling.
+`services/config/` separates shared configuration contracts, strict parsed-value validation, and
+filesystem persistence. Storage owns active-path selection, TOML decoding and encoding, and atomic
+replacement; parsing remains independent of filesystem access.
 
 For analysis, `backends/trajectory.py` receives the already resolved backend name; it does not make
 a second policy choice. The MDHelper reader validates fixed atom identity and streams frames. The
@@ -215,11 +223,13 @@ coordinate expansion. Every external command is invoked through Integrations.
 
 ## 9. I/O and projects
 
-NDX parsing lives under `io`, independently of CLI and GUI. Export accepts a validated
-`AnalysisResult` and writes JSON/CSV data and PNG/SVG/PDF plots through atomic
-same-directory replacement. RDF exports `radius_nm,g_r`; cumulative RDF exports
-`radius_nm,cumulative_number`. Integration stdout/stderr bodies are external `.out`/`.err` files;
-persisted JSON retains stream fingerprints but not stream bodies or paths.
+NDX parsing lives under `io`, independently of CLI and GUI. `io/export/structured.py` writes
+validated results as JSON/CSV and externalizes integration streams; `figures.py` renders
+`AnalysisResult` or `PlotModel` inputs as PNG/SVG/PDF. The application use case combines these
+independent adapters when a workflow requests both data and figures. RDF exports
+`radius_nm,g_r`; cumulative RDF exports `radius_nm,cumulative_number`. Integration stdout/stderr
+bodies are external `.out`/`.err` files; persisted JSON retains stream fingerprints but not stream
+bodies or paths.
 
 A project is rooted by `mdhelper-project.json` and owns `results/data`, `results/runs`, `figures`,
 and `cache`. Its manifest records schema/application version, content-addressed inputs, confirmed
@@ -254,9 +264,10 @@ The `workflow` package is reserved for future user-authored orchestration and cu
 implementation.
 
 External tool adapters define executable candidates, identity checks, and capability detection.
-Runtime code invokes an argument vector with `shell=False`, a restricted environment, timeout and
-cancellation handling, and captured output. Every completed, failed, timed-out, or cancelled run is
-auditable. Discovery only determines availability; request resolution chooses the analysis backend.
+`runtime/process/records.py` builds auditable run records, `terminal.py` opens interactive commands,
+and `lifecycle.py` owns captured background execution, cancellation, timeout, and process-group
+termination. All paths use explicit argument vectors and restricted environments. Discovery only
+determines availability; request resolution chooses the analysis backend.
 Interactive backend selectors expose GROMACS only after an explicit Integrations detection action
 in the current session or a saved executable path; internal Auto discovery does not expose it.
 
@@ -286,16 +297,21 @@ Integrations and Templates remain separate Tools states. EDR selection
 invokes shared term discovery and presents an ordered marked multi-select. It does not call CLI
 parsing or GUI widgets. `tui/controller.py` owns only top-level navigation and error handling;
 focused controllers under `tui/controllers/` own workspace, analysis setup, execution, results, and
-tools workflows.
+tools workflows. `tui/controllers/analysis/` further separates parameter editing, radial task queue
+operations, and analysis-menu navigation through a one-way controller chain.
 
 GUI separates widgets, state, user actions, application calls, and result formatting.
 `gui/window.py` is the composition root. `components` owns reusable widgets, `pages` owns workspace
-views, `dialogs` owns floating windows, `controllers` owns widget-independent state machines and
-background adapters, and `actions` connects those boundaries for system, analysis, project, and
+views, `dialogs` owns general floating windows, `plotting` owns the result-plot feature,
+`controllers` owns other widget-independent state machines and background adapters, and `actions`
+connects those boundaries for system, analysis, project, and
 result operations. Analysis batches transition explicitly through idle, running, and cancelling;
 system inspection and project sessions have separate explicit state machines.
-`components/parameters.py` builds requests; `pages/results.py` renders result history and summary;
-`pages/plot.py` owns plot-series editing and renders core plot models; `components/species.py`
+`actions/system/` separates loaded-system inspection, generated index-file watching, species-role
+operations, and system-related help windows behind one composed `SystemActions` entry point.
+`components/parameters/` builds requests; `pages/results.py` renders result history and summary;
+`plotting/` separates plot state, table rendering, controls, coordination, and windows;
+`components/species.py`
 handles role confirmation. Both interactive frontends
 expose Backend under Analysis, not
 Load. Energy remains available through MDAnalysis; GROMACS RDF/CN requires `rdf`, frame subsets
@@ -331,7 +347,7 @@ state without closing the editor, OK applies then closes it, and Cancel restores
 from before the current editor session, including settings changed by Apply during that session.
 
 Menu ordering is controlled by insertion order in `gui/menu.py`; analysis combo ordering is
-controlled by `addItem` order in `gui/components/parameters.py`; TUI menu ordering is controlled by
+controlled by `addItem` order in `gui/components/parameters/`; TUI menu ordering is controlled by
 option tuple order in each owning controller. Table sizing is controlled by `QHeaderView` resize modes and explicit
 `resizeSection(column, pixels)` calls in the owning widget.
 

@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from mdhelper.analysis import DEFAULT_ANALYSIS_REGISTRY, AnalysisRegistry
+from mdhelper.analysis.pipeline import AnalysisInput, BackendQuery
 from mdhelper.app import ApplicationService
 from mdhelper.backends.gro import GroTrajectorySource
 from mdhelper.cli import main
@@ -18,7 +19,6 @@ from mdhelper.core.plotting import PlotAppearance, PlotLimits, PlotSelection, Pl
 from mdhelper.core.system import FrameRange
 from mdhelper.integrations.manager import IntegrationManager
 from mdhelper.integrations.models import IntegrationStatus
-from mdhelper.plugins.analysis import AnalysisInput, BackendQuery
 from mdhelper.services.config import UserConfig
 
 

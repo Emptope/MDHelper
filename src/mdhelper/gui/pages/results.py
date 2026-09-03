@@ -21,14 +21,14 @@ from mdhelper.core.analysis import AnalysisResult, analysis_label
 from mdhelper.core.plotting import PlotAppearance, PlotLimits, PlotModel, PlotSize, PlotState
 from mdhelper.gui.components.layout import ActionBar, page_layout
 from mdhelper.gui.formatting import result_analysis_label, result_label, result_summary_html
-from mdhelper.gui.pages.plot import PlotPanel
+from mdhelper.gui.plotting.panel import PlotPanel
 from mdhelper.gui.windows import WindowManager
 
 if TYPE_CHECKING:
     from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
     from matplotlib.figure import Figure
 
-    from mdhelper.gui.dialogs.plot import PlotWindow
+    from mdhelper.gui.plotting.window import PlotWindow
 
 
 class ResultPanel(QWidget):

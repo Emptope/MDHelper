@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from mdhelper.analysis.common import selected_frame_count, validate_frame_selection
+from mdhelper.analysis.radial.frames import selected_frame_count, validate_frame_selection
 from mdhelper.backends.gro import GroTrajectorySource
 from mdhelper.backends.mdanalysis import MDAnalysisTrajectorySource
 from mdhelper.backends.trajectory import load_trajectory

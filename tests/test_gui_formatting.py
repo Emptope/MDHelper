@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mdhelper.app.exports import result_exports
+from mdhelper.app.analysis import result_exports
 from mdhelper.app.reports import (
     CoordinationReport,
     EnergyReport,

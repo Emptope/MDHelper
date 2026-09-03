@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from mdhelper.analysis import DEFAULT_ANALYSIS_REGISTRY
-from mdhelper.app.analyses import AnalysisUseCases
+from mdhelper.analysis.pipeline import AnalysisRegistry
+from mdhelper.app.analysis import AnalysisUseCases, ExportUseCases
 from mdhelper.app.checks import CheckUseCases
 from mdhelper.app.context import ApplicationContext, TrajectoryLoader, load_source
 from mdhelper.app.integrations import IntegrationUseCases
@@ -13,7 +14,6 @@ from mdhelper.app.projects import ProjectUseCases
 from mdhelper.app.templates import TemplateUseCases
 from mdhelper.integrations import DEFAULT_INTEGRATION_REGISTRY, IntegrationRegistry
 from mdhelper.integrations.manager import IntegrationManager
-from mdhelper.plugins.analysis import AnalysisRegistry
 from mdhelper.services.config import UserConfig, config_path, load_config
 
 
@@ -51,6 +51,7 @@ class ApplicationService:
         )
         self.checks = CheckUseCases(self.context)
         self.analyses = AnalysisUseCases(self.context)
+        self.exports = ExportUseCases()
         self.projects = ProjectUseCases()
         self.integrations = IntegrationUseCases(self.context)
         self.templates = TemplateUseCases()

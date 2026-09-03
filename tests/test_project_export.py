@@ -251,7 +251,7 @@ def test_direct_result_export_externalizes_run_streams(tmp_path: Path) -> None:
         request=request.to_dict(),
     )
 
-    paths = export_result(result, tmp_path, include_figures=False)
+    paths = export_result(result, tmp_path)
 
     assert {path.name for path in paths} == {
         "result.json",
@@ -289,7 +289,7 @@ def test_export_removes_binary_float_noise(tmp_path: Path) -> None:
         request=request.to_dict(),
     )
 
-    export_result(result, tmp_path, include_figures=False)
+    export_result(result, tmp_path)
 
     metadata = (tmp_path / "result.json").read_text(encoding="utf-8")
     table = (tmp_path / "rdf.csv").read_text(encoding="utf-8")
