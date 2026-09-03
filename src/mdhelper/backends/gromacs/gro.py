@@ -1,4 +1,4 @@
-"""Streaming adapter for GRO topology and trajectory files."""
+"""Streaming adapter for GROMACS GRO topology and trajectory files."""
 
 from __future__ import annotations
 

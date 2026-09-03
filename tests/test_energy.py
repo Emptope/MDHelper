@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from mdhelper.analysis.energy import parse_energy_terms
+from mdhelper.analysis.gromacs.energy import parse_energy_terms
 from mdhelper.analysis.mdanalysis import MDAnalysisBackend
 from mdhelper.analysis.pipeline import BackendQuery
 from mdhelper.app import ApplicationService, TrajectoryLoader

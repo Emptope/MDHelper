@@ -1,15 +1,12 @@
 from __future__ import annotations
 
+from mdhelper.analysis.radial import first_shell, first_shell_warnings
 from mdhelper.core.analysis import AnalysisResult, RadialRequest
 from mdhelper.core.trajectory import TrajectorySource
 from mdhelper.services.selection import selection_resolution_record
 
-from .radial import (
-    RadialProfile,
-    first_shell,
-    first_shell_warnings,
-    preprocessing_record,
-)
+from .curves import RadialProfile
+from .frames import preprocessing_record
 
 METHOD_VERSION = "1.0.0"
 

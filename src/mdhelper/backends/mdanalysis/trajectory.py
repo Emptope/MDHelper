@@ -1,4 +1,4 @@
-"""Optional MDAnalysis trajectory adapter."""
+"""MDAnalysis trajectory adapter."""
 
 from __future__ import annotations
 

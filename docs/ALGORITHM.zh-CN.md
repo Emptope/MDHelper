@@ -15,8 +15,8 @@
 
 | 类别 | 内容 | 主要实现 |
 | --- | --- | --- |
-| 数值算法 | PBC、pair 距离、RDF、累计 RDF、第一壳层、energy 提取 | `analysis/radial/`、`analysis/rdf.py`、`analysis/cumulative_rdf.py`、`analysis/mdanalysis.py`、`analysis/gromacs/`、`analysis/energy.py` |
-| 输入解释算法 | reader 分派、轨迹适配、选择解析、物种角色建议 | `backends/`、`io/ndx.py`、`services/selection.py`、`services/system.py` |
+| 数值算法 | PBC、pair 距离、RDF、累计 RDF、第一壳层、energy 提取 | `analysis/mdanalysis/`、`analysis/gromacs/`、`analysis/radial/` |
+| 输入解释算法 | reader 分派、轨迹适配、选择解析、物种角色建议 | `backends/mdanalysis/`、`backends/gromacs/`、`backends/trajectory.py`、`io/ndx.py`、`services/selection.py`、`services/system.py` |
 | 工程确定性算法 | 绘图分组/配色/范围、hash、项目提交、外部软件检测、job 取消 | `core/plotting/`、`services/provenance.py`、`project/`、`integrations/`、`runtime/`、`jobs/` |
 
 若本文与代码或版本化方法文档不一致，发布前必须消除差异；不能把“代码就是事实”作为
@@ -85,6 +85,9 @@ Auto 按优先级排列可用完整策略。径向和 Energy 请求先考虑 MDA
 capability 的 GROMACS；GROMACS 帧子集额外需要 `trjconv` 和 `check`。source 加载错误可以
 进入下一条完整策略；显式请求不 fallback；同一次尝试不会组合不同 Backend 的组件。独立
 体系检查使用 MDAnalysis reader。provenance 记录解析出的完整分析 Backend。
+
+两套实现分别收敛在 `analysis/mdanalysis/` 和 `analysis/gromacs/`，输入适配器则按相同名称
+组织在 `backends/` 下。
 
 ### 3.1 MDAnalysis 适配
 

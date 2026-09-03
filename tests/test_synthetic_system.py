@@ -11,7 +11,7 @@ import pytest
 from mdhelper.analysis import DEFAULT_ANALYSIS_REGISTRY, AnalysisRegistry
 from mdhelper.analysis.pipeline import AnalysisInput, BackendQuery
 from mdhelper.app import ApplicationService
-from mdhelper.backends.gro import GroTrajectorySource
+from mdhelper.backends.gromacs import GroTrajectorySource
 from mdhelper.backends.mdanalysis import MDAnalysisTrajectorySource
 from mdhelper.cli import main
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, RadialRequest

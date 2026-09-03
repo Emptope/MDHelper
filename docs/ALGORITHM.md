@@ -55,6 +55,9 @@ Explicit requests do not fall back, and one attempt never combines components fr
 backends. Independent system inspection uses the MDAnalysis reader. Provenance records the resolved
 complete analysis backend.
 
+The two implementations are isolated in `analysis/mdanalysis/` and `analysis/gromacs/`, with their
+input adapters grouped under matching directories in `backends/`.
+
 The MDAnalysis adapter creates one Universe, preserves its atom order, converts positions and
 triclinic dimensions from angstrom to nm, and maps each molecule to
 `segid:residue_name:residue_id`. Missing finite charges remain null. Missing elements use a small,

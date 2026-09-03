@@ -61,15 +61,33 @@ TUI_ANALYSIS_MODULES = {
     "queue.py",
 }
 JOB_MODULES = {"__init__.py", "models.py", "runner.py"}
+ANALYSIS_ROOT_MODULES = {"__init__.py", "common.py"}
+ANALYSIS_SUBPACKAGES = {"gromacs", "mdanalysis", "pipeline", "radial"}
 ANALYSIS_PIPELINE_MODULES = {"__init__.py", "models.py", "registry.py"}
-RADIAL_MODULES = {
+ANALYSIS_RADIAL_MODULES = {"__init__.py", "frames.py", "shells.py"}
+GROMACS_ANALYSIS_MODULES = {
     "__init__.py",
+    "backend.py",
     "curves.py",
-    "execution.py",
+    "energy.py",
+    "inputs.py",
+    "runs.py",
+}
+MDANALYSIS_ANALYSIS_MODULES = {
+    "__init__.py",
+    "backend.py",
+    "cumulative.py",
+    "curves.py",
+    "energy.py",
     "frames.py",
     "neighbors.py",
-    "shells.py",
+    "radial.py",
+    "rdf.py",
 }
+BACKEND_ROOT_MODULES = {"__init__.py", "common.py", "trajectory.py"}
+BACKEND_SUBPACKAGES = {"gromacs", "mdanalysis"}
+GROMACS_BACKEND_MODULES = {"__init__.py", "gro.py", "trajectory.py"}
+MDANALYSIS_BACKEND_MODULES = {"__init__.py", "selection.py", "trajectory.py"}
 CORE_ANALYSIS_MODULES = {
     "__init__.py",
     "requests.py",
@@ -118,10 +136,18 @@ MODULE_LAYERS = {
     "analysis/radial": {
         "frames": 0,
         "shells": 0,
-        "curves": 1,
-        "neighbors": 1,
-        "execution": 2,
-        "__init__": 3,
+        "__init__": 1,
+    },
+    "analysis/mdanalysis": {
+        "curves": 0,
+        "energy": 0,
+        "frames": 0,
+        "neighbors": 0,
+        "radial": 1,
+        "cumulative": 2,
+        "rdf": 2,
+        "backend": 3,
+        "__init__": 4,
     },
     "io/export": {"paths": 0, "structured": 1, "figures": 1, "__init__": 2},
     "runtime/process": {
@@ -146,10 +172,13 @@ MODULE_LAYERS = {
     "analysis/gromacs": {
         "inputs": 0,
         "curves": 0,
+        "energy": 0,
         "runs": 0,
         "backend": 1,
         "__init__": 2,
     },
+    "backends/gromacs": {"gro": 0, "trajectory": 1, "__init__": 2},
+    "backends/mdanalysis": {"selection": 0, "trajectory": 0, "__init__": 1},
     "gui/plotting": {
         "state": 0,
         "window": 0,
@@ -388,10 +417,46 @@ def test_analysis_pipeline_contracts_have_focused_layout() -> None:
     assert {path.name for path in pipeline.glob("*.py")} == ANALYSIS_PIPELINE_MODULES
 
 
+def test_analysis_backends_have_complete_pipeline_layouts() -> None:
+    analysis = SOURCE_ROOT / "analysis"
+
+    assert {path.name for path in analysis.glob("*.py")} == ANALYSIS_ROOT_MODULES
+    packages = {
+        path.name
+        for path in analysis.iterdir()
+        if path.is_dir() and (path / "__init__.py").is_file()
+    }
+    assert packages == ANALYSIS_SUBPACKAGES
+    assert {path.name for path in (analysis / "gromacs").glob("*.py")} == (
+        GROMACS_ANALYSIS_MODULES
+    )
+    assert {path.name for path in (analysis / "mdanalysis").glob("*.py")} == (
+        MDANALYSIS_ANALYSIS_MODULES
+    )
+
+
 def test_radial_analysis_has_focused_module_layout() -> None:
     radial = SOURCE_ROOT / "analysis" / "radial"
 
-    assert {path.name for path in radial.glob("*.py")} == RADIAL_MODULES
+    assert {path.name for path in radial.glob("*.py")} == ANALYSIS_RADIAL_MODULES
+
+
+def test_input_backends_follow_complete_pipeline_layouts() -> None:
+    backends = SOURCE_ROOT / "backends"
+
+    assert {path.name for path in backends.glob("*.py")} == BACKEND_ROOT_MODULES
+    packages = {
+        path.name
+        for path in backends.iterdir()
+        if path.is_dir() and (path / "__init__.py").is_file()
+    }
+    assert packages == BACKEND_SUBPACKAGES
+    assert {path.name for path in (backends / "gromacs").glob("*.py")} == (
+        GROMACS_BACKEND_MODULES
+    )
+    assert {path.name for path in (backends / "mdanalysis").glob("*.py")} == (
+        MDANALYSIS_BACKEND_MODULES
+    )
 
 
 def test_core_contracts_have_focused_module_layout() -> None:

@@ -6,7 +6,7 @@ import hashlib
 from collections.abc import Sequence
 from pathlib import Path
 
-from mdhelper.backends.mdanalysis_selection import (
+from mdhelper.backends.mdanalysis import (
     SELECTION_LANGUAGE,
     SELECTION_LANGUAGE_VERSION,
     MDAnalysisSelectionEngine,

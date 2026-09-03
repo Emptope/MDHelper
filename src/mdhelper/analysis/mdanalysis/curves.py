@@ -8,9 +8,8 @@ from dataclasses import dataclass, field
 import numpy as np
 from numpy.typing import NDArray
 
+from mdhelper.analysis.radial import FrameAudit
 from mdhelper.core.analysis import RadialRequest
-
-from .frames import FrameAudit
 
 
 @dataclass(frozen=True)

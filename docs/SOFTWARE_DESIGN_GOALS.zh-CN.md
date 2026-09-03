@@ -79,8 +79,8 @@ load trajectory or EDR input
 
 ### 当前机制
 
-- RDF 和 cumulative RDF 共用 `analysis/radial/` 的 pair histogram；
-- PBC、可靠半径、MDAnalysis 距离搜索和帧审计位于 `core/geometry.py` 与 `analysis/radial/`；
+- MDAnalysis RDF 和 cumulative RDF 共用 `analysis/mdanalysis/curves.py` 的 pair histogram；
+- PBC、可靠半径、MDAnalysis 距离搜索和帧迭代位于 `analysis/mdanalysis/`，Backend 无关的帧范围校验与壳层诊断位于 `analysis/radial/`；
 - energy 的 MDAnalysis 与 GROMACS 后端共用严格结果契约和 App term 发现用例；
 - `docs/methods/` 记录公式，`docs/validation/` 记录独立期望和容差；
 - 内部距离为 nm、时间为 ps，显示单位转换在绘图边界完成。

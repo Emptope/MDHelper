@@ -1,4 +1,4 @@
-"""Radial analysis orchestration over interchangeable neighbor searches."""
+"""MDAnalysis radial analysis orchestration."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from .neighbors import DistanceSearch, mdanalysis_search
 SearchFactory = Callable[[tuple[int, ...], tuple[int, ...]], DistanceSearch]
 
 
-def mdanalysis_radial_profile(
+def radial_profile(
     source: TrajectorySource,
     request: RadialRequest,
     progress_name: str,

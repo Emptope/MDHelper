@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
-from mdhelper.backends.gro import GroTrajectorySource
+from mdhelper.backends.gromacs.gro import GroTrajectorySource
 from mdhelper.core.errors import BackendError
 from mdhelper.core.system import Atom, Frame, FrameRange
 

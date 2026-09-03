@@ -83,8 +83,8 @@ flowchart TB
 | `app` | `ApplicationService`、用例编排、导出计划和可读报告 |
 | `jobs` | 同步和线程执行、进度、状态及取消 |
 | `core` | 请求、结果、领域记录、协议、错误、单位和绘图模型 |
-| `analysis` | 完整 Backend 注册表及 RDF、累积 RDF、energy 实现 |
-| `backends` | 将轨迹读取和选择结果转换为 Core 对象的适配器 |
+| `analysis` | 完整的 `mdanalysis/` 与 `gromacs/` 管线，以及共享管线契约和径向诊断 |
+| `backends` | 对应的 `mdanalysis/` 与 `gromacs/` 输入适配器，用于生成 Core 对象 |
 | `services` | 配置、系统检查、选择、provenance、运行流和模板服务 |
 | `integrations` | 外部工具适配、能力状态和执行协调 |
 | `runtime` | 进程生命周期、检测基础设施、环境过滤和日志 |
@@ -128,6 +128,10 @@ AnalysisRequest
 `AnalysisRegistry`。注册表按完整 Backend 建立条目，不按 Backend 与分析类型的笛卡尔积
 建立条目。每个 Backend 声明支持的分析类型、Auto 优先级、外部能力要求、输入加载方式和
 执行方法。
+
+Backend 专属分析代码分别位于 `analysis/mdanalysis/` 和 `analysis/gromacs/`。输入与选择
+适配器在 `backends/` 下采用相同分组；共享分派和 Backend 无关的径向诊断保留在两条管线
+目录之外。
 
 Auto 按优先级排列符合条件的完整 Backend。MDAnalysis 是通用进程内候选，GROMACS 在所需
 能力可用时成为外部候选。Fallback 只发生在完整尝试之间。显式 Backend 只解析一个实现，

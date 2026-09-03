@@ -10,9 +10,9 @@ from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, EnergyReques
 from mdhelper.core.errors import BackendError
 from mdhelper.integrations.manager import IntegrationManager
 
-from .cumulative_rdf import cumulative_result
-from .energy import _MDAnalysisEnergy
-from .radial import mdanalysis_radial_profile
+from .cumulative import cumulative_result
+from .energy import EnergyAnalysis
+from .radial import radial_profile
 from .rdf import rdf_result
 
 
@@ -22,7 +22,7 @@ class MDAnalysisBackend:
     analysis_types = frozenset(("rdf", "cumulative_rdf", "energy"))
 
     def __init__(self) -> None:
-        self._energy = _MDAnalysisEnergy()
+        self._energy = EnergyAnalysis()
 
     def auto_priority(
         self,
@@ -62,7 +62,7 @@ class MDAnalysisBackend:
         if not isinstance(request, RadialRequest) or source is None:
             raise BackendError("The MDAnalysis backend requires a supported request.")
         request.validate()
-        profile = mdanalysis_radial_profile(
+        profile = radial_profile(
             source,
             request,
             "MDAnalysis RDF",

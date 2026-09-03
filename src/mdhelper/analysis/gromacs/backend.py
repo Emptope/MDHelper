@@ -27,8 +27,8 @@ from mdhelper.integrations.manager import IntegrationManager
 from mdhelper.integrations.models import IntegrationRunRecord
 from mdhelper.services.provenance import unique_records
 
-from ..energy import _GromacsEnergy
 from .curves import _parse_curve
+from .energy import EnergyAnalysis
 from .inputs import (
     _request,
     _requested_indices,
@@ -48,7 +48,7 @@ class GromacsBackend:
     analysis_types = frozenset(("rdf", "cumulative_rdf", "energy"))
 
     def __init__(self) -> None:
-        self._energy = _GromacsEnergy()
+        self._energy = EnergyAnalysis()
 
     def auto_priority(
         self,

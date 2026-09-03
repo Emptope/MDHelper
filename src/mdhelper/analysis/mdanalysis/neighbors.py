@@ -1,4 +1,4 @@
-"""Periodic neighbor search for MDAnalysis radial analyses."""
+"""Periodic neighbor search for the MDAnalysis pipeline."""
 
 from __future__ import annotations
 

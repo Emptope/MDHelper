@@ -86,8 +86,8 @@ The enforced boundaries are:
 | `app` | `ApplicationService`, use-case orchestration, export plans, and readable reports |
 | `jobs` | Synchronous and threaded execution, progress, status, and cancellation |
 | `core` | Requests, results, domain records, protocols, errors, units, and plot models |
-| `analysis` | Complete backend registry and RDF, cumulative RDF, and energy implementations |
-| `backends` | Trajectory readers and selection adapters that produce core objects |
+| `analysis` | Complete `mdanalysis/` and `gromacs/` pipelines plus shared pipeline contracts and radial diagnostics |
+| `backends` | Matching `mdanalysis/` and `gromacs/` input adapters that produce core objects |
 | `services` | Configuration, system inspection, selection, provenance, run streams, and templates |
 | `integrations` | External-tool adapters, capability status, and execution coordination |
 | `runtime` | Process lifecycle, detection primitives, environment filtering, and logging |
@@ -134,6 +134,10 @@ AnalysisRequest
 `AnalysisRegistry`. The registry contains one entry for each complete backend, not one entry for
 each backend-analysis pair. A backend declares its supported analysis types, automatic priority,
 required external capabilities, input-loading behavior, and execution method.
+
+Backend-specific analysis code is contained in `analysis/mdanalysis/` and `analysis/gromacs/`.
+Their input and selection adapters follow the same split under `backends/`; shared dispatch and
+backend-neutral radial diagnostics remain outside those two pipeline packages.
 
 Automatic resolution orders eligible complete backends by priority. MDAnalysis is the general
 in-process candidate, and GROMACS is eligible when its required capabilities are available.

@@ -11,7 +11,7 @@
 
 ## 已完成
 
-- [x] [Change] 移除 Native 分析后端，仅保留 MDAnalysis 与 GROMACS
+- [x] [Refactor] 按 MDAnalysis 与 GROMACS 完整管线整理 Backend 目录。
 
 ## 完成标准（每轮代码改动后需重新确认）
 
