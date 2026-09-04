@@ -32,7 +32,7 @@ def rdf_result(
                 "average pair count / reference count / shell volume / "
                 "average selection number density"
             ),
-            "pbc": "triclinic minimum image",
+            "pbc": "minimum image using each frame's periodic box",
             "trajectory_preprocessing": preprocessing_record(),
         },
         units={

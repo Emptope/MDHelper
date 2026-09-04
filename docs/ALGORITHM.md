@@ -44,9 +44,9 @@ Group names are exact and case-sensitive.
 MDAnalysis rejects coordinate-dependent expressions including `around`, `sphzone`, `sphlayer`,
 `isolayer`, `cyzone`, `cylayer`, `point`, `prop`, and `same x/y/z as`.
 
-In-process selection records contain the source, count, ordered-index SHA-256, atom and residue
-names, language, and parser version. NDX records also contain the path and file hash. GROMACS
-records the native expression or group and command.
+In-process selection records contain the source, count, atom and residue names, language, and
+parser version. NDX records also contain the path and file hash. GROMACS records the native
+expression or group and command.
 
 ## Periodic geometry and radial grid
 
@@ -62,8 +62,9 @@ r_limit = min(h_0, h_1, h_2) / 2
 Volume must be finite and greater than `1e-12 nm^3`. Each frame requires
 `r_max <= r_limit + max(1e-12, r_limit * 1e-10)`.
 
-The in-process path uses MDAnalysis `capped_distance` with triclinic minimum-image distances. It
-excludes pairs with the same topology index and retains distances at the cutoff.
+The in-process path uses MDAnalysis `capped_distance` with minimum-image distances from each
+frame's full periodic-box parameters. It excludes pairs with the same topology index and retains
+distances at the cutoff.
 
 For requested width `d`:
 

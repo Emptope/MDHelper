@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -44,11 +43,9 @@ def selection_resolution_record(
     atoms: Sequence[Atom],
     index_file: str | Path | None = None,
 ) -> dict[str, object]:
-    digest = hashlib.sha256(",".join(str(index) for index in indices).encode("ascii")).hexdigest()
     record: dict[str, object] = {
         "expression": expression,
         "n_atoms": len(indices),
-        "zero_based_indices_sha256": digest,
         "atom_names": sorted({atoms[index].name for index in indices}),
         "residue_names": sorted({atoms[index].residue_name for index in indices}),
     }

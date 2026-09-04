@@ -26,8 +26,8 @@ case-sensitive and unique. Semicolon comments and multiline atom lists are suppo
 rejects data before a header, invalid or out-of-range numbers, duplicate groups or atoms, empty
 selected groups, and files without groups.
 
-In-process diagnostics record the group, parser version, count, ordered-index SHA-256, path, and
-file SHA-256. GROMACS parses NDX itself; MDHelper records the group, path, and command.
+In-process diagnostics record the group, parser version, count, selected atom and residue names,
+path, and file SHA-256. GROMACS parses NDX itself; MDHelper records the group, path, and command.
 
 ## Expressions
 

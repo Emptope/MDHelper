@@ -28,7 +28,8 @@ MDAnalysis uses NDX groups or static MDAnalysis expressions. GROMACS uses NDX gr
 expressions. Frame ranges use zero-based Python slicing with inclusive `start`, exclusive `stop`,
 and stride relative to `start`.
 
-Coordinates and radii use nm; `g(r)` is dimensionless. Each pair uses the triclinic minimum image.
+Coordinates and radii use nm; `g(r)` is dimensionless. Pair distances use the minimum image for
+each frame's periodic box.
 `r_max_nm` must not exceed half the smallest perpendicular cell height on any processed frame. A
 missing, singular, or zero-volume box is invalid. Coordinates are not unwrapped, centered, fitted,
 or aligned.

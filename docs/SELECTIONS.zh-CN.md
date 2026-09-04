@@ -25,8 +25,8 @@ NDX atom number 从一开始，MDHelper 将其转为零基索引。Group name �
 支持分号注释和跨行 atom list。解析拒绝 header 前数据、非法或越界编号、重复 group 或 atom、
 选中的空 group，以及没有 group 的文件。
 
-进程内诊断记录 group、parser version、数量、有序索引 SHA-256、路径和文件 SHA-256。
-GROMACS 自行解析 NDX；MDHelper 记录 group、路径和命令。
+进程内诊断记录 group、parser version、数量、选中的 atom name 和 residue name、路径及文件
+SHA-256。GROMACS 自行解析 NDX；MDHelper 记录 group、路径和命令。
 
 ## Expression
 

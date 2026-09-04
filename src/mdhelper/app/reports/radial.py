@@ -26,10 +26,10 @@ class RadialReport(Report):
         if width is None:
             width = self.request.bin_width_nm
         rows = [
-            ("Range", f"0 to {_angstrom(radius)} {ANGSTROM_SYMBOL}"),
+            ("Distance range", f"0 to {_angstrom(radius)} {ANGSTROM_SYMBOL}"),
             ("Bin width", f"{_angstrom(width)} {ANGSTROM_SYMBOL}"),
             ("Data points", str(len(radii))),
-            ("Frames analyzed", self.frame_count),
+            ("Frames", self.frame_count),
         ]
         if self.frame_range:
             rows.append(("Time range", self.frame_range))

@@ -48,7 +48,7 @@ def preprocessing_record() -> dict[str, str]:
         "selection_identity": "resolved once from static topology",
         "unwrapping": "none",
         "alignment": "none",
-        "distance_pbc": "triclinic minimum image per pair and frame",
+        "distance_pbc": "minimum image using each frame's periodic box",
     }
 
 

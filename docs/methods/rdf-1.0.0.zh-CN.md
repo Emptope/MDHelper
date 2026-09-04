@@ -27,9 +27,9 @@ MDAnalysis 使用 NDX group 或静态 MDAnalysis expression。GROMACS 使用 NDX
 expression。帧范围遵循零基 Python slicing：`start` 包含，`stop` 不包含，stride 相对
 `start`。
 
-坐标和 radius 使用 nm，`g(r)` 无量纲。每个 pair 使用三斜盒最小镜像。每个处理帧的
-`r_max_nm` 不得超过最短垂直 cell height 的一半。缺失、奇异或零体积 box 非法。坐标不做
-unwrap、center、fit 或 align。
+坐标和 radius 使用 nm，`g(r)` 无量纲。Pair distance 对每帧周期盒使用最小镜像。每个处理
+帧的 `r_max_nm` 不得超过最短垂直 cell height 的一半。缺失、奇异或零体积 box 非法。坐标
+不做 unwrap、center、fit 或 align。
 
 ## 网格
 

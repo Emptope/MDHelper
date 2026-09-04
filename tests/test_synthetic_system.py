@@ -148,6 +148,21 @@ def test_hand_checkable_rdf_and_cumulative_rdf(
     assert rdf.data["radius_nm"] == pytest.approx([0.0, 0.1, 0.2, 0.3, 0.4])
     assert rdf.data["g_r"] == pytest.approx((histogram * 2.0 / shell_volume).tolist())
     assert "coordination_number" not in rdf.data
+    pbc = "minimum image using each frame's periodic box"
+    assert rdf.parameters["pbc"] == pbc
+    assert rdf.parameters["trajectory_preprocessing"]["distance_pbc"] == (
+        pbc
+    )
+    resolution = rdf.diagnostics["selection_resolution"]
+    for record in resolution.values():
+        assert {
+            "expression",
+            "n_atoms",
+            "atom_names",
+            "residue_names",
+            "source",
+        } <= record.keys()
+        assert "zero_based_indices_sha256" not in record
 
     coordination = application.analyses.run(
         RadialRequest(
@@ -165,6 +180,8 @@ def test_hand_checkable_rdf_and_cumulative_rdf(
         np.cumsum(cumulative_histogram) / 2.0
     )
     assert "distribution_probability" not in coordination.data
+    assert coordination.parameters["pbc"] == pbc
+    assert coordination.parameters["trajectory_preprocessing"]["distance_pbc"] == pbc
 
 
 def test_rdf_normalization_matches_gromacs_for_overlapping_selections(

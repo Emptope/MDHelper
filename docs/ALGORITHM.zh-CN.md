@@ -42,8 +42,8 @@ NDX 解析保持顺序，把一基编号转为零基索引，并拒绝缺失 hea
 MDAnalysis 拒绝依赖坐标的 expression，包括 `around`、`sphzone`、`sphlayer`、`isolayer`、
 `cyzone`、`cylayer`、`point`、`prop` 和 `same x/y/z as`。
 
-进程内选择记录 source、数量、有序索引 SHA-256、atom name、residue name、language 和 parser
-version。NDX 还记录路径和文件 hash。GROMACS 记录原生 expression 或 group 及命令。
+进程内选择记录 source、数量、atom name、residue name、language 和 parser version。NDX 还
+记录路径和文件 hash。GROMACS 记录原生 expression 或 group 及命令。
 
 ## 周期几何与径向网格
 
@@ -59,8 +59,8 @@ r_limit = min(h_0, h_1, h_2) / 2
 体积必须有限且大于 `1e-12 nm^3`。每帧要求
 `r_max <= r_limit + max(1e-12, r_limit * 1e-10)`。
 
-进程内路径调用 MDAnalysis `capped_distance` 计算三斜盒最小镜像距离。拓扑索引相同的 pair
-被排除；等于 cutoff 的距离被保留。
+进程内路径调用 MDAnalysis `capped_distance`，根据每帧的完整周期盒参数计算最小镜像距离。
+拓扑索引相同的 pair 被排除；等于 cutoff 的距离被保留。
 
 请求宽度为 `d` 时：
 

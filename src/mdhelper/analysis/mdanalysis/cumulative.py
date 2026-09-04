@@ -37,7 +37,7 @@ def cumulative_result(
         parameters={
             "bin_width_nm": profile.bin_width_nm,
             "definition": "mean selection atoms within radius per reference atom",
-            "pbc": "triclinic minimum image",
+            "pbc": "minimum image using each frame's periodic box",
             "trajectory_preprocessing": preprocessing_record(),
         },
         units={
