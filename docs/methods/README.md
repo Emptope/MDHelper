@@ -2,8 +2,9 @@
 
 [English](README.md) | [Simplified Chinese](README.zh-CN.md)
 
-Results identify a method by `analysis_type` and `method_version`. A numerical definition change
-requires a new method version. Presentation and equivalent performance changes do not.
+Results identify a method by the request's `analysis_type` and the result's `method_version`.
+A numerical definition change requires a new method version. Presentation and equivalent
+performance changes do not.
 
 | Analysis | Method | Validation |
 | --- | --- | --- |

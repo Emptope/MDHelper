@@ -38,16 +38,6 @@ def resolve_selections(
     return (selected_engine or DEFAULT_SELECTION_ENGINE).resolve_many(atoms, expressions)
 
 
-def resolve_selection(
-    atoms: Sequence[Atom],
-    expression: str,
-    engine: SelectionEngine | None = None,
-    *,
-    index_file: str | Path | None = None,
-) -> tuple[int, ...]:
-    return resolve_selections(atoms, (expression,), engine, index_file=index_file)[0]
-
-
 def selection_resolution_record(
     expression: str,
     indices: Sequence[int],
@@ -100,7 +90,6 @@ __all__ = [
     "MDAnalysisSelectionEngine",
     "NdxSelectionEngine",
     "index_group_sizes",
-    "resolve_selection",
     "resolve_selections",
     "selection_resolution_record",
 ]

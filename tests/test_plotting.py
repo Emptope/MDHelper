@@ -31,7 +31,6 @@ def _result(reference: str = "A", selection: str = "B") -> AnalysisResult:
         selection=selection,
     )
     return AnalysisResult(
-        analysis_type="rdf",
         data={
             "radius_nm": [0.1, 0.2, 0.3],
             "g_r": [0.0, 2.0, 1.0],
@@ -53,7 +52,6 @@ def _cumulative_rdf_result() -> AnalysisResult:
         selection="B",
     )
     return AnalysisResult(
-        analysis_type="cumulative_rdf",
         data={
             "radius_nm": [0.1, 0.2, 0.3],
             "cumulative_number": [0.0, 1.0, 2.0],
@@ -183,8 +181,10 @@ def test_plot_appearance_round_trips_and_controls_rendering() -> None:
         legend_font_size=7,
     )
     state = PlotState(appearance=appearance)
+    raw = state.to_dict()
 
-    assert PlotState.from_dict(state.to_dict()) == state
+    assert "schema_version" not in raw
+    assert PlotState.from_dict(raw) == state
 
     figure, axis = plt.subplots()
     try:

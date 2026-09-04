@@ -292,7 +292,6 @@ class GromacsBackend:
                 "definition": "GROMACS gmx rdf -cn cumulative number RDF",
             }
         return AnalysisResult(
-            analysis_type=request.analysis_type,
             method_version=METHOD_VERSION,
             data=data,
             parameters=parameters,

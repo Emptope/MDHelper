@@ -4,16 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from mdhelper.core.analysis import (
     AnalysisBackend,
     AnalysisRequest,
     AnalysisResult,
     AnalysisType,
-    EnergyBackend,
     EnergyRequest,
-    RadialBackend,
     RadialRequest,
 )
 from mdhelper.core.system import FrameRange, SystemSummary
@@ -75,7 +73,7 @@ class AnalysisDraft:
                 analysis_type="energy",
                 energy_file=self.energy_file,
                 energy_terms=tuple(self.energy_terms),
-                analysis_backend=cast(EnergyBackend, self.analysis_backend),
+                analysis_backend=self.analysis_backend,
                 parameter_provenance=dict(self.parameter_provenance),
             )
             energy_request.validate()
@@ -90,7 +88,7 @@ class AnalysisDraft:
             r_max_nm=self.r_max_nm,
             bin_width_nm=self.bin_width_nm,
             frames=self.frames,
-            analysis_backend=cast(RadialBackend, self.analysis_backend),
+            analysis_backend=self.analysis_backend,
             species_roles=dict(workspace.roles),
             parameter_provenance=dict(self.parameter_provenance),
         )

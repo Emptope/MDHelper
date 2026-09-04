@@ -29,7 +29,6 @@ def cumulative_result(
             profile.cumulative_number[cumulative_index]
         )
     return AnalysisResult(
-        analysis_type="cumulative_rdf",
         method_version=METHOD_VERSION,
         data={
             "radius_nm": profile.cumulative_radius_nm.tolist(),

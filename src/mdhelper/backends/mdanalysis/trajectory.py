@@ -122,7 +122,6 @@ class MDAnalysisTrajectorySource:
     """Adapt an MDAnalysis Universe to MDHelper's trajectory port."""
 
     backend_name = "mdanalysis"
-    backend_display_name = "MDAnalysis"
 
     def __init__(
         self,

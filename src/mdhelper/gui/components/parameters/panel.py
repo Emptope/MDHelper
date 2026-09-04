@@ -19,9 +19,7 @@ from mdhelper.core.analysis import (
     AnalysisBackend,
     AnalysisRequest,
     AnalysisType,
-    EnergyBackend,
     EnergyRequest,
-    RadialBackend,
     RadialRequest,
     analysis_label,
 )
@@ -122,7 +120,7 @@ class ParameterPanel(QGroupBox):
         self._sync_selection_hints()
 
     def _sync_selection_hints(self) -> None:
-        backend = cast(RadialBackend, self.analysis_backend_value())
+        backend = self.analysis_backend_value()
         self.rdf.set_backend(backend)
         self.cumulative.set_backend(backend)
 
@@ -132,14 +130,12 @@ class ParameterPanel(QGroupBox):
     def request(self, common: dict[str, Any]) -> AnalysisRequest:
         analysis_type = self._analysis_type()
         if analysis_type == "energy":
-            return self.energy.request(
-                cast(EnergyBackend, self.analysis_backend_value())
-            )
+            return self.energy.request(self.analysis_backend_value())
         parameters = self.rdf if analysis_type == "rdf" else self.cumulative
         return parameters.request(
             analysis_type,
             common,
-            cast(RadialBackend, self.analysis_backend_value()),
+            self.analysis_backend_value(),
         )
 
     def queued_requests(
@@ -154,7 +150,7 @@ class ParameterPanel(QGroupBox):
         return parameters.queued_requests(
             analysis_type,
             common,
-            cast(RadialBackend, self.analysis_backend_value()),
+            self.analysis_backend_value(),
         )
 
     def apply_request(self, request: AnalysisRequest) -> None:

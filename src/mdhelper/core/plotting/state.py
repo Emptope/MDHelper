@@ -133,11 +133,8 @@ class PlotState:
     scheme: str = DEFAULT_PLOT_SCHEME
     limits: PlotLimits = PlotLimits()
     appearance: PlotAppearance = field(default_factory=PlotAppearance)
-    schema_version: int = 1
 
     def validate(self) -> None:
-        if type(self.schema_version) is not int or self.schema_version != 1:
-            raise ConfigurationError("Unsupported plot-state schema version.")
         if not isinstance(self.selections, tuple):
             raise ConfigurationError("Plot selections must be an array.")
         for selection in self.selections:
@@ -164,7 +161,6 @@ class PlotState:
     def to_dict(self) -> dict[str, object]:
         self.validate()
         return {
-            "schema_version": self.schema_version,
             "selections": [selection.to_dict() for selection in self.selections],
             "scheme": self.scheme,
             "limits": self.limits.to_dict(),
@@ -176,7 +172,6 @@ class PlotState:
         if not isinstance(value, dict):
             raise ConfigurationError("Plot state must be an object.")
         expected = {
-            "schema_version",
             "selections",
             "scheme",
             "limits",
@@ -193,7 +188,6 @@ class PlotState:
             value.get("scheme"),  # type: ignore[arg-type]
             PlotLimits.from_dict(value.get("limits")),
             PlotAppearance.from_dict(value.get("appearance")),
-            value.get("schema_version"),  # type: ignore[arg-type]
         )
         state.validate()
         return state

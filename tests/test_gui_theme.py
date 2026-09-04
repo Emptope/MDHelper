@@ -191,7 +191,6 @@ def _rdf_result(reference: str, selection: str) -> AnalysisResult:
         selection=selection,
     )
     return AnalysisResult(
-        analysis_type="rdf",
         data={
             "radius_nm": [0.1, 0.2, 0.3],
             "g_r": [0.0, 2.0, 1.0],
@@ -213,7 +212,6 @@ def _cumulative_rdf_result(reference: str, selection: str) -> AnalysisResult:
         selection=selection,
     )
     return AnalysisResult(
-        analysis_type="cumulative_rdf",
         data={
             "radius_nm": [0.1, 0.2],
             "cumulative_number": [0.25, 0.75],

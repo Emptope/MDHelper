@@ -40,7 +40,6 @@ def _radial_result(
         else {"radius_nm": [0.1, 0.2], "cumulative_number": [0.0, 2.0]}
     )
     return AnalysisResult(
-        analysis_type=analysis_type,
         data=data,
         parameters={},
         units={},
@@ -58,7 +57,6 @@ def _energy_result(term: str, unit: str, analysis_id: str) -> AnalysisResult:
         energy_terms=(term,),
     )
     return AnalysisResult(
-        analysis_type="energy",
         data={"time_ps": [0.0, 1.0], "series": {term: [1.0, 2.0]}},
         parameters={},
         units={"time_ps": "ps", "series": unit},

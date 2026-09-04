@@ -16,7 +16,7 @@ _PROJECT_FIELDS = {
 }
 _INPUT_FIELDS = {"path", "sha256"}
 _ANALYSIS_FIELDS = {
-    "analysis_id", "analysis_type", "result_sha256", "committed_at",
+    "analysis_id", "result_sha256", "committed_at",
 }
 
 
@@ -141,8 +141,6 @@ def validate_manifest(value: object) -> dict[str, Any]:
                 f"Project field {field + '.analysis_id'!r} is duplicated."
             )
         identifiers.add(entry["analysis_id"])
-        if entry["analysis_type"] not in {"rdf", "cumulative_rdf", "energy"}:
-            raise ConfigurationError(f"Project field {field + '.analysis_type'!r} is invalid.")
         _sha256(entry["result_sha256"], f"{field}.result_sha256")
         _date_time(entry["committed_at"], f"{field}.committed_at")
     return manifest

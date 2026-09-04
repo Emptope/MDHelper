@@ -5,9 +5,7 @@ from .requests import (
     AnalysisBackend,
     AnalysisRequest,
     AnalysisType,
-    EnergyBackend,
     EnergyRequest,
-    RadialBackend,
     RadialRequest,
     analysis_label,
 )
@@ -19,9 +17,7 @@ __all__ = [
     "AnalysisRequest",
     "AnalysisResult",
     "AnalysisType",
-    "EnergyBackend",
     "EnergyRequest",
-    "RadialBackend",
     "RadialRequest",
     "analysis_label",
 ]

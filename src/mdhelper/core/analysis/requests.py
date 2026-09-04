@@ -15,8 +15,6 @@ from .validation import json_issue
 
 AnalysisType = Literal["rdf", "cumulative_rdf", "energy"]
 AnalysisBackend = Literal["auto", "mdanalysis", "gromacs"]
-RadialBackend = Literal["auto", "mdanalysis", "gromacs"]
-EnergyBackend = Literal["auto", "mdanalysis", "gromacs"]
 
 ANALYSIS_LABELS: dict[str, str] = {
     "rdf": "Radial Distribution Function (RDF)",
@@ -140,7 +138,7 @@ class AnalysisRequest(ABC):
 
 @dataclass(frozen=True, kw_only=True)
 class RadialRequest(AnalysisRequest):
-    analysis_backend: RadialBackend = "auto"
+    analysis_backend: AnalysisBackend = "auto"
     topology: str
     trajectory: str
     reference: str
@@ -153,10 +151,6 @@ class RadialRequest(AnalysisRequest):
 
     def validate(self) -> None:
         super().validate()
-        if self.analysis_backend not in {"auto", "mdanalysis", "gromacs"}:
-            raise InputError(
-                "RDF and cumulative RDF require Auto, MDAnalysis, or GROMACS."
-            )
         if self.analysis_type not in {"rdf", "cumulative_rdf"}:
             raise InputError(f"Unknown radial analysis type: {self.analysis_type}")
         for name, value in (
@@ -235,7 +229,7 @@ class RadialRequest(AnalysisRequest):
 
 @dataclass(frozen=True, kw_only=True)
 class EnergyRequest(AnalysisRequest):
-    analysis_backend: EnergyBackend = "auto"
+    analysis_backend: AnalysisBackend = "auto"
     energy_file: str
     energy_terms: tuple[str, ...]
 
@@ -243,10 +237,6 @@ class EnergyRequest(AnalysisRequest):
         super().validate()
         if self.analysis_type != "energy":
             raise InputError(f"Unknown energy analysis type: {self.analysis_type}")
-        if self.analysis_backend not in {"auto", "gromacs", "mdanalysis"}:
-            raise InputError(
-                "Energy analysis requires the GROMACS or MDAnalysis backend."
-            )
         if not isinstance(self.energy_file, str) or not self.energy_file.strip():
             raise InputError("Energy analysis requires a non-empty energy_file.")
         if not isinstance(self.energy_terms, tuple) or any(

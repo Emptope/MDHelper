@@ -7,7 +7,7 @@ from typing import Any
 
 from PySide6.QtWidgets import QDoubleSpinBox, QFormLayout, QWidget
 
-from mdhelper.core.analysis import AnalysisType, RadialBackend, RadialRequest
+from mdhelper.core.analysis import AnalysisBackend, AnalysisType, RadialRequest
 from mdhelper.core.errors import InputError
 from mdhelper.gui.components.layout import configure_form
 from mdhelper.gui.components.selections import (
@@ -73,7 +73,7 @@ class RadialParameters(QWidget):
         self,
         analysis_type: AnalysisType,
         common: dict[str, Any],
-        backend: RadialBackend,
+        backend: AnalysisBackend,
         pair: SelectionPair | None = None,
     ) -> RadialRequest:
         parameters = {} if pair is None else pair.parameters
@@ -92,7 +92,7 @@ class RadialParameters(QWidget):
         self,
         analysis_type: AnalysisType,
         common: dict[str, Any],
-        backend: RadialBackend,
+        backend: AnalysisBackend,
     ) -> tuple[tuple[RadialRequest, str], ...]:
         pairs = self.queue.pairs()
         if not pairs:
@@ -110,11 +110,9 @@ class RadialParameters(QWidget):
         self.reference.set_source(source, groups)
         self.selection.set_source(source, groups)
 
-    def set_backend(self, backend: RadialBackend) -> None:
+    def set_backend(self, backend: AnalysisBackend) -> None:
         expression = self.reference.source == "expression"
-        self.inputs.set_hint_visible(
-            expression and backend in {"auto", "mdanalysis", "gromacs"}
-        )
+        self.inputs.set_hint_visible(expression)
         gromacs = backend == "gromacs"
         self.inputs.reference_label.setText("Reference (-ref)" if gromacs else "Reference")
         self.inputs.selection_label.setText("Selection (-sel)" if gromacs else "Selection")

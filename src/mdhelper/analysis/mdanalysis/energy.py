@@ -118,7 +118,6 @@ class EnergyAnalysis:
         if inputs.progress:
             inputs.progress(len(time_ps), len(time_ps), "Read EDR energy samples")
         return AnalysisResult(
-            analysis_type="energy",
             method_version=METHOD_VERSION,
             data={"time_ps": time_ps, "series": series},
             parameters={},

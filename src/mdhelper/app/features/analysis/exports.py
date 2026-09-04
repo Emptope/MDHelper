@@ -15,7 +15,6 @@ from mdhelper.core.plotting import (
     PlotSize,
 )
 from mdhelper.io.export import (
-    export_comparison_figures,
     export_figures,
     export_plot_model,
     export_result,
@@ -56,76 +55,6 @@ class ExportFeature:
                 )
             )
         return paths
-
-    def export_figures(
-        self,
-        result: AnalysisResult,
-        output_directory: str | Path,
-        stem: str | None = None,
-        scheme: str = DEFAULT_PLOT_SCHEME,
-        limits: PlotLimits | None = None,
-        size: PlotSize | None = None,
-        appearance: PlotAppearance | None = None,
-    ) -> list[Path]:
-        return export_figures(
-            result,
-            output_directory,
-            stem,
-            scheme,
-            limits,
-            size,
-            appearance,
-        )
-
-    def export_comparison_figures(
-        self,
-        results: Sequence[AnalysisResult],
-        output_directory: str | Path,
-        stem: str = "comparison",
-        labels: Sequence[str | None] | None = None,
-        color_ids: Sequence[int] | None = None,
-        series_keys: Sequence[str | None] | None = None,
-        group_ids: Sequence[str | None] | None = None,
-        titles: Sequence[str | None] | None = None,
-        scheme: str = DEFAULT_PLOT_SCHEME,
-        limits: PlotLimits | None = None,
-        size: PlotSize | None = None,
-        appearance: PlotAppearance | None = None,
-    ) -> list[Path]:
-        return export_comparison_figures(
-            results,
-            output_directory,
-            stem,
-            labels,
-            color_ids,
-            series_keys,
-            group_ids,
-            titles,
-            scheme,
-            limits,
-            size,
-            appearance,
-        )
-
-    def export_plot_model(
-        self,
-        model: PlotModel,
-        output_directory: str | Path,
-        stem: str,
-        scheme: str = DEFAULT_PLOT_SCHEME,
-        limits: PlotLimits | None = None,
-        size: PlotSize | None = None,
-        appearance: PlotAppearance | None = None,
-    ) -> list[Path]:
-        return export_plot_model(
-            model,
-            output_directory,
-            stem,
-            scheme,
-            limits,
-            size,
-            appearance,
-        )
 
     def export_bundle(
         self,

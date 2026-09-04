@@ -20,9 +20,6 @@ class TrajectorySource(Protocol):
     def backend_name(self) -> str: ...
 
     @property
-    def backend_display_name(self) -> str: ...
-
-    @property
     def n_frames(self) -> int | None: ...
 
     @property

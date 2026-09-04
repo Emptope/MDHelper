@@ -37,9 +37,8 @@
     "plot": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema_version", "selections", "scheme", "limits", "appearance"],
+      "required": ["selections", "scheme", "limits", "appearance"],
       "properties": {
-        "schema_version": {"const": 1},
         "selections": {
           "type": "array",
           "items": {
@@ -116,13 +115,11 @@
         "additionalProperties": false,
         "required": [
           "analysis_id",
-          "analysis_type",
           "result_sha256",
           "committed_at"
         ],
         "properties": {
           "analysis_id": {"type": "string", "minLength": 1},
-          "analysis_type": {"enum": ["rdf", "cumulative_rdf", "energy"]},
           "result_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
           "committed_at": {"type": "string", "format": "date-time"}
         }

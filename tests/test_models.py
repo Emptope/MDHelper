@@ -116,7 +116,6 @@ def test_requests_reject_unknown_backend() -> None:
 def test_result_validation_rejects_unknown_and_non_json_content() -> None:
     request = _request()
     result = AnalysisResult(
-        analysis_type="rdf",
         data={"g_r": [1.0]},
         parameters={},
         units={"g_r": "dimensionless"},
@@ -125,10 +124,12 @@ def test_result_validation_rejects_unknown_and_non_json_content() -> None:
         request=request.to_dict(),
     )
     value = result.to_dict()
+    assert result.analysis_type == request.analysis_type
+    assert "analysis_type" not in value
     assert "artifacts" not in value
     assert "uncertainty" not in value
     assert "status" not in value
-    value["unknown"] = True
+    value["analysis_type"] = "rdf"
     with pytest.raises(ConfigurationError, match="unknown fields"):
         AnalysisResult.from_dict(value)
 

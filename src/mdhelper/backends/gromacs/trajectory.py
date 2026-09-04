@@ -29,7 +29,6 @@ class GromacsTrajectorySource:
     """Convert through local GROMACS, then stream the standard GRO representation."""
 
     backend_name = "gromacs"
-    backend_display_name = "GROMACS"
 
     def __init__(
         self,

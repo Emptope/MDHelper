@@ -87,7 +87,6 @@ def test_project_result_commit_is_atomic_and_verified(
         "trajectory": str(trajectory.resolve()),
     }
     result = AnalysisResult(
-        analysis_type="rdf",
         data={"radius_nm": [0.1], "g_r": [1.0]},
         parameters={},
         units={"radius_nm": "nm", "g_r": "dimensionless"},
@@ -106,19 +105,20 @@ def test_project_result_commit_is_atomic_and_verified(
     stored_path = project.root / "results" / "data" / f"{result.analysis_id}.json"
     assert set(entry) == {
         "analysis_id",
-        "analysis_type",
         "result_sha256",
         "committed_at",
     }
     assert result_path.is_file()
     assert stored_path == result_path
     stored = json.loads(stored_path.read_text(encoding="utf-8"))
+    assert "analysis_type" not in stored
     assert stored["data"] == result.data
     _validate_schema(request.to_dict(), "analysis-request-v1.schema.json")
     _validate_schema(stored, "analysis-result-v1.schema.json")
     _validate_schema(project.manifest, "project-v1.schema.json")
     listed = project.list_results()[0]
     assert listed["available"] is True
+    assert listed["analysis_type"] == request.analysis_type
     assert listed["request"] == request.to_dict()
     assert listed["method_version"] == result.method_version
 
@@ -176,7 +176,6 @@ def test_project_result_externalizes_integration_output(
         "status": "completed",
     }
     result = AnalysisResult(
-        analysis_type="rdf",
         data={"radius_nm": [0.1], "g_r": [1.0]},
         parameters={},
         units={},
@@ -260,7 +259,6 @@ def test_direct_result_export_externalizes_run_streams(tmp_path: Path) -> None:
         "status": "completed",
     }
     result = AnalysisResult(
-        analysis_type="rdf",
         data={"radius_nm": [0.1], "g_r": [1.0]},
         parameters={},
         units={},
@@ -295,7 +293,6 @@ def test_export_removes_binary_float_noise(tmp_path: Path) -> None:
         bin_width_nm=0.002,
     )
     result = AnalysisResult(
-        analysis_type="rdf",
         data={
             "radius_nm": [0.009000000000000001],
             "g_r": [1.2000000000000002],
@@ -326,7 +323,6 @@ def test_figure_export_preserves_requested_plot_size(tmp_path: Path) -> None:
         selection="B",
     )
     result = AnalysisResult(
-        analysis_type="rdf",
         data={"radius_nm": [0.1, 0.2], "g_r": [0.0, 1.0]},
         parameters={},
         units={},
@@ -524,7 +520,6 @@ def test_project_open_rejects_redundant_analysis_metadata(tmp_path: Path) -> Non
         {
             "analysis_id": "invalid-analysis",
             "analysis_type": "rdf",
-            "request": {},
             "result_sha256": "0" * 64,
             "committed_at": manifest["created_at"],
         }

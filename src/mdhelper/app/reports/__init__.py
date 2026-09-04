@@ -31,7 +31,6 @@ __all__ = (
     "local_time",
     "report_for",
     "result_analysis_label",
-    "result_summary",
 )
 
 
@@ -43,7 +42,3 @@ def report_for(result: AnalysisResult) -> Report:
             f"No result report is defined for {result.analysis_type!r}."
         ) from exc
     return report_type(result)
-
-
-def result_summary(result: AnalysisResult) -> str:
-    return report_for(result).text()

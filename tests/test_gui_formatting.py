@@ -17,7 +17,6 @@ def _rdf_result() -> AnalysisResult:
         bin_width_nm=0.1,
     )
     return AnalysisResult(
-        analysis_type="rdf",
         data={
             "radius_nm": [0.1, 0.2, 0.3],
             "g_r": [0.0, 3.0, 1.0],
@@ -93,7 +92,6 @@ def test_result_export_name_describes_radial_pair() -> None:
 
     assert result_exports(result)[0].name == "rdf-resname-LI-name-O"
 
-    result.analysis_type = "cumulative_rdf"
     result.request = RadialRequest(
         analysis_type="cumulative_rdf",
         topology="topology.tpr",
@@ -113,7 +111,6 @@ def test_result_exports_split_every_energy_curve_into_a_bounded_item() -> None:
         energy_terms=terms,
     )
     result = AnalysisResult(
-        analysis_type="energy",
         data={
             "time_ps": [0.0],
             "series": {term: [float(index)] for index, term in enumerate(terms)},

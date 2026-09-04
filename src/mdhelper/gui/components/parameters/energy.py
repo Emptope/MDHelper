@@ -8,7 +8,7 @@ from typing import cast
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QFormLayout, QWidget
 
-from mdhelper.core.analysis import EnergyBackend, EnergyRequest
+from mdhelper.core.analysis import AnalysisBackend, EnergyRequest
 from mdhelper.gui.components.layout import configure_form
 from mdhelper.gui.components.paths import PathRow
 from mdhelper.gui.components.queues import ItemQueue
@@ -35,7 +35,7 @@ class EnergyParameters(QWidget):
     def path(self) -> str:
         return cast(str, self.file.edit.text()).strip()
 
-    def request(self, backend: EnergyBackend) -> EnergyRequest:
+    def request(self, backend: AnalysisBackend) -> EnergyRequest:
         request = EnergyRequest(
             analysis_type="energy",
             energy_file=self.path(),

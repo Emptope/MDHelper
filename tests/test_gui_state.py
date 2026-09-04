@@ -26,7 +26,6 @@ def _energy_result() -> AnalysisResult:
         energy_terms=("first", "second", "third"),
     )
     return AnalysisResult(
-        analysis_type="energy",
         data={
             "time_ps": [0.0, 1.0],
             "series": {

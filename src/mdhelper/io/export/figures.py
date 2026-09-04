@@ -57,40 +57,6 @@ def export_figures(
     )
 
 
-def export_comparison_figures(
-    results: Sequence[AnalysisResult],
-    destination: str | Path,
-    stem: str = "comparison",
-    labels: Sequence[str | None] | None = None,
-    color_ids: Sequence[int] | None = None,
-    series_keys: Sequence[str | None] | None = None,
-    group_ids: Sequence[str | None] | None = None,
-    titles: Sequence[str | None] | None = None,
-    scheme: str = DEFAULT_PLOT_SCHEME,
-    limits: PlotLimits | None = None,
-    size: PlotSize | None = None,
-    appearance: PlotAppearance | None = None,
-) -> list[Path]:
-    """Export one figure containing multiple compatible results."""
-
-    if not results:
-        raise BackendError("At least one completed result is required for figure export.")
-    return _write_figures(
-        results,
-        output_directory(destination),
-        stem,
-        labels,
-        color_ids,
-        series_keys,
-        group_ids,
-        titles,
-        scheme,
-        limits,
-        size,
-        appearance,
-    )
-
-
 def export_plot_model(
     model: PlotModel,
     destination: str | Path,

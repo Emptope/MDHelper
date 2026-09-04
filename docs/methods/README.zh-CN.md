@@ -2,8 +2,8 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Result 通过 `analysis_type` 和 `method_version` 标识方法。数值定义变化需要新 method version；
-展示和保持数值等价的性能修改不需要。
+Result 通过 request 中的 `analysis_type` 和 result 中的 `method_version` 标识方法。数值定义变化
+需要新 method version；展示和保持数值等价的性能修改不需要。
 
 | 分析 | 方法 | 验证 |
 | --- | --- | --- |

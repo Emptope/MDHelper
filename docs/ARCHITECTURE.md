@@ -122,8 +122,8 @@ MDAnalysis objects stay inside its adapters. GROMACS commands pass through `inte
 
 `core/analysis/` defines schema-version-1 requests and results. RDF and cumulative RDF use
 `RadialRequest`; energy uses `EnergyRequest`. Results contain the request, data, parameters, units,
-diagnostics, provenance, warnings, identity, method version, and creation time. Parsers reject
-unknown, missing, or inconsistent fields.
+diagnostics, provenance, warnings, identity, method version, and creation time. The embedded request
+is the single source of the analysis type. Parsers reject unknown or missing fields.
 
 Adapters expose zero-based atom indices and frame ranges. Radial calculations store nm. Atom
 membership remains fixed during a run. Project `.itp` files provide advisory species-role evidence;

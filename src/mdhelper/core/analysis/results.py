@@ -8,25 +8,29 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from ..errors import ConfigurationError, InputError
+from ..errors import ConfigurationError
 from .requests import AnalysisRequest, EnergyRequest
 from .validation import json_issue
 
 
 @dataclass
 class AnalysisResult:
-    analysis_type: str
     data: dict[str, Any]
     parameters: dict[str, Any]
     units: dict[str, str]
     diagnostics: dict[str, Any]
     provenance: dict[str, Any]
-    request: dict[str, Any] = field(default_factory=dict)
+    request: dict[str, Any]
     warnings: list[str] = field(default_factory=list)
     analysis_id: str = field(default_factory=lambda: str(uuid4()))
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     method_version: str = "1.0.0"
     schema_version: int = 1
+
+    @property
+    def analysis_type(self) -> str:
+        value = self.request.get("analysis_type")
+        return value if isinstance(value, str) else ""
 
     def to_dict(self) -> dict[str, Any]:
         self.validate()
@@ -37,10 +41,6 @@ class AnalysisResult:
             raise ConfigurationError(
                 f"Analysis result schema version {self.schema_version} is not supported.",
                 "Use schema_version = 1.",
-            )
-        if self.analysis_type not in {"rdf", "cumulative_rdf", "energy"}:
-            raise ConfigurationError(
-                f"Unknown result analysis type: {self.analysis_type!r}."
             )
         if not isinstance(self.analysis_id, str) or not self.analysis_id.strip():
             raise ConfigurationError("An analysis result must have a non-empty analysis_id.")
@@ -86,24 +86,12 @@ class AnalysisResult:
             )
         try:
             request = AnalysisRequest.from_dict(self.request)
-        except (ConfigurationError, TypeError, InputError) as exc:
+        except ConfigurationError as exc:
             raise ConfigurationError(
                 "The analysis result contains an invalid analysis request.",
                 details={"exception": f"{type(exc).__name__}: {exc}"},
             ) from exc
-        if request.analysis_type != self.analysis_type:
-            raise ConfigurationError(
-                "The result analysis type does not match its embedded request.",
-                details={
-                    "result_analysis_type": self.analysis_type,
-                    "request_analysis_type": request.analysis_type,
-                },
-            )
-        if self.analysis_type == "energy":
-            if not isinstance(request, EnergyRequest):
-                raise ConfigurationError(
-                    "Energy result does not contain an energy request."
-                )
+        if isinstance(request, EnergyRequest):
             if set(self.data) != {"time_ps", "series"}:
                 raise ConfigurationError(
                     "Energy result data contains missing or unknown fields."

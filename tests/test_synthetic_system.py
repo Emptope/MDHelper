@@ -334,7 +334,6 @@ def test_analysis_algorithm_is_replaceable_behind_application_contract(
         def run(self, inputs: AnalysisInput) -> AnalysisResult:
             assert inputs.source is source
             return AnalysisResult(
-                analysis_type=inputs.request.analysis_type,
                 data={"marker": 1},
                 parameters={},
                 units={"marker": "dimensionless"},

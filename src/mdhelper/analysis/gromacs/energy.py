@@ -173,7 +173,6 @@ class EnergyAnalysis:
         provenance = dict(inputs.provenance)
         provenance["integration_runs"] = [record.to_dict()]
         return AnalysisResult(
-            analysis_type="energy",
             method_version=METHOD_VERSION,
             data={"time_ps": time_ps, "series": series},
             parameters={},
@@ -182,4 +181,3 @@ class EnergyAnalysis:
             provenance=provenance,
             request=request.to_dict(),
         )
-

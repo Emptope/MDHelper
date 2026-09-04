@@ -78,7 +78,6 @@ class ResultRepository:
             atomic_json(result_path, stored_result)
             entry = {
                 "analysis_id": result.analysis_id,
-                "analysis_type": result.analysis_type,
                 "result_sha256": sha256_file(result_path),
                 "committed_at": datetime.now(UTC).isoformat(),
             }
@@ -118,6 +117,7 @@ class ResultRepository:
                 except ConfigurationError:
                     item["available"] = False
                 else:
+                    item["analysis_type"] = result.analysis_type
                     item["request"] = result.request
                     item["method_version"] = result.method_version
             results.append(item)
@@ -161,10 +161,6 @@ class ResultRepository:
             if result.analysis_id != analysis_id:
                 raise ConfigurationError(
                     f"Analysis result identity does not match its project entry: {analysis_id}"
-                )
-            if result.analysis_type != entry["analysis_type"]:
-                raise ConfigurationError(
-                    f"Analysis result type does not match its project entry: {analysis_id}"
                 )
             return result
         except ConfigurationError:

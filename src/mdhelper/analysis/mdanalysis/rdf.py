@@ -21,7 +21,6 @@ def rdf_result(
     warnings = first_shell_warnings(suggestion)
 
     return AnalysisResult(
-        analysis_type="rdf",
         method_version=METHOD_VERSION,
         data={
             "radius_nm": profile.radius_nm.tolist(),

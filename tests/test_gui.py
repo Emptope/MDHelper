@@ -625,7 +625,6 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
     )
     window.results.show_result(
         AnalysisResult(
-            analysis_type="rdf",
             data={"radius_nm": [0.1], "g_r": [1.0]},
             parameters={},
             units={},

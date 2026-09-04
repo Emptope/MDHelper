@@ -52,7 +52,6 @@ def energy_result() -> AnalysisResult:
         analysis_backend="gromacs",
     )
     return AnalysisResult(
-        analysis_type="energy",
         data={
             "time_ps": [0.0, 1.0],
             "series": {

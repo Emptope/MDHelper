@@ -11,7 +11,6 @@ from mdhelper.app.reports import (
     local_time,
     report_for,
     result_analysis_label,
-    result_summary,
 )
 from mdhelper.core.analysis import AnalysisResult
 from mdhelper.core.errors import MDHelperError
@@ -20,20 +19,12 @@ from mdhelper.core.species import SpeciesRoleSuggestion
 __all__ = (
     "error_dict",
     "error_text",
-    "json_text",
     "result_analysis_label",
     "result_details_html",
     "result_label",
-    "result_summary",
     "result_summary_html",
     "role_suggestions_html",
 )
-
-
-def json_text(value: Any) -> str:
-    return json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False)
-
-
 def error_dict(error: BaseException) -> dict[str, Any]:
     if isinstance(error, MDHelperError):
         return error.to_dict()

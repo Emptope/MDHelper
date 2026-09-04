@@ -117,7 +117,8 @@ MDAnalysis 对象不离开对应适配器。GROMACS 命令经过 `integrations` 
 
 `core/analysis/` 定义 schema version 1 的 request 和 result。RDF 与累积 RDF 使用
 `RadialRequest`，energy 使用 `EnergyRequest`。Result 包含 request、数据、参数、单位、诊断、
-provenance、警告、身份、方法版本和创建时间。解析器拒绝未知、缺失或不一致的字段。
+provenance、警告、身份、方法版本和创建时间，内嵌 request 是分析类型的唯一来源。解析器拒绝
+未知或缺失的字段。
 
 适配器输出零基原子索引和帧范围。径向计算存储 nm。分析期间原子成员不变。Project `.itp`
 文件提供物种角色参考证据；建议只存在于当前 session，确认后的角色存入 request 和 project

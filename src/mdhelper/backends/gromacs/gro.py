@@ -127,7 +127,6 @@ class GroTrajectorySource:
     """Read single- or multi-frame GRO files through the trajectory port."""
 
     backend_name = "gro"
-    backend_display_name = "GRO"
 
     def __init__(self, topology: str | Path, trajectory: str | Path):
         self.topology_path, self.atoms = read_gro_topology(topology)
