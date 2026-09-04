@@ -76,7 +76,6 @@ MDHelper 能够自动识别并集成系统环境中安装的第三方分子模�
 
 ## 文档指南
 
-> [!INFO]
 > 项目文档由 gpt-5.6-sol 辅助生成并持续维护优化中。
 
 - [使用说明](docs/USAGE.zh-CN.md)
@@ -91,4 +90,4 @@ MDHelper 能够自动识别并集成系统环境中安装的第三方分子模�
 
 ## 许可证
 
-MDHelper 遵循 GNU General Public License version 2 协议开源，SPDX 标识符为 GPL-2.0。项目中包含的第三方依赖及外部示例数据遵循其各自的开源许可证。
+MDHelper 遵循 GNU General Public License version 2 协议开源。

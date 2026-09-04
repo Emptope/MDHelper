@@ -230,8 +230,8 @@ class WorkspaceController(ControllerContext):
         self.terminal.write(f"Numbers:  {self.workspace.summary.species[species]}")
         self.terminal.write(f"Suggestion: {suggestion.suggested_role or 'unavailable'}")
         self.terminal.write(f"Method:     {suggestion.method}")
-        if suggestion.reason:
-            self.terminal.write(f"Reason:     {suggestion.reason}")
+        if suggestion.error:
+            self.terminal.write(f"Error:      {suggestion.error}")
         current = self.workspace.roles.get(species) or suggestion.suggested_role
         role = self.terminal.choose(
             "Confirm a role",
@@ -245,7 +245,7 @@ class WorkspaceController(ControllerContext):
         suggestions = {
             name: item
             for name, item in self.workspace.summary.role_suggestions.items()
-            if item.available and item.suggested_role is not None
+            if item.suggested_role is not None
         }
         if not suggestions:
             self.terminal.write("No role has a safe automatic suggestion.")

@@ -306,7 +306,7 @@ def test_make_index_loads_output_after_the_file_is_complete(
         launch,
     )
     window = MainWindow()
-    window._inspection_timer.setInterval(0)
+    window.system_actions.timer.setInterval(0)
     window.load.inputs.topology.edit.setText(str(source))
     window.load.inputs.trajectory.edit.setText(str(source))
     window.load.inputs.index_file.edit.setText(str(output.resolve()))
@@ -345,7 +345,7 @@ def test_gui_completes_cumulative_rdf_on_generic_system(tmp_path: Path) -> None:
     window.analysis.parameters.cumulative.selection.setText("resname LIGA")
     window.analysis.parameters.cumulative.r_max.setValue(0.5)
     window.analysis.parameters.cumulative.bin_width.setValue(0.05)
-    window._run()
+    window.analysis_actions.run()
     deadline = time.monotonic() + 10
     while window.job_controller.current is not None and time.monotonic() < deadline:
         application.processEvents()
@@ -413,7 +413,7 @@ def test_gui_automatically_reloads_species_and_index_groups(tmp_path: Path) -> N
     )
     index.write_text("[ Reference ]\n1\n[ Neighbors ]\n2 3 4\n", encoding="ascii")
     window = MainWindow()
-    window._inspection_timer.setInterval(0)
+    window.system_actions.timer.setInterval(0)
     window.load.inputs.topology.edit.setText(str(first))
     window.load.inputs.trajectory.edit.setText(str(first))
     application.processEvents()
@@ -459,7 +459,7 @@ def test_gui_backend_does_not_reload_system_or_control_species_detection(
         encoding="ascii",
     )
     window = MainWindow()
-    window._inspection_timer.setInterval(0)
+    window.system_actions.timer.setInterval(0)
     window.load.inputs.topology.edit.setText(str(first))
     window.load.inputs.trajectory.edit.setText(str(first))
     application.processEvents()
@@ -490,7 +490,7 @@ def test_gui_backend_does_not_reload_system_or_control_species_detection(
     window.analysis.parameters.set_analysis_backend("gromacs")
 
     assert inspections == []
-    assert not window._inspection_timer.isActive()
+    assert not window.system_actions.timer.isActive()
     assert {
         window.load.species.table.item(row, 0).text()
         for row in range(window.load.species.table.rowCount())

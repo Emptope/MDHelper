@@ -53,26 +53,53 @@ def error_text(error: BaseException) -> str:
     return "\n".join(lines)
 
 
+def _evidence_label(name: str) -> tuple[str, str]:
+    for suffix, unit in (("_e", "e"), ("_nm", "nm"), ("_ps", "ps")):
+        if name.endswith(suffix):
+            return name[: -len(suffix)].replace("_", " ").capitalize(), unit
+    return name.replace("_", " ").capitalize(), ""
+
+
+def _evidence_value(value: object, unit: str) -> str:
+    if isinstance(value, bool):
+        text = "Yes" if value else "No"
+    elif isinstance(value, float):
+        text = f"{value:.6g}"
+    elif isinstance(value, (dict, list, tuple)):
+        text = json.dumps(value, sort_keys=True, ensure_ascii=True)
+    elif value is None:
+        text = "Unavailable"
+    else:
+        text = str(value)
+    if unit and isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f"{text} {unit}"
+    return text
+
+
 def role_suggestions_html(suggestions: Mapping[str, SpeciesRoleSuggestion]) -> str:
     """Render complete role suggestions as readable rich text."""
 
     parts: list[str] = []
     for species, item in suggestions.items():
-        fields = (
+        fields = [
             ("Suggested role", item.suggested_role or "Unavailable"),
             ("Method", item.method),
-            ("Reason", item.reason),
-        )
+        ]
+        if item.error:
+            fields.append(("Error", item.error))
         parts.append(f"<h3>{escape(species)}</h3><table cellspacing='5'>")
         parts.extend(
             f"<tr><td><b>{escape(key)}</b></td><td>{escape(value)}</td></tr>"
             for key, value in fields
         )
-        evidence = json.dumps(item.evidence, indent=2, sort_keys=True, ensure_ascii=True)
-        parts.append(
-            "<tr><td><b>Evidence</b></td>"
-            f"<td><pre>{escape(evidence)}</pre></td></tr></table>"
+        parts.append("</table><h4>Evidence</h4><table cellspacing='5'>")
+        parts.extend(
+            f"<tr><td><b>{escape(label)}</b></td>"
+            f"<td>{escape(_evidence_value(value, unit))}</td></tr>"
+            for name, value in item.evidence.items()
+            for label, unit in (_evidence_label(name),)
         )
+        parts.append("</table>")
     return "".join(parts)
 
 

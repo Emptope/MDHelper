@@ -75,7 +75,6 @@ For detailed configuration instructions, see [Configuration](docs/CONFIGURATION.
 
 ## Documentation Guide
 
-> [!INFO]
 > The project documentation is generated with assistance from gpt-5.6-sol and is under continuous maintenance and improvement.
 
 - [Usage](docs/USAGE.md)
@@ -90,4 +89,4 @@ For detailed configuration instructions, see [Configuration](docs/CONFIGURATION.
 
 ## License
 
-MDHelper is open source under the GNU General Public License version 2, with the SPDX identifier GPL-2.0. Third-party dependencies and external example data included in the project remain under their respective open source licenses.
+MDHelper is open source under the GNU General Public License version 2.

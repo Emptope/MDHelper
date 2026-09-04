@@ -1,43 +1,13 @@
-"""Species role vocabulary and explainable role suggestions."""
+"""Species role vocabulary and suggestions."""
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any
 
 from .errors import InputError
 
 SPECIES_ROLES = ("cation", "anion", "solvent")
-
-# Role labels are project metadata used to describe how a species is used in a
-# workflow. They never alter selections or the numerical analysis algorithm.
-SPECIES_ROLE_DESCRIPTIONS: dict[str, str] = {
-    "cation": "Positively charged species, commonly used as a central atom set.",
-    "anion": "Negatively charged species, commonly used as a counterion set.",
-    "solvent": "Neutral solvent component used to describe the chemical environment.",
-}
-
-SPECIES_ROLE_POLICY: dict[str, object] = {
-    "purpose": "Descriptive chemical context stored with projects and analysis provenance.",
-    "affects": ("project metadata", "analysis provenance", "result interpretation"),
-    "does_not_affect": ("atom selections", "analysis parameters", "numerical algorithms"),
-    "confirmation": "Every suggested or manually chosen role requires user confirmation.",
-}
-
-
-def role_description(role: str) -> str:
-    """Return the explanatory text for a validated species role."""
-
-    return SPECIES_ROLE_DESCRIPTIONS.get(role, "Role metadata for this species.")
-
-
-def role_policy() -> dict[str, Any]:
-    """Return the JSON-ready policy shared by inspection and provenance."""
-
-    return {
-        key: list(value) if isinstance(value, tuple) else value
-        for key, value in SPECIES_ROLE_POLICY.items()
-    }
 
 
 def validate_species_roles(species_roles: dict[str, str]) -> None:
@@ -58,12 +28,7 @@ class SpeciesRoleSuggestion:
     suggested_role: str | None
     method: str
     evidence: dict[str, Any]
-    requires_user_confirmation: bool = True
-    reason: str = ""
-
-    @property
-    def available(self) -> bool:
-        return self.suggested_role is not None
+    error: str | None = None
 
     def validate(self) -> None:
         if self.suggested_role is not None and (
@@ -75,14 +40,8 @@ class SpeciesRoleSuggestion:
             raise InputError("A role suggestion requires an explainable method.")
         if not isinstance(self.evidence, dict):
             raise InputError("A role suggestion requires structured evidence.")
-        if not isinstance(self.reason, str) or not self.reason.strip():
-            raise InputError("A role suggestion requires an explainable reason.")
-        if self.requires_user_confirmation is not True:
-            raise InputError("Species role suggestions must require user confirmation.")
-
-    def to_dict(self) -> dict[str, Any]:
-        self.validate()
-        return {
-            **asdict(self),
-            "available": self.available,
-        }
+        if self.suggested_role is None:
+            if not isinstance(self.error, str) or not self.error.strip():
+                raise InputError("An unavailable role suggestion requires an error.")
+        elif self.error is not None:
+            raise InputError("An available role suggestion cannot contain an error.")

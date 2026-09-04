@@ -7,9 +7,7 @@ from PySide6.QtGui import QCloseEvent, QDesktopServices
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 
 from mdhelper.app import ApplicationService
-from mdhelper.core.analysis import AnalysisResult
 from mdhelper.core.errors import ConfigurationError
-from mdhelper.core.species import SpeciesRoleSuggestion
 from mdhelper.gui.actions.analysis import AnalysisActions
 from mdhelper.gui.actions.backend import BackendActions
 from mdhelper.gui.actions.project import ProjectActions
@@ -17,7 +15,6 @@ from mdhelper.gui.actions.results import ResultActions
 from mdhelper.gui.actions.system import SystemActions
 from mdhelper.gui.assets import application_icon
 from mdhelper.gui.controllers.analysis_jobs import AnalysisJobController
-from mdhelper.gui.controllers.analysis_runs import RunCompletion
 from mdhelper.gui.controllers.session import ProjectSession
 from mdhelper.gui.dialogs.integrations import IntegrationsDialog
 from mdhelper.gui.dialogs.projects import NewProjectDialog
@@ -30,7 +27,6 @@ from mdhelper.gui.pages.workspace import WorkspaceTabs
 from mdhelper.gui.theme import theme_controller
 from mdhelper.gui.windows import WindowManager
 from mdhelper.gui.workflows import WorkflowActions
-from mdhelper.jobs import JobHandle
 from mdhelper.runtime.logging import configure_logging, record_error
 from mdhelper.services.config import ThemeMode, save_config
 from mdhelper.version import __version__
@@ -149,18 +145,6 @@ class MainWindow(QMainWindow):
 
     # System actions
 
-    @property
-    def role_suggestions(self) -> dict[str, SpeciesRoleSuggestion]:
-        return self.system_actions.role_suggestions
-
-    @role_suggestions.setter
-    def role_suggestions(self, value: dict[str, SpeciesRoleSuggestion]) -> None:
-        self.system_actions.role_suggestions = value
-
-    @property
-    def _inspection_timer(self):
-        return self.system_actions.timer
-
     def _inspect(
         self,
         existing_roles: dict[str, str] | None = None,
@@ -202,21 +186,6 @@ class MainWindow(QMainWindow):
     @property
     def job_controller(self) -> AnalysisJobController:
         return self.analysis_actions.jobs
-
-    def _run(self) -> None:
-        self.analysis_actions.run()
-
-    def _job_changed(self, job: JobHandle) -> None:
-        self.analysis_actions.job_changed(job)
-
-    def _job_completed(self, result: AnalysisResult) -> None:
-        current = self.analysis_actions.controller.state.current
-        if current is not None:
-            self.analysis_actions.controller._completed(result)
-            return
-        self.session.result = result
-        self.analysis_actions.present_result(RunCompletion(result, "", None, False))
-        self.analysis_actions.finish()
 
     # Project actions
 

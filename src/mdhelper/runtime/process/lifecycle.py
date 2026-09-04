@@ -18,7 +18,7 @@ from mdhelper.runtime.environment import child_environment
 from mdhelper.runtime.logging import record_command
 
 from .contracts import ExecutionAdapter, ExecutionStatus, integration_argv
-from .records import build_record, format_command
+from .records import RunStatus, build_record, format_command
 
 ProcessProgress = Callable[[float, str, str], None]
 
@@ -75,26 +75,32 @@ def run_integration(
     _write_input(process, input_text)
     next_progress = started + 0.25
     last_progress = ("", "")
+    reported_elapsed: float | None = None
+
+    def finish_record(status: RunStatus) -> Any:
+        return build_record(
+            adapter,
+            integration,
+            command,
+            arguments,
+            cwd,
+            child_env,
+            _exit_code(process),
+            "".join(stdout_chunks),
+            "".join(stderr_chunks),
+            output_files,
+            started,
+            started_at,
+            status,
+            record_factory,
+            reported_elapsed=reported_elapsed,
+        )
+
     while True:
         if cancel_event is not None and cancel_event.is_set():
             _stop(process, terminate=True)
             _finish_readers(readers)
-            record = build_record(
-                adapter,
-                integration,
-                command,
-                arguments,
-                cwd,
-                child_env,
-                _exit_code(process),
-                "".join(stdout_chunks),
-                "".join(stderr_chunks),
-                output_files,
-                started,
-                started_at,
-                "cancelled",
-                record_factory,
-            )
+            record = finish_record("cancelled")
             raise JobCancelled(
                 f"{adapter.name} execution was cancelled.",
                 {"integration_run": record.to_dict()},
@@ -103,22 +109,7 @@ def run_integration(
         if remaining <= 0:
             _stop(process, terminate=False)
             _finish_readers(readers)
-            record = build_record(
-                adapter,
-                integration,
-                command,
-                arguments,
-                cwd,
-                child_env,
-                _exit_code(process),
-                "".join(stdout_chunks),
-                "".join(stderr_chunks),
-                output_files,
-                started,
-                started_at,
-                "timed_out",
-                record_factory,
-            )
+            record = finish_record("timed_out")
             raise BackendError(
                 f"{adapter.name} exceeded the {timeout_seconds:g}-second timeout.",
                 details={"integration_run": record.to_dict()},
@@ -129,7 +120,8 @@ def run_integration(
         if process_progress is not None and now >= next_progress:
             current_output = ("".join(stdout_chunks), "".join(stderr_chunks))
             try:
-                process_progress(now - started, *current_output)
+                reported_elapsed = now - started
+                process_progress(reported_elapsed, *current_output)
             except BaseException:
                 _stop(process, terminate=True)
                 _finish_readers(readers)
@@ -144,23 +136,9 @@ def run_integration(
     stdout = "".join(stdout_chunks)
     stderr = "".join(stderr_chunks)
     if process_progress is not None and (stdout, stderr) != last_progress:
-        process_progress(time.monotonic() - started, stdout, stderr)
-    return build_record(
-        adapter,
-        integration,
-        command,
-        arguments,
-        cwd,
-        child_env,
-        process.returncode,
-        stdout,
-        stderr,
-        output_files,
-        started,
-        started_at,
-        "completed" if process.returncode == 0 else "failed",
-        record_factory,
-    )
+        reported_elapsed = time.monotonic() - started
+        process_progress(reported_elapsed, stdout, stderr)
+    return finish_record("completed" if process.returncode == 0 else "failed")
 
 
 def _start(

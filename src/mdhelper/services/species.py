@@ -45,9 +45,9 @@ def inspect_species_roles(
                     "project_directory": str(root),
                     "matched_molecule_type": False,
                 },
-                reason=(
-                    "No project .itp file defines a matching molecule type, so the role "
-                    "requires manual selection."
+                error=(
+                    "No project .itp file defines a matching molecule type; "
+                    "select the role manually."
                 ),
             )
             continue
@@ -57,15 +57,11 @@ def inspect_species_roles(
             role,
             "project include-topology molecular net charge",
             {
+                "source_file": record.path.relative_to(root).as_posix(),
                 "atom_count": record.atom_count,
                 "molecule_charge_e": record.charge_e,
                 "zero_tolerance_e": CHARGE_ZERO_TOLERANCE_E,
-                "source_file": record.path.relative_to(root).as_posix(),
             },
-            reason=(
-                "The role follows the sign of the summed [ atoms ] charges; values within "
-                "the zero tolerance are neutral."
-            ),
         )
     return SpeciesRoleInspection(
         suggestions,

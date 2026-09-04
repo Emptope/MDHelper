@@ -504,7 +504,6 @@ def test_tui_role_suggestion_batch_hides_internal_method() -> None:
         "solvent",
         method,
         {"charge_e": 0.0},
-        reason="The molecular charge is neutral.",
     )
     summary = SystemSummary(
         topology="topology.gro",

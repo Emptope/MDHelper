@@ -334,13 +334,11 @@ def _species_summary() -> SystemSummary:
             "cation",
             "net charge",
             {"net_charge_e": 1.0},
-            reason="Positive molecular charge.",
         ),
         "beta": SpeciesRoleSuggestion(
             "anion",
             "net charge",
             {"net_charge_e": -1.0},
-            reason="Negative molecular charge.",
         ),
     }
     return SystemSummary(
@@ -360,7 +358,7 @@ def test_apply_role_suggestions_saves_and_cancel_clears(
 ) -> None:
     window = MainWindow()
     summary = _species_summary()
-    window.role_suggestions = dict(summary.role_suggestions)
+    window.system_actions.state.suggestions = dict(summary.role_suggestions)
     window.load.species.set_summary(summary, {})
     window.session.project = SimpleNamespace()
     saved: list[dict[str, str]] = []
@@ -558,7 +556,7 @@ def test_analysis_details_opens_the_retained_job_log() -> None:
     job = JobHandle(name="Radial Distribution Function (RDF): Water - Ion")
     job.update_progress(1, 1, "Analyzed RDF frame 0")
     window.job_controller.latest = job
-    window._job_changed(job)
+    window.analysis_actions.job_changed(job)
     details.click()
     _QT_APPLICATION.processEvents()
 
@@ -897,7 +895,7 @@ def test_gui_analysis_initializes_project_in_trajectory_directory(
         lambda items: submitted.extend(items),
     )
 
-    window._run()
+    window.analysis_actions.run()
 
     assert window.session.project is not None
     assert window.session.project.root == tmp_path.resolve()

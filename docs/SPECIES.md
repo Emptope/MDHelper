@@ -17,8 +17,9 @@ When every detected species has a matching molecule definition, inspection multi
 molecular charge by its molecule count and sums the terms. GUI inspection warns when the absolute
 system charge exceeds `1e-6 e`. The check remains unavailable when any definition is missing.
 
-Inspection reports the source file, molecular charge, reason, and confirmation status. Automatic
-detection is advisory: CLI accepts
+Inspection reports the source file, molecule atom count, molecular charge, and zero tolerance.
+When no molecule definition matches, it reports the lookup error instead.
+Automatic detection is advisory: CLI accepts
 `--roles '{LI: cation, SOL: solvent}'`, and TUI and GUI allow every suggestion to be reviewed and changed.
 Suggestions remain in the current inspection session and are not written to a schema. Only
 confirmed roles are stored in `request.species_roles` and the project manifest. `mdhelper project

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import shlex
 import subprocess
@@ -37,10 +38,16 @@ def build_record(
     started_at: str,
     status: RunStatus,
     record_factory: Any,
+    *,
+    reported_elapsed: float | None = None,
 ) -> Any:
     assert integration.path is not None
     assert integration.version is not None
     keys = adapter.provenance_environment_keys()
+    output_fingerprints = _fingerprints(output_files, cwd)
+    elapsed = time.monotonic() - started
+    if reported_elapsed is not None and elapsed <= reported_elapsed:
+        elapsed = math.nextafter(reported_elapsed, math.inf)
     return record_factory(
         name=adapter.name,
         display_name=adapter.display_name.strip() or adapter.name,
@@ -54,8 +61,8 @@ def build_record(
         stdout=stdout,
         stderr=stderr,
         started_at=started_at,
-        output_fingerprints=_fingerprints(output_files, cwd),
-        elapsed_seconds=time.monotonic() - started,
+        output_fingerprints=output_fingerprints,
+        elapsed_seconds=elapsed,
         status=status,
     )
 

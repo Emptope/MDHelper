@@ -32,6 +32,7 @@ def test_resolved_first_shell_reports_boundary(
 
     assert shell["available"] is True
     assert shell["first_minimum_nm"] == pytest.approx(0.9)
+    assert "requires_user_confirmation" not in shell
     assert not first_shell_warnings(shell)
 
 

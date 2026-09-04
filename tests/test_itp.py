@@ -120,7 +120,6 @@ def test_itp_roles_are_suggestions_and_ignore_charge_roundoff(tmp_path: Path) ->
     assert suggestions["gamma"].suggested_role == "solvent"
     assert suggestions["epsilon"].suggested_role == "anion"
     assert suggestions["delta"].suggested_role is None
-    assert all(item.requires_user_confirmation for item in suggestions.values())
     assert suggestions["gamma"].evidence["molecule_charge_e"] == pytest.approx(-1e-10)
     assert suggestions["gamma"].evidence["zero_tolerance_e"] == 1e-6
     assert suggestions["gamma"].evidence["source_file"] == "molecules/neutral.itp"

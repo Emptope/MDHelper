@@ -52,7 +52,6 @@ def first_shell(
         "first_minimum_index": minimum_index,
         "first_minimum_nm": float(radii[minimum_index]),
         "first_minimum_g_r": float(rdf[minimum_index]),
-        "requires_user_confirmation": True,
     }
 
 

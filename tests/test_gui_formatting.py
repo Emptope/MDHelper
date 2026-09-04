@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from mdhelper.app import result_exports
 from mdhelper.core.analysis import AnalysisResult, EnergyRequest, RadialRequest
+from mdhelper.core.species import SpeciesRoleSuggestion
+from mdhelper.gui.formatting import role_suggestions_html
 
 
 def _rdf_result() -> AnalysisResult:
@@ -37,6 +39,45 @@ def _rdf_result() -> AnalysisResult:
         analysis_id="analysis-id",
         created_at="2026-08-29T04:00:00+00:00",
     )
+
+
+def test_role_suggestion_evidence_is_rendered_as_readable_fields() -> None:
+    source = "molecule<&>.itp"
+    html = role_suggestions_html(
+        {
+            "sample": SpeciesRoleSuggestion(
+                "solvent",
+                "molecular net charge",
+                {
+                    "source_file": source,
+                    "atom_count": 16,
+                    "molecule_charge_e": -1e-10,
+                    "matched_molecule_type": False,
+                },
+            )
+        }
+    )
+
+    assert "<pre>" not in html
+    assert "molecule_charge_e" not in html
+    assert "molecule&lt;&amp;&gt;.itp" in html
+    assert "-1e-10 e" in html
+
+
+def test_unavailable_role_suggestion_keeps_its_error() -> None:
+    error = "No matching molecule type in <project>."
+    html = role_suggestions_html(
+        {
+            "sample": SpeciesRoleSuggestion(
+                None,
+                "molecular net charge",
+                {"matched_molecule_type": False},
+                error=error,
+            )
+        }
+    )
+
+    assert "No matching molecule type in &lt;project&gt;." in html
 
 
 def test_result_export_name_describes_radial_pair() -> None:

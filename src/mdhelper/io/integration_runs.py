@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from mdhelper.core.errors import ConfigurationError
+from mdhelper.core.errors import ConfigurationError, InputFileError
+from mdhelper.io.files import sha256_file
 
 _STREAMS = (("stdout", "out"), ("stderr", "err"))
 
@@ -21,17 +21,13 @@ def _path(directory: Path, stem: str, index: int, extension: str) -> Path:
 
 
 def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
     try:
-        with path.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
-    except OSError as exc:
+        return sha256_file(path)
+    except InputFileError as exc:
         raise ConfigurationError(
             f"Could not fingerprint integration stream: {path}",
-            details={"exception": f"{type(exc).__name__}: {exc}"},
+            details=exc.details,
         ) from exc
-    return digest.hexdigest()
 
 
 def _atomic_text(path: Path, content: str) -> None:

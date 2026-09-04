@@ -105,28 +105,18 @@ def test_species_role_suggestions_use_project_itp_evidence_not_names(tmp_path: P
     assert summary.role_suggestions["alpha"].suggested_role == "cation"
     assert summary.role_suggestions["beta"].suggested_role == "anion"
     assert summary.role_suggestions["gamma"].suggested_role == "solvent"
-    assert not summary.role_suggestions["delta"].available
-    assert all(
-        suggestion.requires_user_confirmation
-        for suggestion in summary.role_suggestions.values()
-    )
+    assert summary.role_suggestions["delta"].suggested_role is None
+    assert summary.role_suggestions["delta"].error
     serialized = summary.to_dict()
     assert serialized["schema_version"] == 1
-    assert serialized["role_suggestions"]["alpha"]["available"]
     assert set(serialized["role_suggestions"]["alpha"]) == {
-        "available",
+        "error",
         "evidence",
         "method",
-        "reason",
-        "requires_user_confirmation",
         "suggested_role",
     }
-    assert serialized["role_policy"]["does_not_affect"] == [
-        "atom selections",
-        "analysis parameters",
-        "numerical algorithms",
-    ]
-    assert serialized["role_definitions"]["solvent"]
+    assert "role_definitions" not in serialized
+    assert "role_policy" not in serialized
     assert summary.role_suggestions["alpha"].evidence == {
         "atom_count": 1,
         "molecule_charge_e": 1.0,

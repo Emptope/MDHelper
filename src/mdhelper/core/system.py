@@ -10,11 +10,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .errors import InputError
-from .species import (
-    SPECIES_ROLE_DESCRIPTIONS,
-    SpeciesRoleSuggestion,
-    role_policy,
-)
+from .species import SpeciesRoleSuggestion
 
 Vec3 = tuple[float, float, float]
 Coordinates = NDArray[np.float64]
@@ -108,12 +104,6 @@ class SystemSummary:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            **asdict(self),
-            "role_definitions": dict(SPECIES_ROLE_DESCRIPTIONS),
-            "role_policy": role_policy(),
-            "role_suggestions": {
-                species: suggestion.to_dict()
-                for species, suggestion in self.role_suggestions.items()
-            },
-        }
+        for suggestion in self.role_suggestions.values():
+            suggestion.validate()
+        return asdict(self)

@@ -9,7 +9,6 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox
 
 from mdhelper.app import ApplicationService
 from mdhelper.core.analysis import AnalysisRequest, RadialRequest
-from mdhelper.core.species import SpeciesRoleSuggestion
 from mdhelper.gui.actions.system.watching import FileWatchingActions
 from mdhelper.gui.controllers.session import ProjectSession
 from mdhelper.gui.pages.analysis import AnalysisPanel
@@ -40,21 +39,16 @@ class RoleActions(FileWatchingActions):
         load.species.suggestions_cancelled.connect(self.cancel_role_suggestions)
         load.species.role_edited.connect(self.role_edited)
 
-    @property
-    def role_suggestions(self) -> dict[str, SpeciesRoleSuggestion]:
-        return self.state.suggestions
-
-    @role_suggestions.setter
-    def role_suggestions(self, suggestions: dict[str, SpeciesRoleSuggestion]) -> None:
-        self.state.suggestions = dict(suggestions)
-
     def role_edited(self, species: str, role: str) -> None:
         if self.applying_roles:
             return
         self.state.edit_role(species, "role_editor" if role else None)
 
     def apply_role_suggestions(self) -> None:
-        if not any(suggestion.available for suggestion in self.state.suggestions.values()):
+        if not any(
+            suggestion.suggested_role is not None
+            for suggestion in self.state.suggestions.values()
+        ):
             QMessageBox.information(
                 self.parent,
                 "Species Role Suggestions",

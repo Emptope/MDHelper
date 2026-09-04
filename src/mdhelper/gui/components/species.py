@@ -26,14 +26,12 @@ from mdhelper.gui.components.layout import ActionBar
 class SpeciesPanel(QGroupBox):
     suggestions_requested = Signal()
     suggestions_cancelled = Signal()
-    help_requested = Signal()
-    details_requested = Signal(object)
+    details_requested = Signal()
     role_edited = Signal(str, str)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__("Species and Roles", parent)
         layout = QVBoxLayout(self)
-        self._suggestions: dict[str, SpeciesRoleSuggestion] = {}
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(("Species", "Numbers", "Role", "Role suggestion"))
         header = self.table.horizontalHeader()
@@ -51,15 +49,10 @@ class SpeciesPanel(QGroupBox):
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.setEnabled(False)
         self.cancel_button.clicked.connect(self.suggestions_cancelled)
-        self.help_button = QPushButton("Help")
-        self.help_button.clicked.connect(self.help_requested)
         self.details_button = QPushButton("Detail Suggestions")
         self.details_button.setEnabled(False)
-        self.details_button.clicked.connect(
-            lambda: self.details_requested.emit(dict(self._suggestions))
-        )
+        self.details_button.clicked.connect(self.details_requested)
         controls = ActionBar()
-        controls.add_leading_button(self.help_button)
         controls.add_button(self.details_button)
         controls.add_button(self.cancel_button)
         controls.add_button(self.apply_button, primary=True)
@@ -86,7 +79,6 @@ class SpeciesPanel(QGroupBox):
         return roles
 
     def set_summary(self, summary: SystemSummary, existing_roles: dict[str, str]) -> None:
-        self._suggestions = dict(summary.role_suggestions)
         self.table.setRowCount(len(summary.species))
         for row, (species, count) in enumerate(summary.species.items()):
             self.table.setItem(row, 0, QTableWidgetItem(species))
@@ -106,7 +98,10 @@ class SpeciesPanel(QGroupBox):
                 lambda selected, current=species: self.role_edited.emit(current, selected)
             )
             self.table.setCellWidget(row, 2, role)
-        available = any(suggestion.available for suggestion in summary.role_suggestions.values())
+        available = any(
+            suggestion.suggested_role is not None
+            for suggestion in summary.role_suggestions.values()
+        )
         self.apply_button.setEnabled(available)
         self.cancel_button.setEnabled(available)
         self.details_button.setEnabled(bool(summary.role_suggestions))
@@ -145,7 +140,6 @@ class SpeciesPanel(QGroupBox):
                 role.setCurrentIndex(0)
 
     def clear(self) -> None:
-        self._suggestions.clear()
         self.table.setRowCount(0)
         self.apply_button.setEnabled(False)
         self.cancel_button.setEnabled(False)
