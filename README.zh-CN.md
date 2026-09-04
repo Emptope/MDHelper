@@ -1,4 +1,8 @@
-# MDHelper
+<h1 align="center">MDHelper</h1>
+
+<p align="center">
+  <img src="src/mdhelper/resources/icons/mdhelper.png" alt="MDHelper icon" width="128">
+</p>
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
@@ -7,7 +11,7 @@
 MDHelper 是一款为分子动力学模拟设计的本地数据后处理应用。它旨在简化繁琐的分析流程，整合多种工具链，并提供快速、可复现的数据分析、绘图与导出功能。
 
 > [!NOTE]
-> MDHelper 目前处于 **0.1.0** 快速开发阶段。
+> MDHelper 目前处于快速开发阶段。
 
 ---
 

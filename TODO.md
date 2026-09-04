@@ -11,8 +11,7 @@
 
 ## 已完成
 
-- [Fix] Initialize Python 3.12 in the release publishing job.
-- [Fix] Repair Linux GitHub Actions validation dependencies.
+- [Feature] 增加 ico
 
 ## 完成标准（每轮代码改动后需重新确认）
 

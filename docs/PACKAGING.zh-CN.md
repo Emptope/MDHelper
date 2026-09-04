@@ -20,12 +20,13 @@ executable 和 archive 不得超过 256 MB。
 
 ```bash
 uv sync --frozen --group dev
+uv run python packaging/clean_build.py
 uv build
 uv run python packaging/verify_wheel.py dist/mdhelper-0.1.0-py3-none-any.whl
 ```
 
-构建会先创建 sdist，再从该干净源码归档构建 wheel，避免陈旧本地构建目录混入 wheel。审计比较
-package 与源码中的模块和资源，并检查大小。在干净环境中测试 wheel：
+每次构建前必须先删除仓库的 `build` 目录。随后构建会先创建 sdist，再从该干净源码归档构建
+wheel。审计比较 package 与源码中的模块和资源，并检查大小。在干净环境中测试 wheel：
 
 ```bash
 uv venv --python 3.12 /tmp/mdhelper-wheel-test
@@ -100,7 +101,7 @@ Dependabot 每周将依赖和工作流 action 更新各自分组为 pull request
 uv sync --frozen --group dev
 uv run python packaging/check_release.py
 uv run ruff check conftest.py packaging src tests
-uv run mypy src packaging/check_release.py
+uv run mypy src packaging/check_release.py packaging/clean_build.py
 uv run pytest -q
 ```
 

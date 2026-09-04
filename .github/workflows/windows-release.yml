@@ -34,7 +34,7 @@ jobs:
       - name: Validate source
         run: |
           uv run ruff check conftest.py packaging src tests
-          uv run mypy src packaging/check_release.py
+          uv run mypy src packaging/check_release.py packaging/clean_build.py
           uv run pytest -q
       - name: Build and validate Windows archive
         shell: pwsh

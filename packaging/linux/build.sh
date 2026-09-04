@@ -7,6 +7,7 @@ project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 release_output="$project_root/dist/linux"
 work_root="$project_root/build/pyinstaller-linux"
 version=$($python -c 'import mdhelper; print(mdhelper.__version__)')
+"$python" "$project_root/packaging/clean_build.py" --root "$project_root"
 stage=$(mktemp -d)
 export MPLCONFIGDIR="$work_root/matplotlib"
 

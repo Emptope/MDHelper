@@ -3,6 +3,8 @@ from pathlib import Path
 project_root = Path(SPECPATH).parents[1]
 source_root = project_root / "src"
 template_root = source_root / "mdhelper" / "resources" / "templates"
+icon_root = source_root / "mdhelper" / "resources" / "icons"
+application_icon = icon_root / "mdhelper.ico"
 hook_root = project_root / "packaging" / "hooks"
 figure_backends = [
     "matplotlib.backends.backend_agg",
@@ -32,7 +34,10 @@ excluded_modules = [
 common = {
     "pathex": [str(source_root)],
     "binaries": [],
-    "datas": [(str(template_root), "mdhelper/resources/templates")],
+    "datas": [
+        (str(template_root), "mdhelper/resources/templates"),
+        (str(icon_root), "mdhelper/resources/icons"),
+    ],
     "hiddenimports": common_hidden,
     "hookspath": [str(hook_root)],
     "hooksconfig": {},
@@ -103,4 +108,5 @@ application = EXE(
     upx=True,
     console=True,
     hide_console="hide-early",
+    icon=str(application_icon),
 )

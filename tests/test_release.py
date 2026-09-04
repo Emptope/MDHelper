@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 SCRIPT = Path(__file__).parents[1] / "packaging" / "check_release.py"
+CLEAN_SCRIPT = Path(__file__).parents[1] / "packaging" / "clean_build.py"
 
 
 def write_metadata(root: Path, project_version: str, source_version: str) -> None:
@@ -24,6 +25,41 @@ def run_check(root: Path, tag: str | None = None) -> subprocess.CompletedProcess
     if tag is not None:
         command.extend(("--tag", tag))
     return subprocess.run(command, capture_output=True, check=False, text=True)
+
+
+def test_build_cleanup_removes_only_generated_tree(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[build-system]\n", encoding="utf-8")
+    build = tmp_path / "build"
+    build.mkdir()
+    (build / "stale.txt").write_text("stale", encoding="utf-8")
+    source = tmp_path / "source.txt"
+    source.write_text("keep", encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(CLEAN_SCRIPT), "--root", str(tmp_path)],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert not build.exists()
+    assert source.read_text(encoding="utf-8") == "keep"
+
+
+def test_build_cleanup_rejects_non_project_root(tmp_path: Path) -> None:
+    build = tmp_path / "build"
+    build.mkdir()
+
+    result = subprocess.run(
+        [sys.executable, str(CLEAN_SCRIPT), "--root", str(tmp_path)],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert build.is_dir()
 
 
 def test_release_check_accepts_matching_versions_and_tag(tmp_path: Path) -> None:

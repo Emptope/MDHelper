@@ -8,10 +8,8 @@ from pathlib import Path, PurePosixPath
 
 ROOT_MODULES = {"__init__.py", "__main__.py", "version.py"}
 SOURCE_PACKAGE_ROOT = Path(__file__).parents[1] / "src" / "mdhelper"
-SOURCE_TEMPLATE_ROOT = (
-    SOURCE_PACKAGE_ROOT / "resources" / "templates"
-)
-WHEEL_TEMPLATE_ROOT = PurePosixPath("mdhelper/resources/templates")
+SOURCE_RESOURCE_ROOT = SOURCE_PACKAGE_ROOT / "resources"
+WHEEL_RESOURCE_ROOT = PurePosixPath("mdhelper/resources")
 MAX_WHEEL_BYTES = 256_000_000
 
 
@@ -42,9 +40,9 @@ def wheel_modules(wheel: Path) -> set[PurePosixPath]:
         }
 
 
-def source_templates(root: Path = SOURCE_TEMPLATE_ROOT) -> set[PurePosixPath]:
+def source_resources(root: Path = SOURCE_RESOURCE_ROOT) -> set[PurePosixPath]:
     return {
-        WHEEL_TEMPLATE_ROOT / path.relative_to(root).as_posix()
+        WHEEL_RESOURCE_ROOT / path.relative_to(root).as_posix()
         for path in root.rglob("*")
         if path.is_file()
         and not any(part.startswith(".") for part in path.relative_to(root).parts)
@@ -70,14 +68,14 @@ def verify(wheel: Path) -> None:
         raise SystemExit(
             f"Wheel modules do not match source: unexpected={unexpected}, missing={missing}"
         )
-    expected_templates = source_templates()
-    if not expected_templates:
-        raise SystemExit("No source templates were discovered.")
+    expected_resources = source_resources()
+    if not expected_resources:
+        raise SystemExit("No source resources were discovered.")
     with zipfile.ZipFile(wheel) as archive:
         archive_files = {PurePosixPath(name) for name in archive.namelist()}
-        missing_templates = sorted(expected_templates - archive_files)
-    if missing_templates:
-        raise SystemExit(f"Wheel templates are missing: {missing_templates}")
+        missing_resources = sorted(expected_resources - archive_files)
+    if missing_resources:
+        raise SystemExit(f"Wheel resources are missing: {missing_resources}")
 
 
 def main() -> int:

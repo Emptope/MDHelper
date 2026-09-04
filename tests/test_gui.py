@@ -116,6 +116,16 @@ def test_gui_does_not_detect_unconfigured_gromacs(
     window.close()
 
 
+def test_gui_uses_application_icon() -> None:
+    application = QApplication.instance() or QApplication([])
+
+    window = MainWindow()
+
+    assert not application.windowIcon().isNull()
+    assert window.windowIcon().cacheKey() == application.windowIcon().cacheKey()
+    window.close()
+
+
 def test_gui_requires_check_for_sampled_gromacs_rdf(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

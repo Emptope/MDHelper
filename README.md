@@ -1,4 +1,8 @@
-# MDHelper
+<h1 align="center">MDHelper</h1>
+
+<p align="center">
+  <img src="src/mdhelper/resources/icons/mdhelper.png" alt="MDHelper icon" width="128">
+</p>
 
 [English](README.md) | [Simplified Chinese](README.zh-CN.md)
 
@@ -7,7 +11,7 @@
 MDHelper is a local data post-processing application designed for molecular dynamics simulations. It aims to simplify tedious analysis workflows, integrate multiple toolchains, and provide fast, reproducible data analysis, plotting, and export capabilities.
 
 > [!NOTE]
-> MDHelper is currently under rapid **0.1.0** development.
+> MDHelper is currently under rapid development.
 
 ---
 

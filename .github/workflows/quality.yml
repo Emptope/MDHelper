@@ -43,7 +43,7 @@ jobs:
       - name: Lint
         run: uv run ruff check conftest.py packaging src tests
       - name: Type check
-        run: uv run mypy src packaging/check_release.py
+        run: uv run mypy src packaging/check_release.py packaging/clean_build.py
       - name: Test
         run: uv run pytest -q
       - name: Verify headless Linux CLI
@@ -54,6 +54,7 @@ jobs:
           uv run python -c "import importlib.util; assert importlib.util.find_spec('PySide6') is None"
           env -u DISPLAY uv run mdhelper --version
           env -u DISPLAY uv run mdhelper tui --smoke-test
+          uv run python packaging/clean_build.py
           uv build
           uv run python packaging/verify_wheel.py "$wheel"
           uv run python packaging/generate_notices.py --output dist/THIRD_PARTY_NOTICES.json

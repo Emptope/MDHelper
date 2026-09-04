@@ -38,12 +38,13 @@ jobs:
       - name: Validate source
         run: |
           uv run ruff check conftest.py packaging src tests
-          uv run mypy src packaging/check_release.py
+          uv run mypy src packaging/check_release.py packaging/clean_build.py
           uv run pytest -q
       - name: Build and smoke test wheel
         run: |
           version=$(uv run python packaging/check_release.py)
           wheel="dist/mdhelper-${version}-py3-none-any.whl"
+          uv run python packaging/clean_build.py
           uv build
           uv run python packaging/verify_wheel.py "$wheel"
           uv run python packaging/generate_notices.py \

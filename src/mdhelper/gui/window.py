@@ -15,6 +15,7 @@ from mdhelper.gui.actions.backend import BackendActions
 from mdhelper.gui.actions.project import ProjectActions
 from mdhelper.gui.actions.results import ResultActions
 from mdhelper.gui.actions.system import SystemActions
+from mdhelper.gui.assets import application_icon
 from mdhelper.gui.controllers.analysis_jobs import AnalysisJobController
 from mdhelper.gui.controllers.analysis_runs import RunCompletion
 from mdhelper.gui.controllers.session import ProjectSession
@@ -48,6 +49,7 @@ class MainWindow(QMainWindow):
         qt_application = QApplication.instance()
         if isinstance(qt_application, QApplication):
             configure_ui_font(qt_application, application.config.gui.font_size)
+            qt_application.setWindowIcon(application_icon())
         super().__init__()
         self.application = application
         self.theme = theme_controller()

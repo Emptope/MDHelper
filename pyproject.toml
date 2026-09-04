@@ -52,7 +52,7 @@ mdhelper = "mdhelper.bootstrap.portable:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-mdhelper = ["resources/templates/**/*"]
+mdhelper = ["resources/**/*"]
 
 [tool.setuptools.data-files]
 "share/mdhelper" = ["config.example.toml", "README.md", "README.zh-CN.md"]

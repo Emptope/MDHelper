@@ -23,9 +23,9 @@ $work = Join-Path $projectRoot "build/pyinstaller-windows"
 $version = (& $Python -c "import mdhelper; print(mdhelper.__version__)").Trim()
 if ($LASTEXITCODE -ne 0) { throw "Could not determine the MDHelper version." }
 
-if (Test-Path $stage) {
-    [IO.Directory]::Delete($stage, $true)
-}
+& $Python (Join-Path $projectRoot "packaging/clean_build.py") --root $projectRoot
+if ($LASTEXITCODE -ne 0) { throw "Could not clean the build directory." }
+
 if (Test-Path $releaseOutput) {
     [IO.Directory]::Delete($releaseOutput, $true)
 }

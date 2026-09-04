@@ -20,12 +20,13 @@ Build and audit with Python 3.12 or newer and the locked `uv` version:
 
 ```bash
 uv sync --frozen --group dev
+uv run python packaging/clean_build.py
 uv build
 uv run python packaging/verify_wheel.py dist/mdhelper-0.1.0-py3-none-any.whl
 ```
 
-The build creates an sdist and then builds the wheel from that clean source archive, preventing a
-stale local build tree from entering the wheel. The audit compares packaged modules and resources
+Every build must remove the repository `build` directory first. The build then creates an sdist and
+builds the wheel from that clean source archive. The audit compares packaged modules and resources
 with the source tree and checks size. Test the wheel in a clean environment:
 
 ```bash
@@ -106,7 +107,7 @@ run:
 uv sync --frozen --group dev
 uv run python packaging/check_release.py
 uv run ruff check conftest.py packaging src tests
-uv run mypy src packaging/check_release.py
+uv run mypy src packaging/check_release.py packaging/clean_build.py
 uv run pytest -q
 ```
 
