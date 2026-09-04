@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mdhelper"
-version = "0.1.0"
-description = "Reproducible GROMACS trajectory analysis for RDF, cumulative coordination, and energy"
+version = "0.1.1"
+description = "Local data post-processing and visualization for molecular dynamics simulations"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "GPL-2.0"

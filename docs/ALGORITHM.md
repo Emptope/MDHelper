@@ -2,7 +2,7 @@
 
 [English](ALGORITHM.md) | [Simplified Chinese](ALGORITHM.zh-CN.md)
 
-This document defines implemented engineering behavior for MDHelper 0.1.0. The versioned
+This document defines implemented engineering behavior for MDHelper. The versioned
 [method documents](methods/README.md) are normative for scientific quantities and formulas.
 
 ## Conventions

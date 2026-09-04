@@ -82,7 +82,7 @@ class AnalysisResult:
             raise ConfigurationError(
                 "The analysis result does not contain its versioned analysis request.",
                 "This result cannot reconstruct the analysis configuration required by "
-                "MDHelper 0.1.0.",
+                "the current result schema.",
             )
         try:
             request = AnalysisRequest.from_dict(self.request)

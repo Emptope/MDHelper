@@ -2,8 +2,7 @@
 
 [English](cumulative-rdf-1.0.0.md) | [Simplified Chinese](cumulative-rdf-1.0.0.zh-CN.md)
 
-Status: released for MDHelper 0.1.0. The analysis type is `cumulative_rdf`; the CLI command is
-`cumulative-rdf`.
+The analysis type is `cumulative_rdf`; the CLI command is `cumulative-rdf`.
 
 ## Definition
 

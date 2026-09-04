@@ -46,6 +46,7 @@ uv run mdhelper analyze cumulative-rdf \
 
 径向命令支持 `--start`、`--stop`、`--stride`、`--analysis-backend` 和 `--figures false`。
 `stride` 从 `start` 开始按帧计数。
+进程内格式支持取决于内置 MDAnalysis，不支持 TNG。
 
 提取 EDR series：
 
@@ -72,10 +73,8 @@ uv run mdhelper templates list
 向 `inspect` 或 `analyze` 传入 `--project analysis-project`，即可使用已校验的项目输入并提交
 结果。
 
-检查 Project 时会递归扫描所有子目录中的 `.itp` 文件。匹配的 `[ moleculetype ]` name 根据其
-`[ atoms ]` charge 加和提供角色建议。确认前可以检查或修改每条建议；找不到匹配的 `.itp` 定义
-时必须手动选择角色。只有确认后的角色会保存，建议详情只存在于当前 session。
-所有 species 均匹配时，如果推断的体系总电荷超出 `1e-6 e` 中性容差，GUI 还会弹出警告。
+Project 检查会根据 `.itp` 电荷数据提供角色建议。匹配、确认和选择规则见
+[选择与物种角色](SELECTIONS.zh-CN.md#物种角色)。
 
 ## GUI Workflow
 

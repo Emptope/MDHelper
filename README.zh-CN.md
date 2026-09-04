@@ -4,7 +4,10 @@
   <img src="src/mdhelper/resources/icons/mdhelper.png" alt="MDHelper icon" width="128">
 </p>
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+<p align="center">
+  <a href="README.md">English</a> |
+  <a href="README.zh-CN.md">简体中文</a>
+</p>
 
 > **面向分子动力学 (MD) 模拟的本地数据后处理与可视化工具**
 
@@ -76,16 +79,12 @@ MDHelper 能够自动识别并集成系统环境中安装的第三方分子模�
 
 ## 文档指南
 
-> 项目文档由 gpt-5.6-sol 辅助生成并持续维护优化中。
-
 - [使用说明](docs/USAGE.zh-CN.md)
 - [配置说明](docs/CONFIGURATION.zh-CN.md)
-- [选择规则](docs/SELECTIONS.zh-CN.md)
-- [已知限制](docs/KNOWN_LIMITATIONS.zh-CN.md)
-- [软件设计目标](docs/SOFTWARE_DESIGN_GOALS.zh-CN.md)
-- [软件架构](docs/ARCHITECTURE.zh-CN.md)
+- [选择与物种角色](docs/SELECTIONS.zh-CN.md)
+- [方法版本与验证](docs/methods/README.zh-CN.md)
 - [算法说明](docs/ALGORITHM.zh-CN.md)
-- [物种角色](docs/SPECIES.zh-CN.md)
+- [软件架构](docs/ARCHITECTURE.zh-CN.md)
 - [打包说明](docs/PACKAGING.zh-CN.md)
 
 ## 许可证

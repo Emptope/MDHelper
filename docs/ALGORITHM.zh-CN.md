@@ -2,7 +2,7 @@
 
 [English](ALGORITHM.md) | [简体中文](ALGORITHM.zh-CN.md)
 
-本文定义 MDHelper 0.1.0 的工程实现行为。科学量和公式以带版本的
+本文定义 MDHelper 的工程实现行为。科学量和公式以带版本的
 [方法文档](methods/README.zh-CN.md) 为准。
 
 ## 约定

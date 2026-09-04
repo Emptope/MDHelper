@@ -2,16 +2,13 @@
 
 [English](CONFIGURATION.md) | [简体中文](CONFIGURATION.zh-CN.md)
 
-MDHelper 使用带 schema version 的 TOML 文件，并拒绝未知字段和非法值。
+MDHelper 使用带 schema version 的 TOML 文件。
 
 配置解析顺序如下：
 
 1. CLI `--settings`。
 2. `MDHELPER_CONFIG`。
 3. 可执行程序或 Python runtime 同目录的 `config.toml`。
-
-便携归档包含第三个路径。机器相关的可执行路径属于该文件，不进入 project manifest。
-`MDHELPER_LOG` 覆盖平台用户日志路径。日志失败不覆盖原始错误。
 
 ## GUI
 
@@ -77,6 +74,7 @@ GROMACS 使用 `MDHELPER_GROMACS`、`GMXBIN` 下的候选，以及 `PATH` 中的
 检测验证身份、版本和 capability。执行使用 argv、`shell=False`、工作目录、受限环境、超时、
 取消和 run record。记录包含 executable、版本、argv、工作目录、环境摘要、exit code、捕获的
 stream、耗时、状态和输出 hash。
+GROMACS 是可选依赖，不同受支持版本的外部 Backend 结果可能存在差异。
 
 Windows **Tools > Integrations** 编辑并检测 Integration。当前会话检测成功或保存路径非空后，
 分析选择器显示 GROMACS。

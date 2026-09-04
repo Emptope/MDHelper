@@ -11,8 +11,7 @@
 | Windows x64 | ZIP | GUI, TUI, CLI | Included |
 | Python | Wheel | Platform-dependent | Linux uses optional `gui` extra |
 
-Portable archives contain one executable, documentation, and a colocated editable `config.toml`.
-They do not include GROMACS. Each wheel, executable, and archive must not exceed 256 MB.
+Portable archives contain one executable, documentation, and a colocated editable `config.toml`. Each wheel, executable, and archive must not exceed 256 MB.
 
 ## Wheel
 
@@ -22,7 +21,8 @@ Build and audit with Python 3.12 or newer and the locked `uv` version:
 uv sync --frozen --group dev
 uv run python packaging/clean_build.py
 uv build
-uv run python packaging/verify_wheel.py dist/mdhelper-0.1.0-py3-none-any.whl
+wheel="dist/mdhelper-$(uv run python packaging/check_release.py)-py3-none-any.whl"
+uv run python packaging/verify_wheel.py "$wheel"
 ```
 
 Every build must remove the repository `build` directory first. The build then creates an sdist and
@@ -30,9 +30,9 @@ builds the wheel from that clean source archive. The audit compares packaged mod
 with the source tree and checks size. Test the wheel in a clean environment:
 
 ```bash
+wheel="dist/mdhelper-$(uv run python packaging/check_release.py)-py3-none-any.whl"
 uv venv --python 3.12 /tmp/mdhelper-wheel-test
-uv pip install --python /tmp/mdhelper-wheel-test/bin/python \
-  ./dist/mdhelper-0.1.0-py3-none-any.whl
+uv pip install --python /tmp/mdhelper-wheel-test/bin/python "$wheel"
 /tmp/mdhelper-wheel-test/bin/mdhelper --version
 /tmp/mdhelper-wheel-test/bin/mdhelper cli --help
 ```
@@ -40,8 +40,9 @@ uv pip install --python /tmp/mdhelper-wheel-test/bin/python \
 Linux GUI installation adds the extra:
 
 ```bash
+wheel="dist/mdhelper-$(uv run python packaging/check_release.py)-py3-none-any.whl"
 uv pip install --python /tmp/mdhelper-wheel-test/bin/python \
-  "./dist/mdhelper-0.1.0-py3-none-any.whl[gui]"
+  "${wheel}[gui]"
 QT_QPA_PLATFORM=offscreen /tmp/mdhelper-wheel-test/bin/mdhelper gui --smoke-test
 ```
 
@@ -57,8 +58,8 @@ PYTHON=.venv/bin/python ./packaging/linux/build.sh
 Outputs:
 
 ```text
-dist/linux/MDHelper-0.1.0-Linux-x86_64.tar.gz
-dist/linux/MDHelper-0.1.0-Linux-x86_64-GUI.tar.gz
+dist/linux/MDHelper-<version>-Linux-x86_64.tar.gz
+dist/linux/MDHelper-<version>-Linux-x86_64-GUI.tar.gz
 ```
 
 The build audits payloads and size, extracts each archive, and checks version, TUI startup, headless
@@ -72,7 +73,7 @@ uv sync --frozen --group dev
 .\packaging\windows\build.ps1 -Python ".venv-windows\Scripts\python.exe"
 ```
 
-The output is `dist/windows/MDHelper-0.1.0-Windows-x64.zip`. The build extracts the ZIP and checks
+The output is `dist/windows/MDHelper-<version>-Windows-x64.zip`. The build extracts the ZIP and checks
 all interface modes, colocated configuration, and packaged resources. Keep `config.toml` beside
 `mdhelper.exe`. `--settings` and `MDHELPER_CONFIG` override it.
 
@@ -115,8 +116,9 @@ Once the required checks are green on `main`, create and push a version tag that
 the metadata:
 
 ```bash
-git tag -a v0.1.0 -m "MDHelper 0.1.0"
-git push origin v0.1.0
+version=$(uv run python packaging/check_release.py)
+git tag -a "v${version}" -m "MDHelper ${version}"
+git push origin "v${version}"
 ```
 
 The `Release` workflow rejects mismatched tags, builds the wheel and all three portable archives,

@@ -2,7 +2,7 @@
 
 [English](ARCHITECTURE.md) | [Simplified Chinese](ARCHITECTURE.zh-CN.md)
 
-This document defines package ownership, dependency rules, and runtime flow for MDHelper 0.1.0.
+This document defines package ownership, dependency rules, and runtime flow for MDHelper.
 
 ## Scope
 
@@ -123,7 +123,7 @@ MDAnalysis objects stay inside its adapters. GROMACS commands pass through `inte
 `core/analysis/` defines schema-version-1 requests and results. RDF and cumulative RDF use
 `RadialRequest`; energy uses `EnergyRequest`. Results contain the request, data, parameters, units,
 diagnostics, provenance, warnings, identity, method version, and creation time. Parsers reject
-unknown, missing, or inconsistent fields. Version 0.1.0 has no schema migration path.
+unknown, missing, or inconsistent fields.
 
 Adapters expose zero-based atom indices and frame ranges. Radial calculations store nm. Atom
 membership remains fixed during a run. Project `.itp` files provide advisory species-role evidence;
@@ -162,10 +162,8 @@ and stream fingerprints.
 
 - [Usage](USAGE.md) lists commands and workflows.
 - [Configuration](CONFIGURATION.md) defines settings.
-- [Selections](SELECTIONS.md) defines selection input.
+- [Selections](SELECTIONS.md) defines selection input and species roles.
 - [Algorithm](ALGORITHM.md) defines implemented behavior.
-- [Methods](methods/README.md) defines released calculations.
+- [Methods](methods/README.md) defines versioned calculations.
 - [Validation](validation/) records checks and limits.
-- [Known limitations](KNOWN_LIMITATIONS.md) records unsupported behavior.
-- [Design goals](SOFTWARE_DESIGN_GOALS.md) defines engineering constraints.
 - [Packaging](PACKAGING.md) defines release artifacts.

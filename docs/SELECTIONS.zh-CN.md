@@ -1,4 +1,4 @@
-# 原子与组选择
+# 选择与物种角色
 
 [English](SELECTIONS.md) | [简体中文](SELECTIONS.zh-CN.md)
 
@@ -50,3 +50,18 @@ GROMACS 自行解析 NDX；MDHelper 记录 group、路径和命令。
 RDF 方法要求固定 atom identity。MDAnalysis 拒绝 `around`、`sphzone`、`sphlayer`、
 `isolayer`、`cyzone`、`cylayer`、`point`、`prop` 和 `same x/y/z as`。动态选择需要独立的
 method version。
+
+## 物种角色
+
+`mdhelper inspect` 按 topology residue identity 划分 species，按 topology 产生的
+`molecule_id` 划分 molecule。程序递归扫描 project 中的 `.itp` 文件，将 residue name
+与 `[ moleculetype ]` name 匹配。直接加载文件时从 trajectory 所在目录扫描。
+
+程序使用 decimal arithmetic 累加匹配的 `[ atoms ]` charge。结果大于 `+1e-6 e`
+时建议 `cation`，小于 `-1e-6 e` 时建议 `anion`，在该容差内时建议 `solvent`。
+只含参数的文件会被忽略。定义缺失时不产生建议；损坏、重复或依赖 preprocessor 的定义
+会直接报错。所有 species 均匹配时，如果推断的体系总电荷超过 `1e-6 e`，GUI 会弹出警告。
+
+建议仅供参考且只存在于当前 session。CLI 接受
+`--roles '{LI: cation, SOL: solvent}'`；TUI 和 GUI 允许审查和修改。只有确认后的角色会存入
+request 和 project manifest。角色只提供 metadata，不创建选择、决定参数或修改结果。

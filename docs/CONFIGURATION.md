@@ -2,17 +2,13 @@
 
 [English](CONFIGURATION.md) | [Simplified Chinese](CONFIGURATION.zh-CN.md)
 
-MDHelper uses a schema-versioned TOML file. It rejects unknown fields and invalid values.
+MDHelper uses a schema-versioned TOML file.
 
 Configuration resolution order is:
 
 1. CLI `--settings`.
 2. `MDHELPER_CONFIG`.
 3. `config.toml` beside the executable or Python runtime.
-
-Portable archives include the third path. Machine-specific executable paths belong in this file,
-not in project manifests. `MDHELPER_LOG` overrides the platform user-log path. Logging failure does
-not replace the original error.
 
 ## GUI
 
@@ -81,6 +77,7 @@ Detection verifies identity, version, and capabilities. Execution uses argv, `sh
 working directory, a restricted environment, timeout and cancellation, and a run record. The
 record contains the executable, version, argv, working directory, environment summary, exit code,
 captured streams, duration, status, and output hashes.
+GROMACS is optional, and supported versions can produce different external-backend results.
 
 On Windows, **Tools > Integrations** edits and detects integrations. The analysis selector exposes
 GROMACS after detection in the current session or when the saved path is non-empty.

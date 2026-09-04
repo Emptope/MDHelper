@@ -2,8 +2,6 @@
 
 [English](rdf-1.0.0.md) | [简体中文](rdf-1.0.0.zh-CN.md)
 
-状态：随 MDHelper 0.1.0 发布。
-
 ## 定义
 
 固定 reference 集合 A、selection 集合 B、第 `f` 帧和请求 bin width `d` 时，sample `k` 以

@@ -4,7 +4,10 @@
   <img src="src/mdhelper/resources/icons/mdhelper.png" alt="MDHelper icon" width="128">
 </p>
 
-[English](README.md) | [Simplified Chinese](README.zh-CN.md)
+<p align="center">
+  <a href="README.md">English</a> |
+  <a href="README.zh-CN.md">Simplified Chinese</a>
+</p>
 
 > **A local data post-processing and visualization tool for molecular dynamics (MD) simulations**
 
@@ -75,16 +78,12 @@ For detailed configuration instructions, see [Configuration](docs/CONFIGURATION.
 
 ## Documentation Guide
 
-> The project documentation is generated with assistance from gpt-5.6-sol and is under continuous maintenance and improvement.
-
 - [Usage](docs/USAGE.md)
 - [Configuration](docs/CONFIGURATION.md)
-- [Selection Rules](docs/SELECTIONS.md)
-- [Known Limitations](docs/KNOWN_LIMITATIONS.md)
-- [Software Design Goals](docs/SOFTWARE_DESIGN_GOALS.md)
-- [Software Architecture](docs/ARCHITECTURE.md)
+- [Selections and Species Roles](docs/SELECTIONS.md)
+- [Versioned Methods and Validation](docs/methods/README.md)
 - [Algorithm Details](docs/ALGORITHM.md)
-- [Species Roles](docs/SPECIES.md)
+- [Software Architecture](docs/ARCHITECTURE.md)
 - [Packaging](docs/PACKAGING.md)
 
 ## License

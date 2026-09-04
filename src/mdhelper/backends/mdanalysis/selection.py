@@ -26,7 +26,7 @@ def _validate_static(expression: str) -> None:
     dynamic = sorted(tokens.intersection(_DYNAMIC_KEYWORDS))
     if dynamic or re.search(r"\bsame\s+[xyz]\s+as\b", expression, flags=re.IGNORECASE):
         raise SelectionError(
-            "Coordinate-dependent atom selections are not supported in MDHelper 0.1.0.",
+            "Coordinate-dependent atom selections are not supported.",
             "Use a topology-stable MDAnalysis selection. Dynamic spatial identity would "
             "change by frame and requires a separately versioned analysis method.",
             {"expression": expression, "coordinate_dependent_tokens": dynamic},

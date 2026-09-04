@@ -2,8 +2,7 @@
 
 [English](cumulative-rdf-1.0.0.md) | [简体中文](cumulative-rdf-1.0.0.zh-CN.md)
 
-状态：随 MDHelper 0.1.0 发布。Analysis type 为 `cumulative_rdf`，CLI 命令为
-`cumulative-rdf`。
+Analysis type 为 `cumulative_rdf`，CLI 命令为 `cumulative-rdf`。
 
 ## 定义
 

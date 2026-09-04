@@ -46,6 +46,7 @@ uv run mdhelper analyze cumulative-rdf \
 
 Radial commands accept `--start`, `--stop`, `--stride`, `--analysis-backend`, and
 `--figures false`. `stride` counts frames relative to `start`.
+In-process format support follows the bundled MDAnalysis version; TNG is unsupported.
 
 Extract EDR series:
 
@@ -72,12 +73,9 @@ uv run mdhelper templates list
 Pass `--project analysis-project` to `inspect` or `analyze` to use verified project inputs and
 commit the result.
 
-Project inspection recursively scans all subdirectories for `.itp` files. A matching
-`[ moleculetype ]` name provides an advisory role from the sum of its `[ atoms ]` charges. Review
-or change every suggestion before confirmation. When no matching `.itp` definition is found, select
-the role manually. Only confirmed roles are saved; suggestion details remain in the current session.
-When all species are matched, GUI inspection also warns if the inferred system net charge lies
-outside the `1e-6 e` neutrality tolerance.
+Project inspection offers advisory roles from `.itp` charge data. See
+[Selections and species roles](SELECTIONS.md#species-roles) for matching, confirmation, and
+selection rules.
 
 ## GUI workflows
 

@@ -2,7 +2,7 @@
 
 [English](ARCHITECTURE.md) | [简体中文](ARCHITECTURE.zh-CN.md)
 
-本文定义 MDHelper 0.1.0 的包职责、依赖规则和运行流程。
+本文定义 MDHelper 的包职责、依赖规则和运行流程。
 
 ## 范围
 
@@ -117,8 +117,7 @@ MDAnalysis 对象不离开对应适配器。GROMACS 命令经过 `integrations` 
 
 `core/analysis/` 定义 schema version 1 的 request 和 result。RDF 与累积 RDF 使用
 `RadialRequest`，energy 使用 `EnergyRequest`。Result 包含 request、数据、参数、单位、诊断、
-provenance、警告、身份、方法版本和创建时间。解析器拒绝未知、缺失或不一致的字段。0.1.0
-不提供 schema 迁移。
+provenance、警告、身份、方法版本和创建时间。解析器拒绝未知、缺失或不一致的字段。
 
 适配器输出零基原子索引和帧范围。径向计算存储 nm。分析期间原子成员不变。Project `.itp`
 文件提供物种角色参考证据；建议只存在于当前 session，确认后的角色存入 request 和 project
@@ -152,10 +151,8 @@ Manifest 保存版本、输入身份、确认后的物种角色、结果索引�
 
 - [使用说明](USAGE.zh-CN.md) 列出命令和流程。
 - [配置](CONFIGURATION.zh-CN.md) 定义设置。
-- [选择](SELECTIONS.zh-CN.md) 定义选择输入。
+- [选择](SELECTIONS.zh-CN.md) 定义选择输入和物种角色。
 - [算法](ALGORITHM.zh-CN.md) 定义实现行为。
-- [方法](methods/README.zh-CN.md) 定义已发布计算。
+- [方法](methods/README.zh-CN.md) 定义带版本的计算。
 - [验证](validation/) 记录检查和限制。
-- [已知限制](KNOWN_LIMITATIONS.zh-CN.md) 记录未支持行为。
-- [设计目标](SOFTWARE_DESIGN_GOALS.zh-CN.md) 定义工程约束。
 - [打包](PACKAGING.zh-CN.md) 定义发布产物。

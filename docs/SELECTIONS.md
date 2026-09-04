@@ -1,4 +1,4 @@
-# Atom and group selection
+# Selections and species roles
 
 [English](SELECTIONS.md) | [Simplified Chinese](SELECTIONS.zh-CN.md)
 
@@ -51,3 +51,20 @@ error. Custom aliases such as `species` and `molecule` are unsupported.
 RDF methods require fixed atom identity. MDAnalysis rejects `around`, `sphzone`, `sphlayer`,
 `isolayer`, `cyzone`, `cylayer`, `point`, `prop`, and `same x/y/z as`. Dynamic selection requires a
 separate method version.
+
+## Species roles
+
+`mdhelper inspect` groups species by topology residue identity and molecules by topology-derived
+`molecule_id`. It recursively scans project `.itp` files and matches residue names to
+`[ moleculetype ]` names. For loose input files, it scans from the trajectory directory.
+
+The matching `[ atoms ]` charges are summed with decimal arithmetic. Values above `+1e-6 e`
+suggest `cation`, values below `-1e-6 e` suggest `anion`, and values within that tolerance suggest
+`solvent`. Parameter-only files are ignored. Missing definitions produce no suggestion; malformed,
+duplicated, or preprocessor-dependent definitions are rejected instead of guessed. When every
+species is matched, GUI inspection warns if the inferred system charge exceeds `1e-6 e`.
+
+Suggestions are advisory and session-only. CLI accepts
+`--roles '{LI: cation, SOL: solvent}'`; TUI and GUI allow review and changes. Only confirmed roles
+are stored in requests and project manifests. Roles provide metadata only and do not create
+selections, choose parameters, or change results.

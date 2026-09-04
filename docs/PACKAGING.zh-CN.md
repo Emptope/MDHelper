@@ -11,8 +11,7 @@
 | Windows x64 | ZIP | GUI、TUI、CLI | 包含 |
 | Python | Wheel | 取决于平台 | Linux 使用可选 `gui` extra |
 
-便携归档包含一个 executable、文档和同目录可编辑 `config.toml`，不包含 GROMACS。每个 wheel、
-executable 和 archive 不得超过 256 MB。
+便携归档包含一个 executable、文档和同目录可编辑 `config.toml`。每个 wheel、executable 和 archive 不得超过 256 MB。
 
 ## Wheel
 
@@ -22,16 +21,17 @@ executable 和 archive 不得超过 256 MB。
 uv sync --frozen --group dev
 uv run python packaging/clean_build.py
 uv build
-uv run python packaging/verify_wheel.py dist/mdhelper-0.1.0-py3-none-any.whl
+wheel="dist/mdhelper-$(uv run python packaging/check_release.py)-py3-none-any.whl"
+uv run python packaging/verify_wheel.py "$wheel"
 ```
 
 每次构建前必须先删除仓库的 `build` 目录。随后构建会先创建 sdist，再从该干净源码归档构建
 wheel。审计比较 package 与源码中的模块和资源，并检查大小。在干净环境中测试 wheel：
 
 ```bash
+wheel="dist/mdhelper-$(uv run python packaging/check_release.py)-py3-none-any.whl"
 uv venv --python 3.12 /tmp/mdhelper-wheel-test
-uv pip install --python /tmp/mdhelper-wheel-test/bin/python \
-  ./dist/mdhelper-0.1.0-py3-none-any.whl
+uv pip install --python /tmp/mdhelper-wheel-test/bin/python "$wheel"
 /tmp/mdhelper-wheel-test/bin/mdhelper --version
 /tmp/mdhelper-wheel-test/bin/mdhelper cli --help
 ```
@@ -39,8 +39,9 @@ uv pip install --python /tmp/mdhelper-wheel-test/bin/python \
 Linux GUI 安装增加 extra：
 
 ```bash
+wheel="dist/mdhelper-$(uv run python packaging/check_release.py)-py3-none-any.whl"
 uv pip install --python /tmp/mdhelper-wheel-test/bin/python \
-  "./dist/mdhelper-0.1.0-py3-none-any.whl[gui]"
+  "${wheel}[gui]"
 QT_QPA_PLATFORM=offscreen /tmp/mdhelper-wheel-test/bin/mdhelper gui --smoke-test
 ```
 
@@ -56,8 +57,8 @@ PYTHON=.venv/bin/python ./packaging/linux/build.sh
 产物为：
 
 ```text
-dist/linux/MDHelper-0.1.0-Linux-x86_64.tar.gz
-dist/linux/MDHelper-0.1.0-Linux-x86_64-GUI.tar.gz
+dist/linux/MDHelper-<version>-Linux-x86_64.tar.gz
+dist/linux/MDHelper-<version>-Linux-x86_64-GUI.tar.gz
 ```
 
 构建审计内容和大小，解压每个 archive，并检查版本、TUI 启动、headless fallback、配置、资源
@@ -71,7 +72,7 @@ uv sync --frozen --group dev
 .\packaging\windows\build.ps1 -Python ".venv-windows\Scripts\python.exe"
 ```
 
-产物为 `dist/windows/MDHelper-0.1.0-Windows-x64.zip`。构建解压 ZIP，并检查全部界面模式、
+产物为 `dist/windows/MDHelper-<version>-Windows-x64.zip`。构建解压 ZIP，并检查全部界面模式、
 同目录配置和 package 资源。`config.toml` 必须与 `mdhelper.exe` 同目录。`--settings` 和
 `MDHELPER_CONFIG` 可覆盖该路径。
 
@@ -108,8 +109,9 @@ uv run pytest -q
 确认 `main` 上的必需检查全部通过后，创建并推送与元数据完全一致的版本标签：
 
 ```bash
-git tag -a v0.1.0 -m "MDHelper 0.1.0"
-git push origin v0.1.0
+version=$(uv run python packaging/check_release.py)
+git tag -a "v${version}" -m "MDHelper ${version}"
+git push origin "v${version}"
 ```
 
 `Release` 工作流会拒绝不匹配的标签，构建 wheel 和三个便携式归档，并等待两个目标平台 job

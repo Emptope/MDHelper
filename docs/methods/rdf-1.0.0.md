@@ -2,8 +2,6 @@
 
 [English](rdf-1.0.0.md) | [Simplified Chinese](rdf-1.0.0.zh-CN.md)
 
-Status: released for MDHelper 0.1.0.
-
 ## Definition
 
 For fixed reference set A, selection set B, frame `f`, and requested bin width `d`, sample `k` is
