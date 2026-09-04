@@ -62,8 +62,7 @@ working-directory/
 
 ## 工作流设计 (Workflow)
 
-Workflow 以命名、有序的分析类型序列保存在 `config.toml` 中。序列内的项目各自保留其参数和绘图设置；用户确认配置后，MDHelper 按顺序将它们提交到标准分析队列，适合
-重复分析与批处理。
+Workflow 以命名、有序的分析类型序列保存在 `config.toml` 中。序列内的项目各自保留其参数和绘图设置；用户确认配置后，MDHelper 按顺序将它们提交到标准分析队列，适合重复分析与批处理。
 
 详细配置与操作请参阅 [配置说明](docs/CONFIGURATION.zh-CN.md#workflow) 和
 [使用说明](docs/USAGE.zh-CN.md#gui-workflow)。
