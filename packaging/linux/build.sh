@@ -40,7 +40,7 @@ build_variant() {
     local verified="$stage/verified-$variant"
     local notices=(
         "$project_root/packaging/generate_notices.py"
-        --output "$root/THIRD_PARTY_NOTICES.json"
+        --output "$root/licenses/THIRD_PARTY_NOTICES.json"
     )
 
     if [[ "$gui" == 1 ]]; then

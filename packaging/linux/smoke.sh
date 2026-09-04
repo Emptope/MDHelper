@@ -22,6 +22,12 @@ if [[ ${#executables[@]} -ne 1 ]]; then
     exit 1
 fi
 
+mapfile -t license_metadata < <(find "$distribution/licenses" -maxdepth 1 -type f -name '*.json')
+if [[ ${#license_metadata[@]} -ne 1 ]]; then
+    echo "Expected one license metadata file, found ${#license_metadata[@]}." >&2
+    exit 1
+fi
+
 "$application" --version
 "$application" tui --smoke-test
 if ! printf '3\n' | env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM "$application" >/dev/null; then

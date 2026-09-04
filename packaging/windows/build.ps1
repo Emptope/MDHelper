@@ -46,7 +46,7 @@ $application = Join-Path $applicationOutput "mdhelper.exe"
 if ($LASTEXITCODE -ne 0) { throw "Packaged executable audit failed." }
 
 & $Python (Join-Path $projectRoot "packaging/generate_notices.py") `
-    --output (Join-Path $applicationOutput "THIRD_PARTY_NOTICES.json")
+    --output (Join-Path $applicationOutput "licenses/THIRD_PARTY_NOTICES.json")
 if ($LASTEXITCODE -ne 0) { throw "Dependency notice generation failed." }
 
 Copy-Item (Join-Path $projectRoot "README.md") $applicationOutput -Force

@@ -18,6 +18,10 @@ if ($unexpectedExecutables.Count -ne 0) {
     $names = ($unexpectedExecutables.Name | Sort-Object) -join ", "
     throw "Unexpected packaged executables: $names"
 }
+$licenseMetadata = @(Get-ChildItem (Join-Path $distribution "licenses") -Filter "*.json" -File)
+if ($licenseMetadata.Count -ne 1) {
+    throw "Expected one license metadata file, found $($licenseMetadata.Count)."
+}
 $config = Join-Path $distribution "config.toml"
 if (-not (Test-Path -PathType Leaf $config)) {
     throw "Packaged distribution is missing its colocated configuration: $config"

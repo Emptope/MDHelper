@@ -57,7 +57,8 @@ jobs:
           uv run python packaging/clean_build.py
           uv build
           uv run python packaging/verify_wheel.py "$wheel"
-          uv run python packaging/generate_notices.py --output dist/THIRD_PARTY_NOTICES.json
+          uv run python packaging/generate_notices.py \
+            --output build/license-audit/THIRD_PARTY_NOTICES.json
           wheel_env="${RUNNER_TEMP}/mdhelper-wheel"
           uv venv --python 3.12 "$wheel_env"
           uv pip install --python "$wheel_env/bin/python" "$wheel"
@@ -75,8 +76,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: mdhelper-python-wheel-ci
-          path: |
-            dist/*.whl
-            dist/THIRD_PARTY_NOTICES.json
+          path: dist/*.whl
           if-no-files-found: error
           retention-days: 7

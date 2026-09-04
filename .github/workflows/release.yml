@@ -59,14 +59,12 @@ jobs:
           test -f "release-dist/MDHelper-${version}-Linux-x86_64.tar.gz"
           test -f "release-dist/MDHelper-${version}-Linux-x86_64-GUI.tar.gz"
           test -f "release-dist/MDHelper-${version}-Windows-x64.zip"
-          test -f "release-dist/THIRD_PARTY_NOTICES.json"
           cd release-dist
           sha256sum -- \
             "mdhelper-${version}-py3-none-any.whl" \
             "MDHelper-${version}-Linux-x86_64.tar.gz" \
             "MDHelper-${version}-Linux-x86_64-GUI.tar.gz" \
-            "MDHelper-${version}-Windows-x64.zip" \
-            "THIRD_PARTY_NOTICES.json" > SHA256SUMS
+            "MDHelper-${version}-Windows-x64.zip" > SHA256SUMS
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -77,7 +75,6 @@ jobs:
             "release-dist/MDHelper-${version}-Linux-x86_64.tar.gz" \
             "release-dist/MDHelper-${version}-Linux-x86_64-GUI.tar.gz" \
             "release-dist/MDHelper-${version}-Windows-x64.zip" \
-            "release-dist/THIRD_PARTY_NOTICES.json" \
             "release-dist/SHA256SUMS" \
             --generate-notes \
             --title "MDHelper ${version}" \
