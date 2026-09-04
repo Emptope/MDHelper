@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from mdhelper.core.errors import FormatError
 from mdhelper.io.itp import discover_molecule_types, read_molecule_types
@@ -137,3 +139,19 @@ def test_itp_system_charge_uses_molecule_counts_and_requires_complete_data(
 
     assert complete.system_charge_e == pytest.approx(0)
     assert incomplete.system_charge_e is None
+
+
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(st.lists(st.integers(-100_000, 100_000), min_size=1, max_size=30))
+def test_itp_reader_sums_finite_charge_records(
+    tmp_path: Path,
+    charges: list[int],
+) -> None:
+    path = tmp_path / "generated.itp"
+    values = tuple(f"{charge}e-3" for charge in charges)
+
+    _write_itp(path, "generated", values)
+    record = read_molecule_types(path)[0]
+
+    assert record.atom_count == len(charges)
+    assert record.charge_e == pytest.approx(sum(charges) / 1000)

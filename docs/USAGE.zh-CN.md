@@ -104,7 +104,31 @@ Workflow 保存有序的分析类型序列。序列中的项目共用 GUI 已加
 ## 开发检查
 
 ```bash
-uv run ruff check src tests
-uv run mypy src
-uv run pytest
+uv sync --frozen --extra gui --group dev
+uv run prek run --all-files
+uv audit --frozen
+uv run --extra gui pytest -q -n 4 --dist worksteal \
+  --cov=mdhelper --cov-report=term-missing:skip-covered
+uv run zizmor .github
+```
+
+在 Linux 或 WSL 上安装独立的性能分析依赖组，并记录一次有代表性的能量分析：
+
+```bash
+uv sync --frozen --group dev --group profile
+mkdir -p build/profiles
+uv run --group profile memray run --native \
+  -o build/profiles/energy.bin -m mdhelper analyze energy \
+  --energy-file examples/LiFSI_DME_OPLS_0.8_small/md.edr \
+  --terms '[Potential, Total Energy]' \
+  --output build/profiles/result --figures false
+uv run --group profile memray flamegraph \
+  -o build/profiles/energy.html build/profiles/energy.bin
+```
+
+在 Windows 上不使用 xdist worker，串行运行 Qt 测试：
+
+```powershell
+uv run --extra gui pytest -q `
+  --cov=mdhelper --cov-report=term-missing:skip-covered
 ```

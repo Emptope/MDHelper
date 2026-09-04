@@ -8,10 +8,13 @@ import sys
 import time
 from pathlib import Path
 from threading import Event, Timer
+from typing import cast
+from unittest.mock import Mock
 
 import pytest
 
 import mdhelper.integrations.manager as manager_module
+import mdhelper.runtime.process.lifecycle as lifecycle_module
 import mdhelper.runtime.process.terminal as terminal_module
 from mdhelper.app import ApplicationService
 from mdhelper.core.errors import BackendError, ConfigurationError, JobCancelled
@@ -445,6 +448,17 @@ def test_generic_detection_status_and_safe_argv(
 
     with pytest.raises(BackendError, match="finite positive"):
         manager.run("fake", ["echo"], tmp_path, timeout_seconds=0)
+
+
+def test_process_input_ignores_closed_pipe() -> None:
+    process = Mock()
+    process.stdin.write.side_effect = BrokenPipeError
+    process.stdin.close.side_effect = BrokenPipeError
+
+    lifecycle_module._write_input(cast(subprocess.Popen[str], process), "0\n")
+
+    process.stdin.write.assert_called_once_with("0\n")
+    process.stdin.close.assert_called_once_with()
 
 
 def test_running_integration_reports_output_before_completion(tmp_path: Path) -> None:

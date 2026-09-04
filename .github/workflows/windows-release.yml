@@ -17,6 +17,8 @@ jobs:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
@@ -26,16 +28,21 @@ jobs:
           enable-cache: true
       - name: Install locked development environment
         run: uv sync --frozen --group dev
+      - name: Audit locked dependencies
+        run: uv audit --frozen
       - name: Validate release metadata
         run: uv run python packaging/check_release.py
       - name: Validate release tag
         if: startsWith(github.ref, 'refs/tags/')
-        run: uv run python packaging/check_release.py --tag "${{ github.ref_name }}"
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: uv run python packaging/check_release.py --tag "$env:RELEASE_TAG"
       - name: Validate source
         run: |
           uv run ruff check conftest.py packaging src tests
           uv run mypy src packaging/check_release.py packaging/clean_build.py
-          uv run pytest -q
+          uv run --extra gui pytest -q `
+            --cov=mdhelper --cov-report=term-missing:skip-covered
       - name: Build and validate Windows archive
         shell: pwsh
         run: |

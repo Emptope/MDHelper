@@ -1,0 +1,32 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Ruff check
+        entry: uv run ruff check
+        language: system
+        types: [python]
+      - id: mypy
+        name: mypy
+        entry: uv run mypy src packaging/check_release.py packaging/clean_build.py
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: architecture
+        name: Architecture tests
+        entry: uv run pytest -q tests/test_architecture.py
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: dependency-audit
+        name: Dependency audit
+        entry: uv audit --frozen
+        language: system
+        pass_filenames: false
+        files: ^(pyproject\.toml|uv\.lock)$
+      - id: zizmor
+        name: GitHub automation security
+        entry: uv run zizmor .github
+        language: system
+        pass_filenames: false
+        files: ^\.github/(dependabot\.ya?ml|workflows/.*\.ya?ml)$

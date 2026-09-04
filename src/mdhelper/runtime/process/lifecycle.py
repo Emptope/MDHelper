@@ -180,7 +180,10 @@ def _write_input(process: subprocess.Popen[str], input_text: str | None) -> None
     except (BrokenPipeError, OSError):
         pass
     finally:
-        process.stdin.close()
+        try:
+            process.stdin.close()
+        except (BrokenPipeError, OSError):
+            pass
 
 
 def _exit_code(process: subprocess.Popen[str]) -> int:

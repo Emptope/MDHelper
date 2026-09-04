@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 .venv-windows/
 .pytest_cache/
+.hypothesis/
 .ruff_cache/
 .mypy_cache/
 dist/

@@ -29,6 +29,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
@@ -36,19 +38,31 @@ jobs:
         with:
           version: "0.12.6"
           enable-cache: true
-      - name: Install locked development environment
-        run: uv sync --frozen --group dev
+      - name: Install Linux GUI runtime dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libegl1
+      - name: Install locked GUI development environment
+        run: uv sync --frozen --extra gui --group dev
       - name: Validate release metadata
         run: uv run python packaging/check_release.py
-      - name: Lint
-        run: uv run ruff check conftest.py packaging src tests
-      - name: Type check
-        run: uv run mypy src packaging/check_release.py packaging/clean_build.py
-      - name: Test
-        run: uv run pytest -q
+      - name: Repository checks
+        run: uv run prek run --all-files
+      - name: Test with workers
+        if: runner.os == 'Linux'
+        run: >-
+          uv run --extra gui pytest -q -n 4 --dist worksteal
+          --cov=mdhelper --cov-report=term-missing:skip-covered
+      - name: Test serially
+        if: runner.os == 'Windows'
+        run: >-
+          uv run --extra gui pytest -q
+          --cov=mdhelper --cov-report=term-missing:skip-covered
       - name: Verify headless Linux CLI
         if: runner.os == 'Linux'
         run: |
+          uv sync --frozen --group dev
           version=$(uv run python packaging/check_release.py)
           wheel="dist/mdhelper-${version}-py3-none-any.whl"
           uv run python -c "import importlib.util; assert importlib.util.find_spec('PySide6') is None"

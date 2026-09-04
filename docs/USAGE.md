@@ -105,7 +105,31 @@ are separate projects and may use different parameters or plot queues.
 ## Development checks
 
 ```bash
-uv run ruff check src tests
-uv run mypy src
-uv run pytest
+uv sync --frozen --extra gui --group dev
+uv run prek run --all-files
+uv audit --frozen
+uv run --extra gui pytest -q -n 4 --dist worksteal \
+  --cov=mdhelper --cov-report=term-missing:skip-covered
+uv run zizmor .github
+```
+
+On Linux or WSL, install the separate profiling group and record a representative energy run:
+
+```bash
+uv sync --frozen --group dev --group profile
+mkdir -p build/profiles
+uv run --group profile memray run --native \
+  -o build/profiles/energy.bin -m mdhelper analyze energy \
+  --energy-file examples/LiFSI_DME_OPLS_0.8_small/md.edr \
+  --terms '[Potential, Total Energy]' \
+  --output build/profiles/result --figures false
+uv run --group profile memray flamegraph \
+  -o build/profiles/energy.html build/profiles/energy.bin
+```
+
+Run the Qt test suite without xdist workers on Windows:
+
+```powershell
+uv run --extra gui pytest -q `
+  --cov=mdhelper --cov-report=term-missing:skip-covered
 ```

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from mdhelper.analysis.radial import first_shell, first_shell_warnings
 
@@ -56,3 +58,29 @@ def test_unresolved_first_shell_reports_warning(
 
     assert shell["available"] is False
     assert first_shell_warnings(shell)
+
+
+@given(
+    st.lists(
+        st.floats(
+            min_value=-100.0,
+            max_value=100.0,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
+        max_size=80,
+    )
+)
+def test_first_shell_reports_consistent_boundaries(values: list[float]) -> None:
+    rdf = np.asarray(values, dtype=np.float64)
+    radii = np.arange(len(rdf), dtype=np.float64) * 0.01
+
+    shell = first_shell(radii, rdf)
+
+    if not shell["available"]:
+        return
+    peak = int(shell["first_peak_index"])
+    minimum = int(shell["first_minimum_index"])
+    assert 0 <= peak < minimum < len(rdf)
+    assert shell["first_peak_nm"] == radii[peak]
+    assert shell["first_minimum_nm"] == radii[minimum]

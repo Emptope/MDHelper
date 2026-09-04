@@ -36,13 +36,21 @@ gui = ["PySide6>=6.7,<7"]
 
 [dependency-groups]
 dev = [
+  "hypothesis>=6.167,<7",
   "jsonschema>=4.23,<5",
   "mypy>=1.11,<2",
   "packaging>=24,<27",
-  "pytest>=8.3,<9",
+  "prek>=0.5,<1",
+  "pytest>=9.0.3,<10",
+  "pytest-cov>=7.0,<8",
+  "pytest-xdist>=3.8,<4",
+  "pyinstaller>=6.11,<7",
   "referencing>=0.35,<1",
   "ruff>=0.8,<1",
-  "pyinstaller>=6.11,<7",
+  "zizmor>=1.30,<2",
+]
+profile = [
+  "memray>=1.20,<2; sys_platform != 'win32'",
 ]
 
 [project.scripts]
@@ -67,6 +75,16 @@ link-mode = "copy"
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["mdhelper"]
+
+[tool.coverage.report]
+fail_under = 80
+precision = 1
+show_missing = true
+skip_covered = true
 
 [tool.ruff]
 extend-exclude = [".uv-cache", ".venv", ".venv-windows", "build", "dist"]
