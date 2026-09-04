@@ -4,16 +4,20 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
-from numpy.typing import NDArray
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
 
 from .errors import InputError
 from .species import SpeciesRoleSuggestion
 
 Vec3 = tuple[float, float, float]
-Coordinates = NDArray[np.float64]
+if TYPE_CHECKING:
+    type Coordinates = NDArray[np.float64]
+else:
+    type Coordinates = object
 
 
 @dataclass(frozen=True)

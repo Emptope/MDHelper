@@ -14,11 +14,12 @@ from mdhelper.gui.windows import WindowManager
 
 from .controls import PlotControls
 from .state import PlotSession
-from .window import PlotWindow
 
 if TYPE_CHECKING:
     from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
     from matplotlib.figure import Figure
+
+    from .window import PlotWindow
 
 
 class PlotPanel(PlotControls):
@@ -38,6 +39,7 @@ class PlotPanel(PlotControls):
         self._plot_rows: tuple[tuple[int, ...], ...] = ()
         self._plot_titles: tuple[str, ...] = ()
         self._restoring = False
+        self._plot_kind: type[PlotWindow] | None = None
 
         self.combine_button.clicked.connect(self.combine_selected_queue_items)
         self.separate_button.clicked.connect(self.separate_selected_queue_items)
@@ -67,7 +69,7 @@ class PlotPanel(PlotControls):
         if not self._state.results:
             return
         self._redraw()
-        self._windows.show_all(PlotWindow)
+        self._windows.show_all(self._plot_window_type())
 
     @property
     def plot_window(self) -> PlotWindow:
@@ -94,7 +96,8 @@ class PlotPanel(PlotControls):
         return windows
 
     def close_plot_windows(self) -> None:
-        self._windows.close(PlotWindow)
+        if self._plot_kind is not None:
+            self._windows.close(self._plot_kind)
 
     def plot_results(self) -> tuple[AnalysisResult, ...]:
         return tuple(item[0] for item in self._visible_queue_items())
@@ -354,7 +357,16 @@ class PlotPanel(PlotControls):
         self._state.replace(self.queue.entries(self._state.entries))
 
     def _plot_window_items(self) -> tuple[PlotWindow, ...]:
-        return self._windows.items(PlotWindow)
+        if self._plot_kind is None:
+            return ()
+        return self._windows.items(self._plot_kind)
 
     def _resize_plot_windows(self, count: int) -> None:
-        self._windows.resize(PlotWindow, count)
+        self._windows.resize(self._plot_window_type(), count)
+
+    def _plot_window_type(self) -> type[PlotWindow]:
+        if self._plot_kind is None:
+            from .window import PlotWindow
+
+            self._plot_kind = PlotWindow
+        return self._plot_kind

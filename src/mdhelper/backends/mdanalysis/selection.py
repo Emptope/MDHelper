@@ -5,8 +5,6 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-import numpy as np
-
 from mdhelper.core.errors import BackendError, SelectionError
 from mdhelper.core.system import Atom
 
@@ -43,6 +41,7 @@ class MDAnalysisSelectionEngine:
     def _universe(atoms: Sequence[Atom]):
         try:
             import MDAnalysis as mda
+            import numpy as np
         except ImportError as exc:
             raise BackendError(
                 "MDAnalysis is required to parse atom selections.",

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 import time
 from importlib import import_module
 from pathlib import Path
@@ -48,6 +50,35 @@ def _immediate_integration_detection(monkeypatch: pytest.MonkeyPatch) -> None:
             False,
         ),
     )
+
+
+def test_gui_startup_defers_heavy_optional_modules(tmp_path: Path) -> None:
+    environment = os.environ.copy()
+    environment["QT_QPA_PLATFORM"] = "offscreen"
+    environment["MDHELPER_CONFIG"] = str(tmp_path / "config.toml")
+    script = "\n".join(
+        (
+            "import sys",
+            "from PySide6.QtWidgets import QApplication",
+            "application = QApplication([])",
+            "from mdhelper.gui.window import MainWindow",
+            "window = MainWindow()",
+            "loaded = {name.split('.', 1)[0] for name in sys.modules}",
+            "unexpected = sorted(loaded & {'matplotlib', 'numpy'})",
+            "window.close()",
+            "if unexpected: raise RuntimeError(', '.join(unexpected))",
+        )
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=False,
+        capture_output=True,
+        env=environment,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_gui_detects_integrations_outside_the_main_thread(

@@ -4,16 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 from threading import Event
+from typing import TYPE_CHECKING
 
 from mdhelper.analysis.pipeline import AnalysisInput, BackendQuery
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, EnergyRequest, RadialRequest
 from mdhelper.core.errors import BackendError
 from mdhelper.integrations.manager import IntegrationManager
 
-from .cumulative import cumulative_result
-from .energy import EnergyAnalysis
-from .radial import radial_profile
-from .rdf import rdf_result
+if TYPE_CHECKING:
+    from .energy import EnergyAnalysis
 
 
 class MDAnalysisBackend:
@@ -22,7 +21,14 @@ class MDAnalysisBackend:
     analysis_types = frozenset(("rdf", "cumulative_rdf", "energy"))
 
     def __init__(self) -> None:
-        self._energy = EnergyAnalysis()
+        self._energy: EnergyAnalysis | None = None
+
+    def _energy_analysis(self) -> EnergyAnalysis:
+        from .energy import EnergyAnalysis
+
+        if self._energy is None:
+            self._energy = EnergyAnalysis()
+        return self._energy
 
     def auto_priority(
         self,
@@ -52,15 +58,19 @@ class MDAnalysisBackend:
         cancel_event: Event | None = None,
         cache_dir: Path | None = None,
     ) -> tuple[str, ...]:
-        return self._energy.terms(integrations, energy_file, cancel_event, cache_dir)
+        return self._energy_analysis().terms(
+            integrations, energy_file, cancel_event, cache_dir
+        )
 
     def run(self, inputs: AnalysisInput) -> AnalysisResult:
         request = inputs.request
         if isinstance(request, EnergyRequest):
-            return self._energy.run(inputs)
+            return self._energy_analysis().run(inputs)
         source = inputs.source
         if not isinstance(request, RadialRequest) or source is None:
             raise BackendError("The MDAnalysis backend requires a supported request.")
+        from .radial import radial_profile
+
         request.validate()
         profile = radial_profile(
             source,
@@ -70,5 +80,9 @@ class MDAnalysisBackend:
             inputs.cancel_event,
         )
         if request.analysis_type == "rdf":
+            from .rdf import rdf_result
+
             return rdf_result(source, request, inputs.provenance, profile)
+        from .cumulative import cumulative_result
+
         return cumulative_result(source, request, inputs.provenance, profile)

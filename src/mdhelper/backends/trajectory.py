@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from mdhelper.backends.gromacs import GromacsTrajectorySource, TrajectoryConverter
-from mdhelper.backends.mdanalysis import MDAnalysisTrajectorySource
 from mdhelper.core.errors import BackendError
 from mdhelper.core.trajectory import TrajectorySource
+
+if TYPE_CHECKING:
+    from mdhelper.backends.gromacs import TrajectoryConverter
 
 
 def load_trajectory(
@@ -20,6 +22,8 @@ def load_trajectory(
     """Select a trajectory adapter from explicit policy or generic file capabilities."""
 
     if backend == "gromacs":
+        from mdhelper.backends.gromacs import GromacsTrajectorySource
+
         if gromacs_converter is None:
             raise BackendError(
                 "The GROMACS trajectory backend requires the GROMACS integration."
@@ -28,12 +32,10 @@ def load_trajectory(
             topology, trajectory, gromacs_converter, cache_dir
         )
     if backend in {"auto", "mdanalysis"}:
+        from mdhelper.backends.mdanalysis import MDAnalysisTrajectorySource
+
         return MDAnalysisTrajectorySource(topology, trajectory, cache_dir)
     raise BackendError(f"Unknown trajectory backend: {backend}")
 
 
-__all__ = [
-    "GromacsTrajectorySource",
-    "MDAnalysisTrajectorySource",
-    "load_trajectory",
-]
+__all__ = ["load_trajectory"]

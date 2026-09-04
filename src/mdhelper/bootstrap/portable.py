@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from collections.abc import Callable, MutableMapping
 from importlib.util import find_spec
@@ -11,9 +10,6 @@ from pathlib import Path
 
 PORTABLE_CONFIG = "config.toml"
 GUI_UNAVAILABLE = 6
-GUI_PROCESS = "MDHELPER_GUI_PROCESS"
-RESET_FROZEN_ENV = "PYINSTALLER_RESET_ENVIRONMENT"
-DETACHED_PROCESS = 0x00000008
 
 
 def portable_config_path(
@@ -116,39 +112,12 @@ def detach_console(
 
 def start_gui(
     argv: list[str],
-    environment: MutableMapping[str, str] | None = None,
     platform: str | None = None,
     frozen: bool | None = None,
-    executable: str | Path | None = None,
 ) -> int:
-    """Start a packaged GUI independently from its console launcher."""
+    """Detach a packaged console and start the GUI in the launcher process."""
 
-    env = os.environ if environment is None else environment
-    system = sys.platform if platform is None else platform
-    is_frozen = bool(getattr(sys, "frozen", False)) if frozen is None else frozen
-    is_gui_process = env.get(GUI_PROCESS) == "1"
-    if system == "win32" and is_frozen and not is_gui_process:
-        program = str(sys.executable if executable is None else executable)
-        child_env = dict(env)
-        child_env[GUI_PROCESS] = "1"
-        child_env[RESET_FROZEN_ENV] = "1"
-        try:
-            subprocess.Popen(
-                [program, "gui", *argv],
-                close_fds=True,
-                creationflags=DETACHED_PROCESS,
-                env=child_env,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except OSError:
-            return GUI_UNAVAILABLE
-        return 0
-    if is_gui_process:
-        env.pop(GUI_PROCESS, None)
-        env.pop(RESET_FROZEN_ENV, None)
-    detach_console(system, is_frozen)
+    detach_console(platform, frozen)
     return gui_main(argv)
 
 

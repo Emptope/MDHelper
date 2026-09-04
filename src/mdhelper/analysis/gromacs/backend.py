@@ -4,39 +4,21 @@ from __future__ import annotations
 
 from pathlib import Path
 from threading import Event
+from typing import TYPE_CHECKING
 
-import numpy as np
-from numpy.typing import NDArray
-
-from mdhelper.analysis.common import (
-    analysis_directory,
-    check_cancel,
-)
 from mdhelper.analysis.pipeline import AnalysisInput, BackendQuery
-from mdhelper.analysis.radial import (
-    FrameAudit,
-    first_shell,
-    first_shell_warnings,
-    validate_frame_selection,
-)
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, EnergyRequest
 from mdhelper.core.errors import BackendError, FormatError
-from mdhelper.core.integrations import IntegrationRunRecord, unique_run_records
 from mdhelper.core.system import FrameRange
-from mdhelper.integrations.gromacs import error_message
 from mdhelper.integrations.manager import IntegrationManager
 
-from .curves import _parse_curve
-from .energy import EnergyAnalysis
-from .inputs import (
-    _request,
-    _requested_indices,
-    _requested_paths,
-    _selection,
-    _selection_records,
-    _write_frame_index,
-)
-from .runs import _process_progress, _run_audit, _trajectory_frame_count
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
+
+    from mdhelper.core.integrations import IntegrationRunRecord
+
+    from .energy import EnergyAnalysis
 
 METHOD_VERSION = "1.0.0"
 
@@ -47,7 +29,14 @@ class GromacsBackend:
     analysis_types = frozenset(("rdf", "cumulative_rdf", "energy"))
 
     def __init__(self) -> None:
-        self._energy = EnergyAnalysis()
+        self._energy: EnergyAnalysis | None = None
+
+    def _energy_analysis(self) -> EnergyAnalysis:
+        from .energy import EnergyAnalysis
+
+        if self._energy is None:
+            self._energy = EnergyAnalysis()
+        return self._energy
 
     def auto_priority(
         self,
@@ -87,11 +76,37 @@ class GromacsBackend:
         cancel_event: Event | None = None,
         cache_dir: Path | None = None,
     ) -> tuple[str, ...]:
-        return self._energy.terms(integrations, energy_file, cancel_event, cache_dir)
+        return self._energy_analysis().terms(
+            integrations, energy_file, cancel_event, cache_dir
+        )
 
     def run(self, inputs: AnalysisInput) -> AnalysisResult:
         if isinstance(inputs.request, EnergyRequest):
-            return self._energy.run(inputs)
+            return self._energy_analysis().run(inputs)
+
+        import numpy as np
+
+        from mdhelper.analysis.common import analysis_directory, check_cancel
+        from mdhelper.analysis.radial import (
+            FrameAudit,
+            first_shell,
+            first_shell_warnings,
+            validate_frame_selection,
+        )
+        from mdhelper.core.integrations import unique_run_records
+        from mdhelper.integrations.gromacs import error_message
+
+        from .curves import _parse_curve
+        from .inputs import (
+            _request,
+            _requested_indices,
+            _requested_paths,
+            _selection,
+            _selection_records,
+            _write_frame_index,
+        )
+        from .runs import _process_progress, _run_audit, _trajectory_frame_count
+
         request = _request(inputs)
         request.validate()
         topology_path, trajectory_path = _requested_paths(request)

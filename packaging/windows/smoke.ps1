@@ -32,7 +32,6 @@ New-Item -ItemType Directory -Path $smokeRoot | Out-Null
 $previousConfig = $env:MDHELPER_CONFIG
 $previousQtPlatform = $env:QT_QPA_PLATFORM
 $previousPythonWarnings = $env:PYTHONWARNINGS
-$previousGuiProcess = $env:MDHELPER_GUI_PROCESS
 try {
     $env:PYTHONWARNINGS = "error"
     & $application --version | Out-Host
@@ -56,7 +55,6 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Packaged template catalog validation failed." }
 
     $env:QT_QPA_PLATFORM = "offscreen"
-    $env:MDHELPER_GUI_PROCESS = "1"
     & $application gui --smoke-test | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Packaged GUI startup check failed." }
 
@@ -77,6 +75,5 @@ finally {
     $env:MDHELPER_CONFIG = $previousConfig
     $env:QT_QPA_PLATFORM = $previousQtPlatform
     $env:PYTHONWARNINGS = $previousPythonWarnings
-    $env:MDHELPER_GUI_PROCESS = $previousGuiProcess
     [IO.Directory]::Delete($smokeRoot, $true)
 }

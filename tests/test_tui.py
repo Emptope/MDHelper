@@ -197,76 +197,21 @@ def test_console_detachment_is_limited_to_frozen_windows(monkeypatch) -> None:
     assert calls == [None]
 
 
-def test_frozen_windows_gui_starts_as_a_detached_process(monkeypatch) -> None:
-    calls: list[tuple[list[str], dict[str, object]]] = []
-    gui_calls: list[list[str]] = []
-    detach_calls: list[None] = []
-    environment = {"PATH": "runtime"}
-
-    def popen(command: list[str], **options: object) -> object:
-        calls.append((command, options))
-        return object()
-
-    monkeypatch.setattr(portable.subprocess, "Popen", popen)
-    monkeypatch.setattr(
-        portable, "gui_main", lambda values: gui_calls.append(values) or 0
-    )
-    monkeypatch.setattr(portable, "detach_console", lambda *_args: detach_calls.append(None))
-
-    assert (
-        portable.start_gui(
-            ["--smoke-test"], environment, "win32", True, "mdhelper.exe"
-        )
-        == 0
-    )
-
-    assert gui_calls == []
-    assert detach_calls == []
-    assert environment == {"PATH": "runtime"}
-    assert len(calls) == 1
-    command, options = calls[0]
-    assert command == ["mdhelper.exe", "gui", "--smoke-test"]
-    assert options["creationflags"] == portable.DETACHED_PROCESS
-    assert options["stdin"] is portable.subprocess.DEVNULL
-    assert options["stdout"] is portable.subprocess.DEVNULL
-    assert options["stderr"] is portable.subprocess.DEVNULL
-    child_env = options["env"]
-    assert isinstance(child_env, dict)
-    assert child_env[portable.GUI_PROCESS] == "1"
-    assert child_env[portable.RESET_FROZEN_ENV] == "1"
-
-
-def test_detached_gui_process_clears_launcher_environment(monkeypatch) -> None:
-    calls: list[tuple[str, list[str]]] = []
-    environment = {
-        "PATH": "runtime",
-        portable.GUI_PROCESS: "1",
-        portable.RESET_FROZEN_ENV: "1",
-    }
+def test_frozen_windows_gui_starts_in_the_launcher_process(monkeypatch) -> None:
+    calls: list[tuple[str, object]] = []
     monkeypatch.setattr(
         portable,
         "detach_console",
-        lambda platform, frozen: calls.append((platform, [str(frozen)])),
+        lambda platform, frozen: calls.append((str(platform), frozen)),
     )
     monkeypatch.setattr(
-        portable, "gui_main", lambda values: calls.append(("gui", values)) or 4
+        portable,
+        "gui_main",
+        lambda values: calls.append(("gui", values)) or 4,
     )
 
-    assert portable.start_gui([], environment, "win32", True, "mdhelper.exe") == 4
-    assert environment == {"PATH": "runtime"}
-    assert calls == [("win32", ["True"]), ("gui", [])]
-
-
-def test_frozen_windows_gui_reports_detached_start_failure(monkeypatch) -> None:
-    def fail(*_args: object, **_options: object) -> None:
-        raise OSError("could not start")
-
-    monkeypatch.setattr(portable.subprocess, "Popen", fail)
-
-    assert (
-        portable.start_gui([], {}, "win32", True, "mdhelper.exe")
-        == portable.GUI_UNAVAILABLE
-    )
+    assert portable.start_gui(["--smoke-test"], "win32", True) == 4
+    assert calls == [("win32", True), ("gui", ["--smoke-test"])]
 
 
 def test_windowed_launcher_attaches_to_parent_console(monkeypatch) -> None:
