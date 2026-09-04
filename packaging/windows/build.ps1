@@ -1,7 +1,8 @@
 param(
     [string]$Python = "python",
     [string]$OutputDirectory = "dist/windows",
-    [string]$SmokeRequest = "",
+    [Parameter(Mandatory = $true)]
+    [string]$SmokeRequest,
     [int]$MaxArtifactSizeMB = 256
 )
 
@@ -13,6 +14,11 @@ if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $distRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot "dist"))
 $releaseOutput = [IO.Path]::GetFullPath((Join-Path $projectRoot $OutputDirectory))
+$smokeRequestSource = $SmokeRequest
+if (-not [IO.Path]::IsPathRooted($smokeRequestSource)) {
+    $smokeRequestSource = Join-Path $projectRoot $smokeRequestSource
+}
+$smokeRequestPath = (Resolve-Path $smokeRequestSource).Path
 $distPrefix = $distRoot + [IO.Path]::DirectorySeparatorChar
 if (-not $releaseOutput.StartsWith($distPrefix, [StringComparison]::OrdinalIgnoreCase)) {
     throw "The release output must be a platform directory under dist: $releaseOutput"
@@ -58,11 +64,6 @@ Copy-Item (Join-Path $projectRoot "config.example.toml") `
 Copy-Item (Join-Path $projectRoot "docs") $applicationOutput -Recurse -Force
 Copy-Item (Join-Path $projectRoot "schemas") $applicationOutput -Recurse -Force
 
-& (Join-Path $PSScriptRoot "smoke.ps1") `
-    -DistributionDirectory $applicationOutput `
-    -Request $SmokeRequest
-if ($LASTEXITCODE -ne 0) { throw "Packaged executable smoke test failed." }
-
 $archiveName = "MDHelper-$version-Windows-x64"
 $archiveRoot = Join-Path $stage $archiveName
 $archivePath = Join-Path $releaseOutput "$archiveName.zip"
@@ -83,6 +84,7 @@ if ($LASTEXITCODE -ne 0) { throw "Release archive size audit failed." }
 
 & (Join-Path $PSScriptRoot "archive_smoke.ps1") `
     -Archive $archivePath `
-    -Request $SmokeRequest
+    -Request $smokeRequestPath `
+    -Python $Python
 if ($LASTEXITCODE -ne 0) { throw "Release archive smoke test failed." }
 Write-Host "Windows archive: $archivePath"

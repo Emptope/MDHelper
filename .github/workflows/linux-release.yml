@@ -46,7 +46,8 @@ jobs:
       - name: Validate source
         run: |
           uv run ruff check conftest.py packaging src tests
-          uv run mypy src packaging/check_release.py packaging/clean_build.py
+          uv run mypy src packaging/check_release.py packaging/clean_build.py \
+            packaging/smoke_check.py
           uv run --extra gui pytest -q -n 4 --dist worksteal \
             --cov=mdhelper --cov-report=term-missing:skip-covered
       - name: Build and smoke test wheel

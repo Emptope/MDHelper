@@ -40,14 +40,16 @@ jobs:
       - name: Validate source
         run: |
           uv run ruff check conftest.py packaging src tests
-          uv run mypy src packaging/check_release.py packaging/clean_build.py
+          uv run mypy src packaging/check_release.py packaging/clean_build.py `
+            packaging/smoke_check.py
           uv run --extra gui pytest -q `
             --cov=mdhelper --cov-report=term-missing:skip-covered
       - name: Build and validate Windows archive
         shell: pwsh
         run: |
           .\packaging\windows\build.ps1 `
-            -Python ".venv\Scripts\python.exe"
+            -Python ".venv\Scripts\python.exe" `
+            -SmokeRequest "packaging\smoke\request.json"
       - name: Upload Windows release candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

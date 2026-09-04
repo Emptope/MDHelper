@@ -63,19 +63,23 @@ dist/linux/MDHelper-<version>-Linux-x86_64-GUI.tar.gz
 ```
 
 The build audits payloads and size, extracts each archive, and checks version, TUI startup, headless
-fallback, configuration, resources, and offscreen GUI startup where applicable.
+fallback, configuration, resources, a complete analysis with all export formats, and offscreen GUI
+startup where applicable.
 
 ## Windows
 
 ```powershell
 $env:UV_PROJECT_ENVIRONMENT = ".venv-windows"
 uv sync --frozen --group dev
-.\packaging\windows\build.ps1 -Python ".venv-windows\Scripts\python.exe"
+.\packaging\windows\build.ps1 `
+  -Python ".venv-windows\Scripts\python.exe" `
+  -SmokeRequest "packaging\smoke\request.json"
 ```
 
 The output is `dist/windows/MDHelper-<version>-Windows-x64.zip`. The build extracts the ZIP and checks
-all interface modes, colocated configuration, and packaged resources. Keep `config.toml` beside
-`mdhelper.exe`. `--settings` and `MDHELPER_CONFIG` override it.
+its root layout, all interface modes, colocated configuration, packaged resources, and a complete
+analysis with all export formats. Keep `config.toml` beside `mdhelper.exe`. `--settings` and
+`MDHELPER_CONFIG` override it.
 
 Release gates pass only after the target-platform workflow completes; file presence is not a test
 result.
@@ -108,7 +112,7 @@ run:
 uv sync --frozen --group dev
 uv run python packaging/check_release.py
 uv run ruff check conftest.py packaging src tests
-uv run mypy src packaging/check_release.py packaging/clean_build.py
+uv run mypy src packaging/check_release.py packaging/clean_build.py packaging/smoke_check.py
 uv run pytest -q
 ```
 

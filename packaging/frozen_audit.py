@@ -81,6 +81,11 @@ FORBIDDEN_LINUX_MODULES = {
     "mdhelper.bootstrap.windows_console",
 }
 REQUIRED_OPTIONS = {"windows": set(), "linux": set(), "linux-gui": set()}
+REQUIRED_QT_PLUGINS = {
+    "windows": {"qwindows.dll"},
+    "linux": set(),
+    "linux-gui": {"libqxcb.so"},
+}
 WINDOWS_CONSOLE_SUBSYSTEM = 3
 
 
@@ -189,6 +194,15 @@ def missing_options(options: list[str], platform: str) -> list[str]:
     return sorted(REQUIRED_OPTIONS[platform] - set(options))
 
 
+def missing_plugins(entries: list[str], platform: str) -> list[str]:
+    """Return production Qt platform plugins absent from the frozen archive."""
+
+    filenames = {
+        PurePosixPath(name.replace("\\", "/")).name.casefold() for name in entries
+    }
+    return sorted(REQUIRED_QT_PLUGINS[platform] - filenames)
+
+
 def check_size(artifact: Path, max_size_mb: int) -> int:
     """Reject a release artifact that exceeds the configured decimal-MB limit."""
 
@@ -210,6 +224,9 @@ def audit(application: Path, platform: str, max_size_mb: int) -> None:
     invalid = violations(entries, platform)
     if invalid:
         raise SystemExit(f"Forbidden frozen payload entries: {sorted(invalid)}")
+    missing_qt_plugins = missing_plugins(entries, platform)
+    if missing_qt_plugins:
+        raise SystemExit(f"Required Qt platform plugins are missing: {missing_qt_plugins}")
     print(f"Verified frozen payload: {application}")
 
 

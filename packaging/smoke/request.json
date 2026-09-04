@@ -1,0 +1,10 @@
+{
+  "analysis_type": "energy",
+  "energy_file": "examples/LiFSI_DME_OPLS_0.8_small/md.edr",
+  "energy_terms": [
+    "Potential",
+    "Total Energy"
+  ],
+  "analysis_backend": "mdanalysis",
+  "schema_version": 1
+}

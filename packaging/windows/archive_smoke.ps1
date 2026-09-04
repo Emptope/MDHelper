@@ -1,22 +1,27 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$Archive,
-    [string]$Request = ""
+    [Parameter(Mandatory = $true)]
+    [string]$Request,
+    [string]$Python = "python"
 )
 
 $ErrorActionPreference = "Stop"
 $archivePath = (Resolve-Path $Archive).Path
+$checkScript = Join-Path $PSScriptRoot "../smoke_check.py"
+$expectedName = [IO.Path]::GetFileNameWithoutExtension($archivePath)
 $smokeRoot = Join-Path ([IO.Path]::GetTempPath()) ("mdhelper-archive-" + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $smokeRoot | Out-Null
 try {
     Expand-Archive -Path $archivePath -DestinationPath $smokeRoot
-    $executables = @(Get-ChildItem $smokeRoot -Filter "mdhelper.exe" -File -Recurse)
-    if ($executables.Count -ne 1) {
-        throw "Expected one packaged application, found $($executables.Count)."
-    }
+    $distribution = (& $Python $checkScript archive-root `
+        --root $smokeRoot `
+        --expected-name $expectedName | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) { throw "Release archive layout validation failed." }
     & (Join-Path $PSScriptRoot "smoke.ps1") `
-        -DistributionDirectory $executables[0].Directory.FullName `
-        -Request $Request
+        -DistributionDirectory $distribution `
+        -Request $Request `
+        -Python $Python
     if ($LASTEXITCODE -ne 0) { throw "Extracted application smoke test failed." }
 }
 finally {

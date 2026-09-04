@@ -3,7 +3,10 @@ set -euo pipefail
 
 distribution=${1:?distribution directory is required}
 variant=${2:-headless}
-application="$distribution/mdhelper"
+request=${3:?analysis request is required}
+python=${PYTHON:-python}
+project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+check_script="$project_root/packaging/smoke_check.py"
 export PYTHONWARNINGS=error
 
 if [[ "$variant" != headless && "$variant" != gui ]]; then
@@ -11,26 +14,25 @@ if [[ "$variant" != headless && "$variant" != gui ]]; then
     exit 1
 fi
 
-if [[ ! -x "$application" ]]; then
-    echo "Missing packaged application: $application" >&2
-    exit 1
+platform=linux
+if [[ "$variant" == gui ]]; then
+    platform=linux-gui
 fi
-
-mapfile -t executables < <(find "$distribution" -maxdepth 1 -type f -perm -111)
-if [[ ${#executables[@]} -ne 1 ]]; then
-    echo "Expected one packaged executable, found ${#executables[@]}." >&2
-    exit 1
-fi
-
-mapfile -t license_metadata < <(find "$distribution/licenses" -maxdepth 1 -type f -name '*.json')
-if [[ ${#license_metadata[@]} -ne 1 ]]; then
-    echo "Expected one license metadata file, found ${#license_metadata[@]}." >&2
-    exit 1
-fi
+application=$(
+    "$python" "$check_script" distribution \
+        --root "$distribution" \
+        --platform "$platform"
+)
+smoke_root=$(mktemp -d)
+cleanup() {
+    rm -rf -- "$smoke_root"
+}
+trap cleanup EXIT
 
 "$application" --version
 "$application" tui --smoke-test
-if ! printf '3\n' | env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM "$application" >/dev/null; then
+if ! env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM \
+    "$application" </dev/null >/dev/null; then
     echo "Argument-free startup did not fall back to TUI." >&2
     exit 1
 fi
@@ -49,10 +51,21 @@ else
 fi
 
 config="$distribution/config.toml"
-reported=$(env -u MDHELPER_CONFIG "$application" cli config path)
-if [[ "$reported" != "$config" ]]; then
-    echo "Colocated config mismatch: $reported" >&2
-    exit 1
-fi
-env -u MDHELPER_CONFIG "$application" cli config check >/dev/null
+config_report="$smoke_root/config.json"
+env -u MDHELPER_CONFIG "$application" cli config check >"$config_report"
+"$python" "$check_script" config \
+    --report "$config_report" \
+    --expected-path "$config"
 "$application" cli templates list >/dev/null
+
+analysis_output="$smoke_root/analysis"
+analysis_report="$smoke_root/analysis.json"
+(
+    cd "$project_root"
+    "$application" cli analyze request \
+        --request "$request" \
+        --output "$analysis_output"
+) >"$analysis_report"
+"$python" "$check_script" analysis \
+    --output "$analysis_output" \
+    --report "$analysis_report"

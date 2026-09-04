@@ -6,6 +6,7 @@ max_size_mb=${MAX_ARTIFACT_SIZE_MB:-256}
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 release_output="$project_root/dist/linux"
 work_root="$project_root/build/pyinstaller-linux"
+smoke_request="$project_root/packaging/smoke/request.json"
 version=$($python -c 'import mdhelper; print(mdhelper.__version__)')
 "$python" "$project_root/packaging/clean_build.py" --root "$project_root"
 stage=$(mktemp -d)
@@ -83,7 +84,10 @@ build_variant() {
         --max-size-mb "$max_size_mb"
     mkdir -p "$verified"
     tar -C "$verified" -xzf "$archive"
-    "$project_root/packaging/linux/smoke.sh" "$verified/$name" "$variant"
+    "$project_root/packaging/linux/smoke.sh" \
+        "$verified/$name" \
+        "$variant" \
+        "$smoke_request"
     printf 'Linux %s archive: %s\n' "$variant" "$archive"
 }
 

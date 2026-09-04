@@ -1,11 +1,42 @@
 from __future__ import annotations
 
+import json
+import runpy
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+ROOT = Path(__file__).parents[1]
 SCRIPT = Path(__file__).parents[1] / "packaging" / "check_release.py"
 CLEAN_SCRIPT = Path(__file__).parents[1] / "packaging" / "clean_build.py"
+FROZEN_AUDIT = runpy.run_path(str(ROOT / "packaging" / "frozen_audit.py"))
+SMOKE_CHECK = runpy.run_path(str(ROOT / "packaging" / "smoke_check.py"))
+
+
+def write_distribution(root: Path, platform: str) -> Path:
+    root.mkdir()
+    application = root / ("mdhelper.exe" if platform == "windows" else "mdhelper")
+    application.write_bytes(b"application")
+    application.chmod(0o755)
+    for name in (
+        "LICENSE",
+        "README.md",
+        "README.zh-CN.md",
+        "config.example.toml",
+        "config.toml",
+    ):
+        (root / name).write_text(name, encoding="ascii")
+    for directory, name in (
+        ("docs", "guide.md"),
+        ("licenses", "notices.json"),
+        ("schemas", "contract.json"),
+    ):
+        target = root / directory
+        target.mkdir()
+        (target / name).write_text("{}", encoding="ascii")
+    return application
 
 
 def write_metadata(root: Path, project_version: str, source_version: str) -> None:
@@ -96,3 +127,151 @@ def test_release_check_rejects_invalid_tag(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert "Release tag must use v<version>" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("platform", "entries", "expected"),
+    [
+        (
+            "windows",
+            ["PySide6/plugins/platforms/qoffscreen.dll"],
+            ["qwindows.dll"],
+        ),
+        (
+            "linux-gui",
+            [
+                "PySide6/Qt/plugins/platforms/libqoffscreen.so",
+                "PySide6/Qt/plugins/platforms/libqwayland.so",
+            ],
+            ["libqxcb.so"],
+        ),
+        ("linux", [], []),
+    ],
+)
+def test_frozen_audit_requires_runtime_qt_plugins(
+    platform: str,
+    entries: list[str],
+    expected: list[str],
+) -> None:
+    assert FROZEN_AUDIT["missing_plugins"](entries, platform) == expected
+
+
+def test_smoke_check_validates_distribution_contract(tmp_path: Path) -> None:
+    distribution = tmp_path / "distribution"
+    application = write_distribution(distribution, "windows")
+
+    assert SMOKE_CHECK["validate_distribution"](distribution, "windows") == application
+
+    (distribution / "schemas" / "contract.json").unlink()
+    with pytest.raises(SMOKE_CHECK["SmokeFailure"], match="schemas"):
+        SMOKE_CHECK["validate_distribution"](distribution, "windows")
+
+
+def test_smoke_check_rejects_empty_distribution_directory(tmp_path: Path) -> None:
+    distribution = tmp_path / "distribution"
+    write_distribution(distribution, "linux")
+    for path in (distribution / "docs").iterdir():
+        path.unlink()
+
+    with pytest.raises(SMOKE_CHECK["SmokeFailure"], match="docs"):
+        SMOKE_CHECK["validate_distribution"](distribution, "linux")
+
+
+def test_smoke_check_rejects_invalid_archive_layout(tmp_path: Path) -> None:
+    expected = tmp_path / "release"
+    expected.mkdir()
+
+    assert SMOKE_CHECK["validate_archive_root"](tmp_path, "release") == expected
+
+    (tmp_path / "extra").mkdir()
+    with pytest.raises(SMOKE_CHECK["SmokeFailure"], match="one root directory"):
+        SMOKE_CHECK["validate_archive_root"](tmp_path, "release")
+
+
+def test_smoke_check_validates_reported_exports_without_fixed_stem(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "analysis"
+    output.mkdir()
+    names = (
+        "result.json",
+        "custom.csv",
+        "custom.png",
+        "custom.svg",
+        "custom.pdf",
+    )
+    for name in names:
+        content = '{"schema_version": 1, "analysis_type": "energy"}'
+        (output / name).write_text(content, encoding="ascii")
+    report = json.dumps(
+        {
+            "status": "completed",
+            "analysis_type": "energy",
+            "exports": [str(output / name) for name in names],
+        }
+    )
+
+    SMOKE_CHECK["validate_analysis"](output, report)
+
+    (output / "custom.pdf").unlink()
+    with pytest.raises(SMOKE_CHECK["SmokeFailure"], match="missing export"):
+        SMOKE_CHECK["validate_analysis"](output, report)
+
+
+def test_smoke_check_rejects_export_outside_output(tmp_path: Path) -> None:
+    output = tmp_path / "analysis"
+    output.mkdir()
+    external = tmp_path / "external.json"
+    external.write_text('{"schema_version": 1, "analysis_type": "energy"}', encoding="ascii")
+    report = json.dumps(
+        {
+            "status": "completed",
+            "analysis_type": "energy",
+            "exports": [str(external)],
+        }
+    )
+
+    with pytest.raises(SMOKE_CHECK["SmokeFailure"], match="outside"):
+        SMOKE_CHECK["validate_analysis"](output, report)
+
+
+def test_smoke_check_rejects_result_type_mismatch(tmp_path: Path) -> None:
+    output = tmp_path / "analysis"
+    output.mkdir()
+    exports = []
+    for suffix in ("json", "csv", "png", "svg", "pdf"):
+        path = output / f"custom.{suffix}"
+        path.write_text(
+            '{"schema_version": 1, "analysis_type": "rdf"}',
+            encoding="ascii",
+        )
+        exports.append(str(path))
+    report = json.dumps(
+        {
+            "status": "completed",
+            "analysis_type": "energy",
+            "exports": exports,
+        }
+    )
+
+    with pytest.raises(SMOKE_CHECK["SmokeFailure"], match="analysis type"):
+        SMOKE_CHECK["validate_analysis"](output, report)
+
+
+def test_smoke_check_validates_config_report(tmp_path: Path) -> None:
+    config = tmp_path / "config.toml"
+    config.write_text("", encoding="ascii")
+    report = json.dumps(
+        {
+            "status": "valid",
+            "path": str(config),
+            "exists": True,
+            "configuration": {},
+        }
+    )
+
+    SMOKE_CHECK["validate_config"](report, config)
+
+    wrong = tmp_path / "wrong.toml"
+    with pytest.raises(SMOKE_CHECK["SmokeFailure"], match="configuration path"):
+        SMOKE_CHECK["validate_config"](report, wrong)

@@ -61,20 +61,22 @@ dist/linux/MDHelper-<version>-Linux-x86_64.tar.gz
 dist/linux/MDHelper-<version>-Linux-x86_64-GUI.tar.gz
 ```
 
-构建审计内容和大小，解压每个 archive，并检查版本、TUI 启动、headless fallback、配置、资源
-及适用时的 offscreen GUI 启动。
+构建审计内容和大小，解压每个 archive，并检查版本、TUI 启动、headless fallback、配置、资源、
+包含全部导出格式的完整分析，以及适用时的 offscreen GUI 启动。
 
 ## Windows
 
 ```powershell
 $env:UV_PROJECT_ENVIRONMENT = ".venv-windows"
 uv sync --frozen --group dev
-.\packaging\windows\build.ps1 -Python ".venv-windows\Scripts\python.exe"
+.\packaging\windows\build.ps1 `
+  -Python ".venv-windows\Scripts\python.exe" `
+  -SmokeRequest "packaging\smoke\request.json"
 ```
 
-产物为 `dist/windows/MDHelper-<version>-Windows-x64.zip`。构建解压 ZIP，并检查全部界面模式、
-同目录配置和 package 资源。`config.toml` 必须与 `mdhelper.exe` 同目录。`--settings` 和
-`MDHELPER_CONFIG` 可覆盖该路径。
+产物为 `dist/windows/MDHelper-<version>-Windows-x64.zip`。构建解压 ZIP，并检查归档根布局、
+全部界面模式、同目录配置、package 资源，以及包含全部导出格式的完整分析。`config.toml`
+必须与 `mdhelper.exe` 同目录。`--settings` 和 `MDHELPER_CONFIG` 可覆盖该路径。
 
 只有目标平台工作流成功后才满足发布门槛。
 
@@ -102,7 +104,7 @@ Dependabot 每周将依赖和工作流 action 更新各自分组为 pull request
 uv sync --frozen --group dev
 uv run python packaging/check_release.py
 uv run ruff check conftest.py packaging src tests
-uv run mypy src packaging/check_release.py packaging/clean_build.py
+uv run mypy src packaging/check_release.py packaging/clean_build.py packaging/smoke_check.py
 uv run pytest -q
 ```
 
