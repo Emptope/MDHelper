@@ -1,6 +1,6 @@
 # Selections and species roles
 
-[English](SELECTIONS.md) | [Simplified Chinese](SELECTIONS.zh-CN.md)
+[English](SELECTIONS.md) | [简体中文](SELECTIONS.zh-CN.md)
 
 One backend owns selection syntax for a run. MDAnalysis uses NDX groups or static MDAnalysis
 expressions. GROMACS uses NDX groups or native `gmx rdf` expressions. Results record the language

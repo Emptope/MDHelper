@@ -10,6 +10,7 @@ import pytest
 
 import mdhelper.io.export.figures as export_module
 from mdhelper.core.analysis import AnalysisResult, EnergyRequest
+from mdhelper.core.integrations import IntegrationStatus
 from mdhelper.runtime.logging import LOGGER_NAME
 
 
@@ -83,3 +84,14 @@ def stub_figure_exports(
         monkeypatch.setattr(export_module, "_save_figure", save)
 
     return activate
+
+
+@pytest.fixture
+def immediate_integration_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "mdhelper.app.features.integrations.IntegrationFeature.detect",
+        lambda _self, name, _override=None, _config=None: IntegrationStatus(
+            name,
+            False,
+        ),
+    )

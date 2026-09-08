@@ -1,6 +1,6 @@
 # MDHelper usage
 
-[English](USAGE.md) | [Simplified Chinese](USAGE.zh-CN.md)
+[English](USAGE.md) | [简体中文](USAGE.zh-CN.md)
 
 ## Setup
 

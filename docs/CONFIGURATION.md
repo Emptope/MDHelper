@@ -1,6 +1,6 @@
 # MDHelper configuration
 
-[English](CONFIGURATION.md) | [Simplified Chinese](CONFIGURATION.zh-CN.md)
+[English](CONFIGURATION.md) | [简体中文](CONFIGURATION.zh-CN.md)
 
 MDHelper uses a schema-versioned TOML file.
 

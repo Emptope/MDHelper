@@ -1,6 +1,6 @@
 # Radial distribution function - method 1.0.0
 
-[English](rdf-1.0.0.md) | [Simplified Chinese](rdf-1.0.0.zh-CN.md)
+[English](rdf-1.0.0.md) | [简体中文](rdf-1.0.0.zh-CN.md)
 
 ## Definition
 

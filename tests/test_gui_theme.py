@@ -44,15 +44,7 @@ from mdhelper.services.config import UserConfig, load_config
 _QT_APPLICATION = QApplication.instance() or QApplication([])
 
 
-@pytest.fixture(autouse=True)
-def _immediate_integration_detection(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "mdhelper.app.features.integrations.IntegrationFeature.detect",
-        lambda _self, name, _override=None, _config=None: IntegrationStatus(
-            name,
-            False,
-        ),
-    )
+pytestmark = pytest.mark.usefixtures("immediate_integration_detection")
 
 
 def test_window_manager_reuses_and_resizes_non_modal_windows() -> None:

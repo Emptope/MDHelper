@@ -1,6 +1,6 @@
 # Cumulative Number RDF - method 1.0.0
 
-[English](cumulative-rdf-1.0.0.md) | [Simplified Chinese](cumulative-rdf-1.0.0.zh-CN.md)
+[English](cumulative-rdf-1.0.0.md) | [简体中文](cumulative-rdf-1.0.0.zh-CN.md)
 
 The analysis type is `cumulative_rdf`; the CLI command is `cumulative-rdf`.
 

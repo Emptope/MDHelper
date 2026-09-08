@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from html import escape
 from typing import Any
 
@@ -25,6 +25,8 @@ __all__ = (
     "result_summary_html",
     "role_suggestions_html",
 )
+
+
 def error_dict(error: BaseException) -> dict[str, Any]:
     if isinstance(error, MDHelperError):
         return error.to_dict()
@@ -67,6 +69,14 @@ def _evidence_value(value: object, unit: str) -> str:
     return text
 
 
+def _table_html(rows: Iterable[tuple[str, str]], spacing: int) -> str:
+    body = "".join(
+        f"<tr><td><b>{escape(key)}</b></td><td>{escape(value)}</td></tr>"
+        for key, value in rows
+    )
+    return f"<table cellspacing='{spacing}'>{body}</table>"
+
+
 def role_suggestions_html(suggestions: Mapping[str, SpeciesRoleSuggestion]) -> str:
     """Render complete role suggestions as readable rich text."""
 
@@ -78,19 +88,19 @@ def role_suggestions_html(suggestions: Mapping[str, SpeciesRoleSuggestion]) -> s
         ]
         if item.error:
             fields.append(("Error", item.error))
-        parts.append(f"<h3>{escape(species)}</h3><table cellspacing='5'>")
-        parts.extend(
-            f"<tr><td><b>{escape(key)}</b></td><td>{escape(value)}</td></tr>"
-            for key, value in fields
+        parts.append(f"<h3>{escape(species)}</h3>")
+        parts.append(_table_html(fields, 5))
+        parts.append("<h4>Evidence</h4>")
+        parts.append(
+            _table_html(
+                (
+                    (label, _evidence_value(value, unit))
+                    for name, value in item.evidence.items()
+                    for label, unit in (_evidence_label(name),)
+                ),
+                5,
+            )
         )
-        parts.append("</table><h4>Evidence</h4><table cellspacing='5'>")
-        parts.extend(
-            f"<tr><td><b>{escape(label)}</b></td>"
-            f"<td>{escape(_evidence_value(value, unit))}</td></tr>"
-            for name, value in item.evidence.items()
-            for label, unit in (_evidence_label(name),)
-        )
-        parts.append("</table>")
     return "".join(parts)
 
 
@@ -116,23 +126,15 @@ def _result_html(result: AnalysisResult, include_technical: bool) -> str:
     report = report_for(result)
     parts = [f"<h3>{escape(report.title)}</h3>"]
     for heading, rows in report.sections():
-        parts.append(f"<h4>{escape(heading)}</h4><table cellspacing='4'>")
-        for key, value in rows:
-            parts.append(
-                f"<tr><td><b>{escape(key)}</b></td><td>{escape(value)}</td></tr>"
-            )
-        parts.append("</table>")
+        parts.append(f"<h4>{escape(heading)}</h4>")
+        parts.append(_table_html(rows, 4))
     if result.warnings:
         parts.append("<h4>Warnings and review items</h4><ul>")
         parts.extend(f"<li>{escape(warning)}</li>" for warning in result.warnings)
         parts.append("</ul>")
     if include_technical:
-        parts.append("<h4>Technical details</h4><table cellspacing='4'>")
-        for key, value in report.technical_rows():
-            parts.append(
-                f"<tr><td><b>{escape(key)}</b></td><td>{escape(value)}</td></tr>"
-            )
-        parts.append("</table>")
+        parts.append("<h4>Technical details</h4>")
+        parts.append(_table_html(report.technical_rows(), 4))
     return "".join(parts)
 
 

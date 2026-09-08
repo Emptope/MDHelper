@@ -1,6 +1,6 @@
 # MDHelper algorithm specification
 
-[English](ALGORITHM.md) | [Simplified Chinese](ALGORITHM.zh-CN.md)
+[English](ALGORITHM.md) | [简体中文](ALGORITHM.zh-CN.md)
 
 This document defines implemented engineering behavior for MDHelper. The versioned
 [method documents](methods/README.md) are normative for scientific quantities and formulas.

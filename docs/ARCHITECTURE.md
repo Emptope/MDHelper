@@ -1,6 +1,6 @@
 # MDHelper architecture
 
-[English](ARCHITECTURE.md) | [Simplified Chinese](ARCHITECTURE.zh-CN.md)
+[English](ARCHITECTURE.md) | [简体中文](ARCHITECTURE.zh-CN.md)
 
 This document defines package ownership, dependency rules, and runtime flow for MDHelper.
 

@@ -1,6 +1,6 @@
 # Versioned methods
 
-[English](README.md) | [Simplified Chinese](README.zh-CN.md)
+[English](README.md) | [简体中文](README.zh-CN.md)
 
 Results identify a method by the request's `analysis_type` and the result's `method_version`.
 A numerical definition change requires a new method version. Presentation and equivalent

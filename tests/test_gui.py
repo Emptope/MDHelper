@@ -41,15 +41,7 @@ from mdhelper.services.config import UserConfig, config_path, save_config
 gui_main_module = import_module("mdhelper.gui.main")
 
 
-@pytest.fixture(autouse=True)
-def _immediate_integration_detection(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "mdhelper.app.features.integrations.IntegrationFeature.detect",
-        lambda _self, name, _override=None, _config=None: IntegrationStatus(
-            name,
-            False,
-        ),
-    )
+pytestmark = pytest.mark.usefixtures("immediate_integration_detection")
 
 
 def test_gui_startup_defers_heavy_optional_modules(tmp_path: Path) -> None:

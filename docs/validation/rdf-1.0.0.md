@@ -1,6 +1,6 @@
 # RDF validation - method 1.0.0
 
-[English](rdf-1.0.0.md) | [Simplified Chinese](rdf-1.0.0.zh-CN.md)
+[English](rdf-1.0.0.md) | [简体中文](rdf-1.0.0.zh-CN.md)
 
 Tests generate a two-frame, four-atom periodic GRO system. Expected shell counts and volumes are
 calculated independently and compared with every radius and `g(r)` sample. Overlapping selections

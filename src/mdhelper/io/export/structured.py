@@ -114,34 +114,17 @@ def _atomic_csv(path: Path, header: list[str], rows: list[list[Any]]) -> None:
 def _export_csv(result: AnalysisResult, output: Path) -> list[Path]:
     data = result.data
     paths: list[Path] = []
-    if result.analysis_type == "rdf":
-        path = output / "rdf.csv"
-        _atomic_csv(
-            path,
-            ["radius_nm", "g_r"],
-            [
-                list(row)
-                for row in zip(
-                    data["radius_nm"],
-                    data["g_r"],
-                    strict=True,
-                )
-            ],
+    if result.analysis_type in {"rdf", "cumulative_rdf"}:
+        filename, column = (
+            ("rdf.csv", "g_r")
+            if result.analysis_type == "rdf"
+            else ("rdf_cn.csv", "cumulative_number")
         )
-        paths.append(path)
-    elif result.analysis_type == "cumulative_rdf":
-        path = output / "rdf_cn.csv"
+        path = output / filename
         _atomic_csv(
             path,
-            ["radius_nm", "cumulative_number"],
-            [
-                list(row)
-                for row in zip(
-                    data["radius_nm"],
-                    data["cumulative_number"],
-                    strict=True,
-                )
-            ],
+            ["radius_nm", column],
+            [list(row) for row in zip(data["radius_nm"], data[column], strict=True)],
         )
         paths.append(path)
     elif result.analysis_type == "energy":

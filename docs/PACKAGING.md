@@ -1,6 +1,6 @@
 # Packaging and release validation
 
-[English](PACKAGING.md) | [Simplified Chinese](PACKAGING.zh-CN.md)
+[English](PACKAGING.md) | [简体中文](PACKAGING.zh-CN.md)
 
 ## Artifacts
 

@@ -21,6 +21,39 @@ from mdhelper.core.plotting import (
 )
 
 
+@pytest.fixture
+def plot_export_calls(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    calls: list[str] = []
+
+    def export(
+        _model: PlotModel,
+        output: str | Path,
+        stem: str,
+        _scheme: str,
+        _limits: PlotLimits | None,
+        _size: PlotSize | None,
+        _appearance: PlotAppearance | None,
+    ) -> list[Path]:
+        path = Path(output) / f"{stem}.png"
+        path.touch()
+        calls.append(stem)
+        return [path]
+
+    monkeypatch.setattr(exports_module, "export_plot_model", export)
+
+    return calls
+
+
+@pytest.fixture
+def stub_result_export(monkeypatch: pytest.MonkeyPatch) -> None:
+    def export(_result: AnalysisResult, output: str | Path) -> list[Path]:
+        path = Path(output)
+        path.mkdir(parents=True)
+        return [path / "result.json"]
+
+    monkeypatch.setattr(exports_module, "export_result", export)
+
+
 def _radial_result(
     analysis_type: AnalysisType,
     reference: str,
@@ -135,10 +168,9 @@ def test_plot_export_uses_fixed_name_for_combined_radial_series(
 
 
 def test_save_plots_numbers_every_combined_analysis_name(
-    monkeypatch: pytest.MonkeyPatch,
+    plot_export_calls: list[str],
     tmp_path: Path,
 ) -> None:
-    calls: list[str] = []
     plots = {
         "rdf": plot_exports(
             (
@@ -163,61 +195,30 @@ def test_save_plots_numbers_every_combined_analysis_name(
     for name in plots:
         (tmp_path / f"{name}.svg").write_text("existing", encoding="ascii")
 
-    def fake_export(
-        _model: PlotModel,
-        output: str | Path,
-        stem: str,
-        _scheme: str,
-        _limits: PlotLimits | None,
-        _size: PlotSize | None,
-        _appearance: PlotAppearance | None,
-    ) -> list[Path]:
-        path = Path(output) / f"{stem}.png"
-        path.touch()
-        calls.append(stem)
-        return [path]
-
-    monkeypatch.setattr(exports_module, "export_plot_model", fake_export)
-
     for plan in plots.values():
         save_plots(plan, tmp_path)
 
-    assert calls == ["rdf-2", "cn-2", "energy-2"]
+    assert plot_export_calls == ["rdf-2", "cn-2", "energy-2"]
 
 
 def test_save_plots_increments_combined_names_across_batch_and_disk(
-    monkeypatch: pytest.MonkeyPatch,
+    plot_export_calls: list[str],
     tmp_path: Path,
 ) -> None:
-    calls: list[str] = []
     (tmp_path / "rdf-cn.svg").write_text("existing", encoding="ascii")
 
-    def fake_export(
-        _model: PlotModel,
-        output: str | Path,
-        stem: str,
-        _scheme: str,
-        _limits: PlotLimits | None,
-        _size: PlotSize | None,
-        _appearance: PlotAppearance | None,
-    ) -> list[Path]:
-        path = Path(output) / f"{stem}.png"
-        path.touch()
-        calls.append(stem)
-        return [path]
-
-    monkeypatch.setattr(exports_module, "export_plot_model", fake_export)
     plots = _two_combined_plots()
 
     save_plots(plots, tmp_path)
     save_plots(plots, tmp_path)
 
-    assert calls == ["rdf-cn-2", "rdf-cn-3", "rdf-cn-4", "rdf-cn-5"]
+    assert plot_export_calls == ["rdf-cn-2", "rdf-cn-3", "rdf-cn-4", "rdf-cn-5"]
 
 
 def test_export_bundle_rebuilds_standalone_radial_plots(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    stub_result_export: None,
 ) -> None:
     rdf = _radial_result("rdf", "LI", "O_FSI", "rdf")
     cn = _radial_result("cumulative_rdf", "LI", "O_FSI", "cn")
@@ -238,14 +239,6 @@ def test_export_bundle_rebuilds_standalone_radial_plots(
         ]
     ] = []
 
-    def fake_result(
-        _result: AnalysisResult,
-        output: str | Path,
-    ) -> list[Path]:
-        path = Path(output)
-        path.mkdir(parents=True)
-        return [path / "result.json"]
-
     def fake_plot(
         model: PlotModel,
         output: str | Path,
@@ -258,7 +251,6 @@ def test_export_bundle_rebuilds_standalone_radial_plots(
         exported.append((Path(output), stem, model, limits, size, appearance))
         return [Path(output) / f"{stem}.png"]
 
-    monkeypatch.setattr(exports_module, "export_result", fake_result)
     monkeypatch.setattr(exports_module, "export_plot_model", fake_plot)
     limits = PlotLimits(1.0, 6.0, 0.0, 4.0, 0.5, 8.0)
     size = PlotSize(7.0, 5.0)
@@ -296,6 +288,7 @@ def test_export_bundle_rebuilds_standalone_radial_plots(
 def test_export_bundle_maps_limits_by_source_axis(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    stub_result_export: None,
 ) -> None:
     temperature = _energy_result("Temperature", "K", "temperature")
     pressure = _energy_result("Pressure", "bar", "pressure")
@@ -304,14 +297,6 @@ def test_export_bundle_maps_limits_by_source_axis(
         group_ids=("shared", "shared"),
     )
     exported_limits: list[PlotLimits | None] = []
-
-    def fake_result(
-        _result: AnalysisResult,
-        output: str | Path,
-    ) -> list[Path]:
-        path = Path(output)
-        path.mkdir(parents=True)
-        return [path / "result.json"]
 
     def fake_plot(
         _model: PlotModel,
@@ -325,7 +310,6 @@ def test_export_bundle_maps_limits_by_source_axis(
         exported_limits.append(limits)
         return [Path(output) / f"{stem}.png"]
 
-    monkeypatch.setattr(exports_module, "export_result", fake_result)
     monkeypatch.setattr(exports_module, "export_plot_model", fake_plot)
     limits = PlotLimits(0.0, 1.0, 10.0, 20.0, 30.0, 40.0)
 

@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="README.md">English</a> |
-  <a href="README.zh-CN.md">Simplified Chinese</a>
+  <a href="README.zh-CN.md">简体中文</a>
 </p>
 
 > **A local data post-processing and visualization tool for molecular dynamics (MD) simulations**
