@@ -39,6 +39,20 @@ ALLOWED_LINUX_QT_PLUGINS = {
     "xcbglintegrations/libqxcb-egl-integration.so",
     "xcbglintegrations/libqxcb-glx-integration.so",
 }
+ALLOWED_MACOS_QT_PLUGINS = {
+    "iconengines/libqsvgicon.dylib",
+    "imageformats/libqgif.dylib",
+    "imageformats/libqico.dylib",
+    "imageformats/libqjpeg.dylib",
+    "imageformats/libqsvg.dylib",
+    "platforms/libqcocoa.dylib",
+    "platforms/libqoffscreen.dylib",
+    "styles/libqmacstyle.dylib",
+}
+POSIX_QT_PLUGINS = {
+    "linux-gui": ALLOWED_LINUX_QT_PLUGINS,
+    "macos": ALLOWED_MACOS_QT_PLUGINS,
+}
 FORBIDDEN_ROOTS = {
     "_pyinstaller_hooks_contrib",
     "_pytest",
@@ -80,11 +94,12 @@ FORBIDDEN_MODULES = {
 FORBIDDEN_LINUX_MODULES = {
     "mdhelper.bootstrap.windows_console",
 }
-REQUIRED_OPTIONS = {"windows": set(), "linux": set(), "linux-gui": set()}
+REQUIRED_OPTIONS = {"windows": set(), "linux": set(), "linux-gui": set(), "macos": set()}
 REQUIRED_QT_PLUGINS = {
     "windows": {"qwindows.dll"},
     "linux": set(),
     "linux-gui": {"libqxcb.so"},
+    "macos": {"libqcocoa.dylib"},
 }
 WINDOWS_CONSOLE_SUBSYSTEM = 3
 
@@ -120,18 +135,18 @@ def violations(entries: list[str], platform: str) -> list[str]:
         if platform == "linux-gui" and filename.startswith(FORBIDDEN_LINUX_GUI_PREFIXES):
             invalid.append(raw_name)
             continue
-        if platform == "linux-gui" and name.lower().startswith(
+        if platform in POSIX_QT_PLUGINS and name.lower().startswith(
             ("pyside6/translations/", "pyside6/qt/translations/")
         ):
             invalid.append(raw_name)
             continue
-        if platform == "linux-gui":
+        if platform in POSIX_QT_PLUGINS:
             plugin = None
             for plugin_root in ("pyside6/plugins/", "pyside6/qt/plugins/"):
                 if name.lower().startswith(plugin_root):
                     plugin = name.lower().removeprefix(plugin_root)
                     break
-            if plugin is not None and plugin not in ALLOWED_LINUX_QT_PLUGINS:
+            if plugin is not None and plugin not in POSIX_QT_PLUGINS[platform]:
                 invalid.append(raw_name)
                 continue
         if platform == "windows" and filename in FORBIDDEN_WINDOWS_FILES:

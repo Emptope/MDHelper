@@ -7,12 +7,7 @@ from PySide6.QtWidgets import QFormLayout, QGroupBox, QLabel, QWidget
 
 from mdhelper.core.analysis import AnalysisRequest, RadialRequest
 from mdhelper.core.trajectory import TOPOLOGY_SUFFIXES, TRAJECTORY_SUFFIXES
-from mdhelper.gui.components.paths import PathRow
-
-
-def _filter(label: str, suffixes: tuple[str, ...]) -> str:
-    patterns = " ".join(f"*{suffix}" for suffix in suffixes)
-    return f"{label} ({patterns});;All files (*)"
+from mdhelper.gui.components.paths import PathRow, file_filter
 
 
 class InputPanel(QGroupBox):
@@ -25,10 +20,12 @@ class InputPanel(QGroupBox):
         form.setHorizontalSpacing(12)
         form.setVerticalSpacing(10)
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
-        self.topology = PathRow("Select topology", _filter("GROMACS topology", TOPOLOGY_SUFFIXES))
+        self.topology = PathRow(
+            "Select topology", file_filter("GROMACS topology", TOPOLOGY_SUFFIXES),
+        )
         self.trajectory = PathRow(
             "Select trajectory",
-            _filter("GROMACS trajectory", TRAJECTORY_SUFFIXES),
+            file_filter("GROMACS trajectory", TRAJECTORY_SUFFIXES),
         )
         self.index_file = PathRow("Select GROMACS index", "GROMACS index (*.ndx);;All files (*)")
         self.index_summary = QLabel()

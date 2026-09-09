@@ -28,8 +28,6 @@ jobs:
           enable-cache: true
       - name: Install locked development environment
         run: uv sync --frozen --group dev
-      - name: Audit locked dependencies
-        run: uv audit --frozen
       - name: Validate release metadata
         run: uv run python packaging/check_release.py
       - name: Validate release tag
@@ -37,19 +35,11 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: uv run python packaging/check_release.py --tag "$env:RELEASE_TAG"
-      - name: Validate source
-        run: |
-          uv run ruff check conftest.py packaging src tests
-          uv run mypy src packaging/check_release.py packaging/clean_build.py `
-            packaging/smoke_check.py
-          uv run --extra gui pytest -q `
-            --cov=mdhelper --cov-report=term-missing:skip-covered
-      - name: Build and validate Windows archive
+      - name: Build and audit Windows archive
         shell: pwsh
         run: |
           .\packaging\windows\build.ps1 `
-            -Python ".venv\Scripts\python.exe" `
-            -SmokeRequest "packaging\smoke\request.json"
+            -Python ".venv\Scripts\python.exe"
       - name: Upload Windows release candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

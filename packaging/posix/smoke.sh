@@ -2,22 +2,17 @@
 set -euo pipefail
 
 distribution=${1:?distribution directory is required}
-variant=${2:-headless}
+platform=${2:?target platform is required}
 request=${3:?analysis request is required}
 python=${PYTHON:-python}
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 check_script="$project_root/packaging/smoke_check.py"
 export PYTHONWARNINGS=error
 
-if [[ "$variant" != headless && "$variant" != gui ]]; then
-    echo "Unknown Linux package variant: $variant" >&2
-    exit 1
-fi
-
-platform=linux
-if [[ "$variant" == gui ]]; then
-    platform=linux-gui
-fi
+case "$platform" in
+    linux|linux-gui|macos) ;;
+    *) echo "Unknown POSIX package platform: $platform" >&2; exit 1 ;;
+esac
 application=$(
     "$python" "$check_script" distribution \
         --root "$distribution" \
@@ -31,14 +26,17 @@ trap cleanup EXIT
 
 "$application" --version
 "$application" tui --smoke-test
-if ! env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM \
+if [[ "$platform" != macos ]] && ! env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORM \
     "$application" </dev/null >/dev/null; then
     echo "Argument-free startup did not fall back to TUI." >&2
     exit 1
 fi
 
-if [[ "$variant" == gui ]]; then
+if [[ "$platform" != linux ]]; then
     QT_QPA_PLATFORM=offscreen "$application" gui --smoke-test
+    if [[ "$platform" == macos ]]; then
+        QT_QPA_PLATFORM=cocoa "$application" gui --smoke-test
+    fi
 elif QT_QPA_PLATFORM=offscreen "$application" gui --smoke-test; then
     echo "Headless package unexpectedly started the GUI." >&2
     exit 1

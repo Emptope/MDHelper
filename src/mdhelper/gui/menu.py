@@ -25,6 +25,7 @@ DOCUMENT_LINKS = {
 class MenuActions:
     tools: QMenu
     project: QAction
+    inputs: QAction
     themes: dict[ThemeMode, QAction]
     theme_group: QActionGroup
     templates: QAction
@@ -38,6 +39,7 @@ class MenuActions:
 def install_menu(
     window: QMainWindow,
     open_project: Callable[[], None],
+    change_inputs: Callable[[], None],
     export_result: Callable[[], None],
     integrations: Callable[[], None],
     templates: Callable[[], None],
@@ -52,11 +54,13 @@ def install_menu(
     file_menu = window.menuBar().addMenu("&File")
     open_action = QAction("Open Project...", window)
     open_action.triggered.connect(open_project)
+    inputs_action = QAction("Select Inputs...", window)
+    inputs_action.triggered.connect(change_inputs)
     export_action = QAction("Export Last Result...", window)
     export_action.triggered.connect(export_result)
     exit_action = QAction("Exit", window)
     exit_action.triggered.connect(window.close)
-    file_menu.addActions([open_action, export_action])
+    file_menu.addActions([open_action, inputs_action, export_action])
     file_menu.addSeparator()
     file_menu.addAction(exit_action)
 
@@ -136,6 +140,7 @@ def install_menu(
     return MenuActions(
         tools=tools_menu,
         project=open_action,
+        inputs=inputs_action,
         themes=themes,
         theme_group=theme_group,
         templates=templates_action,

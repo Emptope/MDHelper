@@ -1,8 +1,7 @@
 param(
     [string]$Python = "python",
     [string]$OutputDirectory = "dist/windows",
-    [Parameter(Mandatory = $true)]
-    [string]$SmokeRequest,
+    [string]$SmokeRequest = "",
     [int]$MaxArtifactSizeMB = 256
 )
 
@@ -14,11 +13,14 @@ if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $distRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot "dist"))
 $releaseOutput = [IO.Path]::GetFullPath((Join-Path $projectRoot $OutputDirectory))
-$smokeRequestSource = $SmokeRequest
-if (-not [IO.Path]::IsPathRooted($smokeRequestSource)) {
-    $smokeRequestSource = Join-Path $projectRoot $smokeRequestSource
+$smokeRequestPath = $null
+if ($SmokeRequest) {
+    $smokeRequestSource = $SmokeRequest
+    if (-not [IO.Path]::IsPathRooted($smokeRequestSource)) {
+        $smokeRequestSource = Join-Path $projectRoot $smokeRequestSource
+    }
+    $smokeRequestPath = (Resolve-Path $smokeRequestSource).Path
 }
-$smokeRequestPath = (Resolve-Path $smokeRequestSource).Path
 $distPrefix = $distRoot + [IO.Path]::DirectorySeparatorChar
 if (-not $releaseOutput.StartsWith($distPrefix, [StringComparison]::OrdinalIgnoreCase)) {
     throw "The release output must be a platform directory under dist: $releaseOutput"
@@ -82,9 +84,11 @@ Compress-Archive `
     --max-size-mb $MaxArtifactSizeMB
 if ($LASTEXITCODE -ne 0) { throw "Release archive size audit failed." }
 
-& (Join-Path $PSScriptRoot "archive_smoke.ps1") `
-    -Archive $archivePath `
-    -Request $smokeRequestPath `
-    -Python $Python
-if ($LASTEXITCODE -ne 0) { throw "Release archive smoke test failed." }
+if ($smokeRequestPath) {
+    & (Join-Path $PSScriptRoot "archive_smoke.ps1") `
+        -Archive $archivePath `
+        -Request $smokeRequestPath `
+        -Python $Python
+    if ($LASTEXITCODE -ne 0) { throw "Release archive smoke test failed." }
+}
 Write-Host "Windows archive: $archivePath"

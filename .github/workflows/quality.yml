@@ -17,13 +17,15 @@ concurrency:
 jobs:
   test:
     name: ${{ matrix.name }}
-    timeout-minutes: 45
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: Linux
             os: ubuntu-22.04
+          - name: macOS arm64
+            os: macos-14
           - name: Windows
             os: windows-2025
     runs-on: ${{ matrix.os }}
@@ -55,10 +57,27 @@ jobs:
           uv run --extra gui pytest -q -n 4 --dist worksteal
           --cov=mdhelper --cov-report=term-missing:skip-covered
       - name: Test serially
-        if: runner.os == 'Windows'
+        if: runner.os != 'Linux'
         run: >-
           uv run --extra gui pytest -q
           --cov=mdhelper --cov-report=term-missing:skip-covered
+      - name: Build and smoke test Linux archives
+        if: runner.os == 'Linux'
+        run: >-
+          PYTHON=.venv/bin/python SMOKE_REQUEST=packaging/smoke/request.json
+          bash packaging/linux/build.sh
+      - name: Build and smoke test macOS archive
+        if: runner.os == 'macOS'
+        run: >-
+          PYTHON=.venv/bin/python SMOKE_REQUEST=packaging/smoke/request.json
+          bash packaging/macos/build.sh
+      - name: Build and smoke test Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          .\packaging\windows\build.ps1 `
+            -Python ".venv\Scripts\python.exe" `
+            -SmokeRequest "packaging\smoke\request.json"
       - name: Verify headless Linux CLI
         if: runner.os == 'Linux'
         run: |
@@ -78,6 +97,28 @@ jobs:
           uv pip install --python "$wheel_env/bin/python" "$wheel"
           "$wheel_env/bin/mdhelper" --version
           "$wheel_env/bin/mdhelper" cli --help
+      - name: Verify macOS native startup
+        if: runner.os == 'macOS'
+        run: |
+          uv run python -c "import platform; assert platform.machine() == 'arm64'"
+          uv run mdhelper --version
+          uv run mdhelper cli --help
+          uv run mdhelper tui --smoke-test
+          QT_QPA_PLATFORM=offscreen uv run mdhelper gui --smoke-test
+          QT_QPA_PLATFORM=cocoa uv run mdhelper gui --smoke-test
+          uv run python packaging/clean_build.py
+          uv build
+          version=$(uv run python packaging/check_release.py)
+          wheel="dist/mdhelper-${version}-py3-none-any.whl"
+          uv run python packaging/verify_wheel.py "$wheel"
+          wheel_env="${RUNNER_TEMP}/mdhelper-wheel"
+          uv venv --python 3.12 "$wheel_env"
+          uv pip install --python "$wheel_env/bin/python" "$wheel"
+          "$wheel_env/bin/mdhelper" --version
+          "$wheel_env/bin/mdhelper" cli --help
+          "$wheel_env/bin/mdhelper" tui --smoke-test
+          QT_QPA_PLATFORM=offscreen "$wheel_env/bin/mdhelper" gui --smoke-test
+          QT_QPA_PLATFORM=cocoa "$wheel_env/bin/mdhelper" gui --smoke-test
       - name: Verify Windows GUI startup
         if: runner.os == 'Windows'
         shell: pwsh

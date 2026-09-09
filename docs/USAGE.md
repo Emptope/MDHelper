@@ -15,6 +15,29 @@ uv run mdhelper --version
 Run `uv run mdhelper` for automatic GUI/TUI selection. Use `gui`, `tui`, or `cli` to select an
 interface. Run `uv run mdhelper --help` for command options.
 
+## Workspace files
+
+Open a folder to browse independently of analysis inputs. File names appear above the content;
+size, modification time, and format or read status appear below it.
+
+- Binary tables load additional rows when you scroll. Only visited rows are cached on disk, with a
+  bounded GUI page cache. The scrollbar covers loaded rows and grows as more data arrives; there is
+  no frame selector or manual next-page button.
+- XTC/TRR stream without an up-front frame-index scan. EDR uses a read-only memory map and parses
+  requested frames rather than allocating every energy series. Other parsers may need format
+  metadata or a complete first frame before displaying data; opening does not export all rows.
+- UTF-8 text up to 1 MiB remains editable. Larger text is a read-only table of character offsets and
+  text blocks. Double-click a cell to inspect the block. Saving partial content is disabled.
+- Images are identified by content, including PNG, JPEG, GIF, BMP, TIFF, and WebP. The first image is
+  decoded in the background only when visible, fitted to the viewport, and displayed with its
+  original dimensions. Resize requests are coalesced; pixel buffers are released when leaving the
+  page. Display decoding is limited to 2048 pixels per dimension. Decoders that cannot downsample
+  before materializing more than 32 MiPixels report a memory-limit error rather than loading the
+  unbounded original. This is not arbitrary-region decoding for all compressed image formats.
+
+Cancel, file switching, and leaving Workspace stop pending loads and discard stale results. Existing
+small-text edits still require save/discard confirmation before changing files.
+
 ## Inspect and analyze
 
 Inspect inputs before selecting groups:

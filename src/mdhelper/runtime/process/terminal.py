@@ -14,6 +14,7 @@ from mdhelper.runtime.environment import terminal_environment
 from mdhelper.runtime.logging import record_command
 
 from .contracts import ExecutionAdapter, ExecutionStatus, integration_argv
+from .macos import script_command
 from .records import format_command
 
 TerminalFinder = Callable[[str], str | None]
@@ -32,6 +33,9 @@ def terminal_command(
     arguments: Sequence[str],
     platform: str | None = None,
     finder: TerminalFinder | None = None,
+    *,
+    working_directory: str | Path | None = None,
+    environment: dict[str, str] | None = None,
 ) -> tuple[list[str], int]:
     """Wrap an argv for an interactive external terminal."""
 
@@ -42,6 +46,10 @@ def terminal_command(
     if system == "win32":
         return command, int(vars(subprocess)["CREATE_NEW_CONSOLE"])
     find = shutil.which if finder is None else finder
+    if system == "darwin":
+        if executable := find("osascript"):
+            return script_command(executable, command, working_directory, environment), 0
+        raise OSError("The native terminal scripting launcher is unavailable.")
     for name, prefix in _POSIX_TERMINALS:
         if executable := find(name):
             return [executable, *prefix, *command], 0
@@ -66,7 +74,9 @@ def launch_in_terminal(
     command = format_command(argv)
     record_command(command, cwd)
     try:
-        launcher, creationflags = terminal_command(argv)
+        launcher, creationflags = terminal_command(
+            argv, working_directory=cwd, environment=child_env
+        )
         subprocess.Popen(
             launcher,
             cwd=cwd,

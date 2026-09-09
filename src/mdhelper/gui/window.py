@@ -57,6 +57,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(760, 680)
         self.resize(860, 800)
         self.tabs = WorkspaceTabs(windows=self.windows)
+        self.editor = self.tabs.editor
         self.load = self.tabs.load
         self.analysis = self.tabs.analysis
         self.results = self.tabs.results
@@ -130,6 +131,7 @@ class MainWindow(QMainWindow):
         self.menu_actions = install_menu(
             self,
             self._open_project,
+            self.project_actions.change_inputs,
             self._export_result,
             self._integrations,
             self._templates,
@@ -141,6 +143,7 @@ class MainWindow(QMainWindow):
             self._set_theme,
             self._open_document,
         )
+        self.editor.error_reported.connect(self._show_error)
         self.backend_actions.detect_gromacs()
 
     # System actions
@@ -289,6 +292,10 @@ class MainWindow(QMainWindow):
             if answer != QMessageBox.StandardButton.Yes:
                 event.ignore()
                 return
+        if not self.editor.confirm_discard():
+            event.ignore()
+            return
+        self.editor.shutdown()
         if self.job_controller.running:
             self.analysis_actions.cancel()
         self.analysis_actions.shutdown()

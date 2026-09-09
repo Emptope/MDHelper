@@ -9,24 +9,7 @@ from hypothesis import strategies as st
 from mdhelper.core.errors import FormatError
 from mdhelper.io.itp import discover_molecule_types, read_molecule_types
 from mdhelper.services.species import inspect_species_roles
-
-
-def _write_itp(path: Path, name: str, charges: tuple[str, ...]) -> None:
-    atoms = "\n".join(
-        f"{index} type 1 {name} A{index} {index} {charge} 1.0"
-        for index, charge in enumerate(charges, 1)
-    )
-    path.write_text(
-        "[ moleculetype ]\n"
-        "; name nrexcl\n"
-        f"{name} 3\n"
-        "[ atoms ]\n"
-        "; nr type resnr residue atom cgnr charge mass\n"
-        f"{atoms}\n"
-        "[ bonds ]\n"
-        "1 1 1\n",
-        encoding="ascii",
-    )
+from tests.support.molecular import write_itp as _write_itp
 
 
 def test_itp_reader_uses_sections_and_charge_column(tmp_path: Path) -> None:

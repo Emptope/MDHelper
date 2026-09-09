@@ -6,6 +6,11 @@ from PySide6.QtCore import QDir, Signal
 from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QLineEdit, QPushButton, QWidget
 
 
+def file_filter(label: str, suffixes: tuple[str, ...]) -> str:
+    patterns = " ".join(f"*{suffix}" for suffix in suffixes)
+    return f"{label} ({patterns});;All files (*)"
+
+
 class PathRow(QWidget):
     """Line edit with a platform-native file picker."""
 

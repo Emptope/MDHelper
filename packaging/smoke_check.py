@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-PLATFORMS = ("linux", "linux-gui", "windows")
+PLATFORMS = ("linux", "linux-gui", "windows", "macos")
 REQUIRED_FILES = (
     "LICENSE",
     "README.md",

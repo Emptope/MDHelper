@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import re
 import runpy
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
+import yaml
+from packaging.requirements import Requirement
 
 ROOT = Path(__file__).parents[1]
 SCRIPT = Path(__file__).parents[1] / "packaging" / "check_release.py"
@@ -56,6 +60,34 @@ def run_check(root: Path, tag: str | None = None) -> subprocess.CompletedProcess
     if tag is not None:
         command.extend(("--tag", tag))
     return subprocess.run(command, capture_output=True, check=False, text=True)
+
+
+def test_tag_release_graph_does_not_repeat_commit_tests() -> None:
+    workflows = {
+        path: yaml.load(path.read_text(encoding="ascii"), Loader=yaml.BaseLoader)
+        for path in (ROOT / ".github" / "workflows").glob("*.yml")
+    }
+    pending = [
+        path for path, workflow in workflows.items()
+        if workflow.get("on", {}).get("push", {}).get("tags")
+    ]
+    assert pending
+    checked = set()
+    while pending:
+        path = pending.pop()
+        if path in checked:
+            continue
+        checked.add(path)
+        for job in workflows[path]["jobs"].values():
+            reference = job.get("uses", "")
+            if reference.startswith(("./", "$/")):
+                pending.append(ROOT / reference[2:])
+            for step in job.get("steps", []):
+                command = step.get("run", "")
+                assert not re.search(
+                    r"\b(?:ruff|mypy|pytest|SmokeRequest|SMOKE_REQUEST)\b|--smoke-test",
+                    command,
+                ), (path, command)
 
 
 def test_build_cleanup_removes_only_generated_tree(tmp_path: Path) -> None:
@@ -146,6 +178,8 @@ def test_release_check_rejects_invalid_tag(tmp_path: Path) -> None:
             ["libqxcb.so"],
         ),
         ("linux", [], []),
+        ("macos", ["PySide6/Qt/plugins/platforms/libqoffscreen.dylib"], ["libqcocoa.dylib"]),
+        ("macos", ["PySide6/Qt/plugins/platforms/libqcocoa.dylib"], []),
     ],
 )
 def test_frozen_audit_requires_runtime_qt_plugins(
@@ -156,15 +190,52 @@ def test_frozen_audit_requires_runtime_qt_plugins(
     assert FROZEN_AUDIT["missing_plugins"](entries, platform) == expected
 
 
-def test_smoke_check_validates_distribution_contract(tmp_path: Path) -> None:
+@pytest.mark.parametrize("platform", ["linux", "linux-gui", "windows", "macos"])
+def test_smoke_check_validates_distribution_contract(
+    tmp_path: Path, platform: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     distribution = tmp_path / "distribution"
-    application = write_distribution(distribution, "windows")
+    application = write_distribution(distribution, platform)
+    executable_paths = {application}
+    monkeypatch.setattr(SMOKE_CHECK["os"], "access", lambda path, _mode: path in executable_paths)
 
-    assert SMOKE_CHECK["validate_distribution"](distribution, "windows") == application
+    assert SMOKE_CHECK["validate_distribution"](distribution, platform) == application
+    extra = application.with_name("unexpected" + application.suffix)
+    extra.write_bytes(b"application")
+    executable_paths.add(extra)
+    with pytest.raises(SMOKE_CHECK["SmokeFailure"], match="only the packaged application"):
+        SMOKE_CHECK["validate_distribution"](distribution, platform)
+    extra.unlink()
 
     (distribution / "schemas" / "contract.json").unlink()
     with pytest.raises(SMOKE_CHECK["SmokeFailure"], match="schemas"):
-        SMOKE_CHECK["validate_distribution"](distribution, "windows")
+        SMOKE_CHECK["validate_distribution"](distribution, platform)
+
+
+@pytest.mark.parametrize(
+    ("system", "machine", "gui"),
+    [("linux", "x86_64", False), ("win32", "AMD64", True), ("darwin", "arm64", True)],
+)
+def test_desktop_dependency_selection(system: str, machine: str, gui: bool) -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    requirements = [Requirement(value) for value in project["dependencies"]]
+    qt = next(item for item in requirements if item.name == "PySide6")
+    assert qt.marker is not None
+    assert qt.marker.evaluate({"sys_platform": system, "platform_machine": machine}) is gui
+
+
+def test_macos_payload_policy() -> None:
+    allowed = [
+        "PySide6/Qt/plugins/platforms/libqcocoa.dylib",
+        "PySide6/Qt/plugins/platforms/libqoffscreen.dylib",
+        "PySide6/Qt/lib/QtCore.framework/Versions/A/QtCore",
+    ]
+    forbidden = [
+        "PySide6/Qt/plugins/platforms/libqminimal.dylib",
+        "PySide6/Qt/translations/qtbase_en.qm",
+        "pytest/__init__.py",
+    ]
+    assert FROZEN_AUDIT["violations"](allowed + forbidden, "macos") == forbidden
 
 
 def test_smoke_check_rejects_empty_distribution_directory(tmp_path: Path) -> None:

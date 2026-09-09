@@ -1,19 +1,22 @@
 import logging
 import os
 import posixpath
+import runpy
+import sys
 from pathlib import Path
 
 project_root = Path(SPECPATH).parents[1]
 source_root = project_root / "src"
-template_root = source_root / "mdhelper" / "resources" / "templates"
-icon_root = source_root / "mdhelper" / "resources" / "icons"
+resource_root = source_root / "mdhelper" / "resources"
 hook_root = project_root / "packaging" / "hooks"
 figure_backends = [
     "matplotlib.backends.backend_agg",
     "matplotlib.backends.backend_pdf",
     "matplotlib.backends.backend_svg",
 ]
-gui_build = os.environ.get("MDHELPER_LINUX_GUI_BUILD") == "1"
+gui_build = os.environ.get("MDHELPER_GUI_BUILD") == "1"
+audit_platform = "macos" if sys.platform == "darwin" else "linux-gui"
+policy = runpy.run_path(str(project_root / "packaging" / "frozen_audit.py"))
 
 
 class PlatformLibraryFilter(logging.Filter):
@@ -56,12 +59,11 @@ else:
     excluded_modules.append("PySide6")
 
 application_analysis = Analysis(
-    [str(project_root / "packaging/linux/entry.py")],
+    [str(project_root / "packaging/posix/entry.py")],
     pathex=[str(source_root)],
     binaries=[],
     datas=[
-        (str(template_root), "mdhelper/resources/templates"),
-        (str(icon_root), "mdhelper/resources/icons"),
+        (str(resource_root), "mdhelper/resources"),
     ],
     hiddenimports=[
         *figure_backends,
@@ -82,42 +84,8 @@ application_analysis = Analysis(
     optimize=0,
 )
 
-qt_plugins = {
-    "iconengines/libqsvgicon.so",
-    "imageformats/libqgif.so",
-    "imageformats/libqico.so",
-    "imageformats/libqjpeg.so",
-    "imageformats/libqsvg.so",
-    "platforminputcontexts/libcomposeplatforminputcontextplugin.so",
-    "platforminputcontexts/libibusplatforminputcontextplugin.so",
-    "platforms/libqoffscreen.so",
-    "platforms/libqwayland.so",
-    "platforms/libqxcb.so",
-    "platformthemes/libqgtk3.so",
-    "platformthemes/libqxdgdesktopportal.so",
-    "wayland-decoration-client/libadwaita.so",
-    "wayland-decoration-client/libbradient.so",
-    "wayland-graphics-integration-client/libdmabuf-server.so",
-    "wayland-graphics-integration-client/libdrm-egl-server.so",
-    "wayland-graphics-integration-client/libqt-plugin-wayland-egl.so",
-    "wayland-graphics-integration-client/libshm-emulation-server.so",
-    "wayland-graphics-integration-client/libvulkan-server.so",
-    "wayland-shell-integration/libfullscreen-shell-v1.so",
-    "wayland-shell-integration/libivi-shell.so",
-    "wayland-shell-integration/libqt-shell.so",
-    "wayland-shell-integration/libwl-shell-plugin.so",
-    "wayland-shell-integration/libxdg-shell.so",
-    "xcbglintegrations/libqxcb-egl-integration.so",
-    "xcbglintegrations/libqxcb-glx-integration.so",
-}
-qt_unused_library_prefixes = (
-    "libqt6network",
-    "libqt6opengl",
-    "libqt6pdf",
-    "libqt6qml",
-    "libqt6quick",
-    "libqt6virtualkeyboard",
-)
+qt_plugins = policy["POSIX_QT_PLUGINS"][audit_platform]
+qt_unused_library_prefixes = policy["FORBIDDEN_LINUX_GUI_PREFIXES"]
 
 
 def keep_binary(item):
@@ -161,4 +129,7 @@ application = EXE(
     strip=False,
     upx=True,
     console=True,
+    target_arch="arm64" if sys.platform == "darwin" else None,
+    codesign_identity=None,
+    entitlements_file=None,
 )

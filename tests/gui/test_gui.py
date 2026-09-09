@@ -13,7 +13,7 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/mdhelper-test-matplotlib")
 
-pytest.importorskip("PySide6", reason="Windows GUI dependencies are not installed")
+pytest.importorskip("PySide6", reason="GUI dependencies are not installed")
 
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QMessageBox,
 )
-from test_synthetic_system import _write_trajectory
 
 import mdhelper.gui.window as window_module
 from mdhelper.app import InputCandidates
@@ -37,6 +36,8 @@ from mdhelper.gui.dialogs.tools import MakeIndexHelpDialog
 from mdhelper.gui.menu import DOCUMENT_LINKS
 from mdhelper.gui.window import MainWindow
 from mdhelper.services.config import UserConfig, config_path, save_config
+from tests.support.molecular import write_trajectory as _write_trajectory
+from tests.support.qt import wait_until
 
 gui_main_module = import_module("mdhelper.gui.main")
 
@@ -71,6 +72,41 @@ def test_gui_startup_defers_heavy_optional_modules(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_gui_workspace_editor_opens_text_and_unsupported_binary(tmp_path: Path) -> None:
+    QApplication.instance() or QApplication([])
+    text_path = tmp_path / "notes.txt"
+    binary_path = tmp_path / "data.bin"
+    text_path.write_text("alpha\n", encoding="utf-8")
+    binary_path.write_bytes(b"\x00\x01\x02")
+    window = MainWindow()
+
+    assert window.tabs.indexOf(window.editor) < window.tabs.indexOf(window.load)
+
+    window.editor.open_path(str(text_path))
+    _wait_file(window, text_path)
+    assert not window.editor.editor.isReadOnly()
+    assert window.editor.editor.toPlainText() == "alpha\n"
+    assert window.editor.save_button.isEnabled()
+
+    window.editor.editor.setPlainText("beta\n")
+    window.editor.save()
+    assert text_path.read_text(encoding="utf-8") == "beta\n"
+
+    window.editor.open_path(str(binary_path))
+    _wait_file(window, binary_path)
+    assert window.editor.editor.isReadOnly()
+    assert window.editor.editor.toPlainText() == ""
+    assert not window.editor.save_button.isEnabled()
+    assert window.editor.content.currentWidget() is window.editor.editor
+
+    window.job_controller.shutdown()
+    window.close()
+
+
+def _wait_file(window: MainWindow, path: Path) -> None:
+    wait_until(lambda: window.editor.current_path == str(path.resolve()))
 
 
 def test_gui_detects_integrations_outside_the_main_thread(
@@ -593,6 +629,9 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
         def __init__(self, _candidates: InputCandidates, _parent: object):
             pass
 
+        def set_inputs(self, _inputs: dict[str, Path]) -> None:
+            pass
+
         def exec(self) -> QDialog.DialogCode:
             return QDialog.DialogCode.Rejected
 
@@ -604,21 +643,37 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
     monkeypatch.setattr(window_module, "NewProjectDialog", RejectedDialog)
     window._open_project()
 
+    assert window.tabs.currentWidget() is window.editor
+    assert window.editor.root == tmp_path.resolve()
     assert window.load.inputs.topology.edit.text() == str(trajectory)
-    assert window.load.inputs.trajectory.edit.text() == str(trajectory)
+    assert window.results.text.toPlainText() == "old workspace"
+    window.tabs.setCurrentWidget(window.load)
+    window.project_actions.select_inputs()
+    assert window.tabs.currentWidget() is window.load
+    assert window.session.project is None
+    assert window.load.inputs.topology.edit.text() == str(trajectory)
     assert window.results.text.toPlainText() == "old workspace"
 
     class AcceptedDialog:
         def __init__(self, candidates: InputCandidates, _parent: object):
-            self.topology_path = candidates.topology[0]
+            self.topology_path = next(iter(candidates.topology), None)
             self.trajectory_path = next(
-                path for path in candidates.trajectory if path.suffix.casefold() == ".xtc"
+                (path for path in candidates.trajectory if path == trajectory_input),
+                next(iter(candidates.trajectory), None),
             )
-            self.index_path = candidates.index[0]
+            self.index_path = candidates.index[0] if candidates.index else None
+
+        def set_inputs(self, inputs: dict[str, Path]) -> None:
+            if inputs:
+                self.topology_path = inputs["topology"]
+                self.trajectory_path = inputs["trajectory"]
+                self.index_path = inputs.get("index")
 
         def exec(self) -> QDialog.DialogCode:
             return QDialog.DialogCode.Accepted
 
+    window.load.inputs.trajectory.set_path(str(trajectory_input))
+    window.load.inputs.index_file.set_path(str(index_input))
     monkeypatch.setattr(window_module, "NewProjectDialog", AcceptedDialog)
     inspections: list[bool] = []
     monkeypatch.setattr(
@@ -627,6 +682,9 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
         lambda *_args, **_kwargs: inspections.append(True),
     )
     window._open_project()
+    assert inspections == []
+    assert window.session.project is None
+    window.project_actions.select_inputs()
 
     assert window.session.project is not None
     assert window.session.project.root == tmp_path.resolve()
@@ -664,7 +722,20 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
         lambda *_args, **_kwargs: str(project.root),
     )
 
+    previous = window.session.project
     window._open_project()
+    assert window.session.project is previous
+    assert window.tabs.currentWidget() is window.editor
+    assert window.load.inputs.trajectory.edit.text() == str(trajectory_input.resolve())
+    monkeypatch.setattr(window_module, "NewProjectDialog", RejectedDialog)
+    window.tabs.setCurrentWidget(window.load)
+    window.project_actions.select_inputs()
+    assert window.tabs.currentWidget() is window.load
+    assert window.session.project is previous
+    assert window.load.inputs.trajectory.edit.text() == str(trajectory_input.resolve())
+    assert window.results.project_available
+    monkeypatch.setattr(window_module, "NewProjectDialog", AcceptedDialog)
+    window.project_actions.select_inputs()
 
     assert window.session.project is not None
     assert window.session.project.root == project.root

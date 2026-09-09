@@ -133,9 +133,10 @@ class MDAnalysisTrajectorySource:
         self.trajectory_path = require_file(trajectory, "Trajectory")
         try:
             import MDAnalysis as mda
-            from MDAnalysis.coordinates.core import get_reader_for
             from MDAnalysis.coordinates.XDR import XDRBaseReader
             from MDAnalysis.exceptions import NoDataError
+
+            from mdhelper.backends.mdanalysis.formats import get_parser, get_reader
         except ImportError as exc:
             raise BackendError(
                 "MDAnalysis is not installed, so this trajectory format cannot be read.",
@@ -147,7 +148,8 @@ class MDAnalysisTrajectorySource:
                 if cache_dir is None
                 else Path(cache_dir).expanduser().resolve()
             )
-            reader = get_reader_for(str(self.trajectory_path))
+            reader = get_reader(str(self.trajectory_path))
+            parser = get_parser(str(self.topology_path))
             if isinstance(reader, type) and issubclass(reader, XDRBaseReader):
                 cached_reader = type(
                     f"Cached{reader.__name__}",
@@ -158,6 +160,7 @@ class MDAnalysisTrajectorySource:
                     str(self.topology_path),
                     str(self.trajectory_path),
                     format=cached_reader,
+                    topology_format=parser,
                     cache_dir=cache,
                     to_guess=("types",),
                 )
@@ -165,6 +168,8 @@ class MDAnalysisTrajectorySource:
                 self._universe = mda.Universe(
                     str(self.topology_path),
                     str(self.trajectory_path),
+                    format=reader,
+                    topology_format=parser,
                     to_guess=("types",),
                 )
         except Exception as exc:

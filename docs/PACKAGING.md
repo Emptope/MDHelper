@@ -9,6 +9,7 @@
 | Linux x86_64 | Headless `tar.gz` | TUI, CLI | Excludes PySide6 |
 | Linux x86_64 | GUI `tar.gz` | GUI, TUI, CLI | Includes required Qt plugins |
 | Windows x64 | ZIP | GUI, TUI, CLI | Included |
+| macOS arm64 | Candidate `tar.gz` | GUI, TUI, CLI | Included; native validation required |
 | Python | Wheel | Platform-dependent | Linux uses optional `gui` extra |
 
 Portable archives contain one executable, documentation, and a colocated editable `config.toml`. Each wheel, executable, and archive must not exceed 256 MB.
@@ -62,45 +63,80 @@ dist/linux/MDHelper-<version>-Linux-x86_64.tar.gz
 dist/linux/MDHelper-<version>-Linux-x86_64-GUI.tar.gz
 ```
 
-The build audits payloads and size, extracts each archive, and checks version, TUI startup, headless
-fallback, configuration, resources, a complete analysis with all export formats, and offscreen GUI
-startup where applicable.
+The default build audits payloads and size without running tests. Commit checks opt into archive
+extraction and runtime tests with `SMOKE_REQUEST=packaging/smoke/request.json`. These check version,
+TUI startup, headless fallback, configuration, resources, a complete analysis with all export
+formats, and offscreen GUI startup where applicable.
 
 ## Windows
 
 ```powershell
 $env:UV_PROJECT_ENVIRONMENT = ".venv-windows"
 uv sync --frozen --group dev
-.\packaging\windows\build.ps1 `
-  -Python ".venv-windows\Scripts\python.exe" `
-  -SmokeRequest "packaging\smoke\request.json"
+.\packaging\windows\build.ps1 -Python ".venv-windows\Scripts\python.exe"
 ```
 
-The output is `dist/windows/MDHelper-<version>-Windows-x64.zip`. The build extracts the ZIP and checks
-its root layout, all interface modes, colocated configuration, packaged resources, and a complete
-analysis with all export formats. Keep `config.toml` beside `mdhelper.exe`. `--settings` and
-`MDHELPER_CONFIG` override it.
+The output is `dist/windows/MDHelper-<version>-Windows-x64.zip`. The default build audits the
+executable and archive without running tests. Commit checks add
+`-SmokeRequest "packaging\smoke\request.json"` to extract the ZIP and test its root layout, all
+interface modes, colocated configuration, packaged resources, and a complete analysis with all
+export formats. Keep `config.toml` beside `mdhelper.exe`. `--settings` and `MDHELPER_CONFIG` override it.
 
-Release gates pass only after the target-platform workflow completes; file presence is not a test
-result.
+Tests belong to commit checks, not release builds. A successful release build is not a test result;
+release only a commit whose target-platform `Quality` checks have passed.
+
+## macOS arm64
+
+Build on an Apple Silicon Mac with native arm64 Python 3.12 and the Xcode command-line
+tools. Intel hosts and translated x86_64 Python are rejected; this is not a cross-build.
+
+```bash
+uv sync --frozen --group dev
+PYTHON=.venv/bin/python bash packaging/macos/build.sh
+```
+
+Output: `dist/macos/MDHelper-<version>-macOS-arm64.tar.gz`. Extract the archive,
+keep `config.toml` beside `mdhelper`, and run `./mdhelper` from Terminal. PySide6 is
+a default dependency on macOS, so source and wheel installs need no `gui` extra.
+
+The Linux and macOS wrappers share `packaging/posix/`. Each variant removes `build`
+before freezing. The build audits the arm64 executable, ad-hoc code signature, Qt payload,
+and 256 MB size limit. Commit checks set `SMOKE_REQUEST=packaging/smoke/request.json` to test
+extracted archive layout, CLI/TUI, offscreen and Cocoa GUI startup, colocated configuration,
+resources, and analysis/export results.
+Interactive external tools open in Terminal with separately quoted arguments,
+working directory, and a filtered environment; macOS may request Automation permission.
+
+This candidate is ad-hoc signed, not Developer ID signed or notarized. Gatekeeper may
+block downloaded executables. Verify `SHA256SUMS` and use the operating system's
+per-application approval for a trusted download; do not disable Gatekeeper globally.
+Native macOS build, Cocoa, and interactive Terminal verification are still pending;
+Linux/Windows tests and mocked platform tests do not establish macOS release readiness.
+Before marking support complete, record the commit, native arm64 Python and macOS versions,
+`Quality` run URL, archive hash, and results of launching an external tool from a folder with
+spaces. Confirm that Terminal preserves arguments and working directory after Automation approval.
 
 ## Automation
 
-The `Quality` workflow runs for pull requests, pushes to `main`, and manual dispatches. Its Linux
-and Windows jobs install the locked environment, validate version metadata, run Ruff, mypy, and the
-complete test suite, then exercise the platform-specific startup path. The Linux job also builds,
-audits, and installs the wheel in a clean environment.
+The `Quality` workflow runs for pull requests, pushes to `main`, and manual dispatches. Its Linux,
+Windows, and macOS arm64 jobs install the locked environment, validate version metadata, run Ruff,
+mypy, and the complete test suite, then build and smoke-test the native archives and exercise the
+platform-specific startup path. Linux and macOS also build, audit, and install the wheel in a clean
+environment. Linux tests use four workers; Windows tests remain serial. These commit checks own all
+source and runtime tests.
 
 Configure the default branch to require these checks before merging:
 
 - `Quality / Linux`
 - `Quality / Windows`
+- `Quality / macOS arm64`
 
-The Linux and Windows release-candidate workflows remain manually dispatchable. They also expose
+The Linux, Windows, and macOS release-candidate workflows remain manually dispatchable. They also expose
 reusable workflow entry points so the tag workflow can run the exact same target-platform builds.
-Each candidate build runs source validation and the packaged-application smoke tests before its
-artifacts are uploaded. Dependency and workflow action updates are grouped into weekly pull
-requests by Dependabot and still pass through the normal quality gates.
+Candidate and tag releases only validate versions, build, audit payloads, licenses, signatures and
+size, and upload or publish artifacts. They do not repeat lint, typing, unit tests, dependency audits,
+or runtime smoke tests. Dependency and workflow action updates are grouped into weekly pull
+requests by Dependabot and still pass through the commit quality gates.
 
 ## Publishing a release
 
@@ -125,8 +161,8 @@ git tag -a "v${version}" -m "MDHelper ${version}"
 git push origin "v${version}"
 ```
 
-The `Release` workflow rejects mismatched tags, builds the wheel and all three portable archives,
-and waits for both target-platform jobs. Only its final job receives `contents: write`; it downloads
-the validated artifacts, creates `SHA256SUMS`, and publishes the GitHub Release with generated
+The `Release` workflow rejects mismatched tags, builds the wheel and all four portable archives,
+and waits for all three target-platform jobs. Only its final job receives `contents: write`; it downloads
+the audited artifacts, creates `SHA256SUMS`, and publishes the GitHub Release with generated
 notes. Do not create or move a release tag until the corresponding commit has passed the required
 checks.

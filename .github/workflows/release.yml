@@ -36,10 +36,15 @@ jobs:
     needs: validate
     uses: $/.github/workflows/windows-release.yml
 
+  macos:
+    needs: validate
+    uses: $/.github/workflows/macos-release.yml
+
   publish:
     needs:
       - linux
       - windows
+      - macos
     timeout-minutes: 15
     runs-on: ubuntu-22.04
     permissions:
@@ -52,7 +57,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - name: Download validated artifacts
+      - name: Download audited artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: mdhelper-*
@@ -65,12 +70,14 @@ jobs:
           test -f "release-dist/MDHelper-${version}-Linux-x86_64.tar.gz"
           test -f "release-dist/MDHelper-${version}-Linux-x86_64-GUI.tar.gz"
           test -f "release-dist/MDHelper-${version}-Windows-x64.zip"
+          test -f "release-dist/MDHelper-${version}-macOS-arm64.tar.gz"
           cd release-dist
           sha256sum -- \
             "mdhelper-${version}-py3-none-any.whl" \
             "MDHelper-${version}-Linux-x86_64.tar.gz" \
             "MDHelper-${version}-Linux-x86_64-GUI.tar.gz" \
-            "MDHelper-${version}-Windows-x64.zip" > SHA256SUMS
+            "MDHelper-${version}-Windows-x64.zip" \
+            "MDHelper-${version}-macOS-arm64.tar.gz" > SHA256SUMS
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -81,6 +88,7 @@ jobs:
             "release-dist/MDHelper-${version}-Linux-x86_64.tar.gz" \
             "release-dist/MDHelper-${version}-Linux-x86_64-GUI.tar.gz" \
             "release-dist/MDHelper-${version}-Windows-x64.zip" \
+            "release-dist/MDHelper-${version}-macOS-arm64.tar.gz" \
             "release-dist/SHA256SUMS" \
             --generate-notes \
             --title "MDHelper ${version}" \

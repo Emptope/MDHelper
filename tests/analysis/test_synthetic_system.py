@@ -21,52 +21,7 @@ from mdhelper.core.plotting import PlotAppearance, PlotLimits, PlotSelection, Pl
 from mdhelper.core.system import FrameRange
 from mdhelper.integrations.manager import IntegrationManager
 from mdhelper.services.config import UserConfig
-
-
-def _gro_atom(
-    residue_id: int,
-    residue_name: str,
-    atom_name: str,
-    atom_id: int,
-    position: tuple[float, float, float],
-) -> str:
-    x, y, z = position
-    return (
-        f"{residue_id:5d}{residue_name:<5}{atom_name:>5}{atom_id:5d}"
-        f"{x:8.3f}{y:8.3f}{z:8.3f}\n"
-    )
-
-
-def _write_trajectory(path: Path, n_frames: int = 2) -> None:
-    base = (
-        (
-            0.0,
-            (
-                (1, "REF", "C", 1, (0.100, 0.100, 0.100)),
-                (2, "LIGA", "O1", 2, (0.225, 0.100, 0.100)),
-                (2, "LIGA", "O2", 3, (0.275, 0.100, 0.100)),
-                (3, "LIGB", "N", 4, (1.900, 0.100, 0.100)),
-            ),
-        ),
-        (
-            1.0,
-            (
-                (1, "REF", "C", 1, (0.100, 0.100, 0.100)),
-                (2, "LIGA", "O1", 2, (0.425, 0.100, 0.100)),
-                (2, "LIGA", "O2", 3, (0.525, 0.100, 0.100)),
-                (3, "LIGB", "N", 4, (1.400, 0.100, 0.100)),
-            ),
-        ),
-    )
-    frames = tuple(
-        (float(index), base[index % len(base)][1]) for index in range(n_frames)
-    )
-    lines: list[str] = []
-    for time_ps, atoms in frames:
-        lines.extend((f"synthetic t={time_ps:g}\n", f"{len(atoms)}\n"))
-        lines.extend(_gro_atom(*atom) for atom in atoms)
-        lines.append("   2.00000   2.00000   2.00000\n")
-    path.write_text("".join(lines), encoding="utf-8")
+from tests.support.molecular import write_trajectory as _write_trajectory
 
 
 def _write_xtc(topology: Path, trajectory: Path) -> None:
@@ -293,7 +248,7 @@ def test_system_inspection_reads_role_suggestions_from_project_directory(
     synthetic_path: Path,
     tmp_path: Path,
 ) -> None:
-    from test_itp import _write_itp
+    from tests.support.molecular import write_itp as _write_itp
 
     project_root = tmp_path / "project"
     project_root.mkdir()

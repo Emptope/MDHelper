@@ -42,6 +42,7 @@ MDHelper is a local data post-processing application designed for molecular dyna
 
 - **Automatic Interface Fallback**: When `mdhelper` is run directly, it first checks for Qt and a display environment and starts the GUI when they are available; otherwise, it falls back smoothly to the TUI.
 - **Ready to Use**: Linux and Windows release packages contain a single executable and a colocated `config.toml` file, with no administrator privileges required.
+- **macOS arm64 Candidate**: Source/wheel desktop dependencies, native Terminal launch, and an Apple Silicon archive build are implemented. Native macOS build and runtime validation are pending; see [macOS packaging](docs/PACKAGING.md#macos-arm64) for commands and signing limits.
 - **Source Development Requirements**: Building from source requires Python 3.12+ and the [`uv`](https://docs.astral.sh/uv/) package manager.
 
 For detailed instructions, see [Usage](docs/USAGE.md) and [Packaging and Release Validation](docs/PACKAGING.md).

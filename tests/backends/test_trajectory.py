@@ -14,10 +14,11 @@ from mdhelper.backends.trajectory import load_trajectory
 from mdhelper.core.errors import FormatError, InputError, TopologyError, TrajectoryError
 from mdhelper.core.system import Atom, FrameRange
 from mdhelper.services.system import summarize_source
+from tests.support.molecular import write_itp as _write_itp
+from tests.support.molecular import write_trajectory as _write_trajectory
 
 
 def test_frame_range_uses_python_stop_semantics(tmp_path: Path) -> None:
-    from test_synthetic_system import _write_trajectory
 
     trajectory = tmp_path / "trajectory.gro"
     _write_trajectory(trajectory)
@@ -62,7 +63,6 @@ def test_gro_reader_accepts_extended_coordinate_precision(tmp_path: Path) -> Non
 def test_auto_and_explicit_in_process_loading_use_mdanalysis(
     tmp_path: Path,
 ) -> None:
-    from test_synthetic_system import _write_trajectory
 
     trajectory = tmp_path / "trajectory.gro"
     _write_trajectory(trajectory)
@@ -80,7 +80,6 @@ def test_auto_and_explicit_in_process_loading_use_mdanalysis(
 
 
 def test_species_role_suggestions_use_project_itp_evidence_not_names(tmp_path: Path) -> None:
-    from test_itp import _write_itp
 
     _write_itp(tmp_path / "positive.itp", "alpha", ("1.0",))
     _write_itp(tmp_path / "negative.itp", "beta", ("-1.0",))
@@ -168,7 +167,6 @@ def test_mdanalysis_xdr_offsets_are_stored_in_cache(tmp_path: Path) -> None:
 
 
 def test_gro_reader_rejects_identity_mismatch_and_empty_system(tmp_path: Path) -> None:
-    from test_synthetic_system import _write_trajectory
 
     topology = tmp_path / "topology.gro"
     trajectory = tmp_path / "trajectory.gro"

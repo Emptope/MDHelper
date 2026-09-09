@@ -25,7 +25,7 @@ class InputCandidates:
     itp: tuple[Path, ...] = ()
 
 
-def discover_inputs(root: str | Path) -> InputCandidates:
+def discover_inputs(root: str | Path, *, require_complete: bool = True) -> InputCandidates:
     directory = Path(root).expanduser().resolve()
     if not directory.is_dir():
         raise InputFileError(
@@ -59,7 +59,7 @@ def discover_inputs(root: str | Path) -> InputCandidates:
         missing.append("topology")
     if not trajectory:
         missing.append("trajectory")
-    if missing:
+    if missing and require_complete:
         raise InputFileError(
             f"No supported {' or '.join(missing)} files were found in the selected directory.",
             "Select a directory containing supported topology and trajectory files.",
@@ -78,8 +78,10 @@ class ProjectFeature:
         directory = Path(root).expanduser().resolve()
         return ManifestRepository(directory).path.is_file()
 
-    def discover_inputs(self, root: str | Path) -> InputCandidates:
-        return discover_inputs(root)
+    def discover_inputs(
+        self, root: str | Path, *, require_complete: bool = True,
+    ) -> InputCandidates:
+        return discover_inputs(root, require_complete=require_complete)
 
     def create(
         self,

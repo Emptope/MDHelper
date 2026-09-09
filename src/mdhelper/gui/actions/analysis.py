@@ -56,6 +56,7 @@ class AnalysisActions:
         self.controller.progress.connect(self._progress)
         self.controller.job_changed.connect(self.job_changed)
         self.controller.running_changed.connect(analysis.set_running)
+        self.controller.running_changed.connect(load.inputs.setDisabled)
         self.controller.result_ready.connect(self.present_result)
         self.controller.completed.connect(self.finish)
         self.controller.failed.connect(self._failed)

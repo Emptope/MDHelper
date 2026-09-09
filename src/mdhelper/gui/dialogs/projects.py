@@ -6,7 +6,6 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -16,13 +15,15 @@ from PySide6.QtWidgets import (
 )
 
 from mdhelper.app import InputCandidates
+from mdhelper.core.trajectory import TOPOLOGY_SUFFIXES, TRAJECTORY_SUFFIXES
+from mdhelper.gui.components.path_choice import PathChoice
 
 
 class NewProjectDialog(QDialog):
     def __init__(self, candidates: InputCandidates, parent: QWidget | None = None):
         super().__init__(parent)
         self.candidates = candidates
-        self.setWindowTitle("New Project")
+        self.setWindowTitle("Select Inputs")
         self.setMinimumWidth(520)
 
         layout = QVBoxLayout(self)
@@ -35,9 +36,17 @@ class NewProjectDialog(QDialog):
         directory = QLabel(str(candidates.root))
         directory.setWordWrap(True)
         directory.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.topology = self._files(candidates.topology, "Select topology file")
-        self.trajectory = self._files(candidates.trajectory, "Select trajectory file")
-        self.index_file = self._files(candidates.index, "Do not use an index file")
+        self.topology = PathChoice(
+            candidates.topology, "Select topology file", candidates.root,
+            "Topology", TOPOLOGY_SUFFIXES,
+        )
+        self.trajectory = PathChoice(
+            candidates.trajectory, "Select trajectory file", candidates.root,
+            "Trajectory", TRAJECTORY_SUFFIXES,
+        )
+        self.index_file = PathChoice(
+            candidates.index, "Do not use an index file", candidates.root, "Index file", (".ndx",),
+        )
         if len(candidates.index) == 1:
             self.index_file.setCurrentIndex(1)
         form.addRow("Directory", directory)
@@ -56,13 +65,17 @@ class NewProjectDialog(QDialog):
         self.trajectory.currentIndexChanged.connect(self._update_accept)
         self._update_accept()
 
-    @staticmethod
-    def _files(paths: tuple[Path, ...], placeholder: str) -> QComboBox:
-        combo = QComboBox()
-        combo.addItem(placeholder, None)
-        for path in paths:
-            combo.addItem(path.name, path)
-        return combo
+    def set_inputs(self, inputs: dict[str, Path]) -> None:
+        if not inputs:
+            return
+        for role, combo in (
+            ("topology", self.topology), ("trajectory", self.trajectory), ("index", self.index_file)
+        ):
+            path = inputs.get(role)
+            if path is None:
+                combo.setCurrentIndex(0)
+            else:
+                combo.select_path(path)
 
     def _update_accept(self) -> None:
         button = self.buttons.button(QDialogButtonBox.StandardButton.Ok)

@@ -2,8 +2,7 @@ from pathlib import Path
 
 project_root = Path(SPECPATH).parents[1]
 source_root = project_root / "src"
-template_root = source_root / "mdhelper" / "resources" / "templates"
-icon_root = source_root / "mdhelper" / "resources" / "icons"
+resource_root = source_root / "mdhelper" / "resources"
 application_icon = icon_root / "mdhelper.ico"
 hook_root = project_root / "packaging" / "hooks"
 figure_backends = [
@@ -35,8 +34,7 @@ common = {
     "pathex": [str(source_root)],
     "binaries": [],
     "datas": [
-        (str(template_root), "mdhelper/resources/templates"),
-        (str(icon_root), "mdhelper/resources/icons"),
+        (str(resource_root), "mdhelper/resources"),
     ],
     "hiddenimports": common_hidden,
     "hookspath": [str(hook_root)],

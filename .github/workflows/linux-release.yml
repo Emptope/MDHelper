@@ -32,10 +32,6 @@ jobs:
           sudo apt-get install --yes libegl1
       - name: Install locked GUI development environment
         run: uv sync --frozen --extra gui --group dev
-      - name: Audit locked dependencies and GitHub automation
-        run: |
-          uv audit --frozen
-          uv run zizmor .github
       - name: Validate release metadata
         run: uv run python packaging/check_release.py
       - name: Validate release tag
@@ -43,14 +39,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: uv run python packaging/check_release.py --tag "$RELEASE_TAG"
-      - name: Validate source
-        run: |
-          uv run ruff check conftest.py packaging src tests
-          uv run mypy src packaging/check_release.py packaging/clean_build.py \
-            packaging/smoke_check.py
-          uv run --extra gui pytest -q -n 4 --dist worksteal \
-            --cov=mdhelper --cov-report=term-missing:skip-covered
-      - name: Build and smoke test wheel
+      - name: Build and audit wheel
         run: |
           version=$(uv run python packaging/check_release.py)
           wheel="dist/mdhelper-${version}-py3-none-any.whl"
@@ -59,12 +48,7 @@ jobs:
           uv run python packaging/verify_wheel.py "$wheel"
           uv run python packaging/generate_notices.py \
             --output build/license-audit/THIRD_PARTY_NOTICES.json
-          wheel_env="${RUNNER_TEMP}/mdhelper-wheel"
-          uv venv --python 3.12 "$wheel_env"
-          uv pip install --python "$wheel_env/bin/python" "$wheel"
-          "$wheel_env/bin/mdhelper" --version
-          "$wheel_env/bin/mdhelper" cli --help
-      - name: Build and smoke test Linux applications
+      - name: Build and audit Linux applications
         run: PYTHON=.venv/bin/python ./packaging/linux/build.sh
       - name: Upload Linux release candidates
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

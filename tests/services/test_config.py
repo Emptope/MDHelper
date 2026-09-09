@@ -15,7 +15,7 @@ from mdhelper.services.config import (
     save_config,
 )
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 
 
 def test_initialized_config_matches_distributed_example(tmp_path: Path) -> None:

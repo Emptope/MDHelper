@@ -4,8 +4,6 @@ import sys
 from io import StringIO
 from pathlib import Path
 
-from test_synthetic_system import _write_trajectory
-
 import mdhelper.bootstrap.portable as portable
 import mdhelper.bootstrap.windows_console as windows_console
 from mdhelper.app import ApplicationService
@@ -18,6 +16,7 @@ from mdhelper.tui.controller import Tui
 from mdhelper.tui.formatting import summary_text
 from mdhelper.tui.model import AnalysisDraft, RadialTask, Workspace
 from mdhelper.tui.terminal import Terminal
+from tests.support.molecular import write_trajectory as _write_trajectory
 
 
 def test_tui_open_project_creates_a_project_from_discovered_inputs(
@@ -320,7 +319,9 @@ def test_gui_availability_requires_qt_and_a_linux_display() -> None:
 
     assert not portable.gui_available({}, "linux", present)
     assert portable.gui_available({"DISPLAY": ":0"}, "linux", present)
-    assert portable.gui_available({}, "win32", present)
+    for system in ("win32", "darwin"):
+        assert portable.gui_available({}, system, present)
+        assert not portable.gui_available({}, system, missing)
     assert not portable.gui_available({"DISPLAY": ":0"}, "linux", missing)
 
 

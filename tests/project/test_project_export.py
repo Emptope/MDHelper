@@ -22,7 +22,7 @@ from mdhelper.io.export import export_figures, export_result
 from mdhelper.project import Project
 from mdhelper.services.config import UserConfig
 
-SCHEMA_ROOT = Path(__file__).parents[1] / "schemas"
+SCHEMA_ROOT = Path(__file__).parents[2] / "schemas"
 
 
 def _validate_schema(value: dict[str, object], schema_name: str) -> None:
@@ -428,6 +428,18 @@ def test_project_input_discovery_reports_missing_roles(tmp_path: Path) -> None:
     trajectory_only = tmp_path / "trajectory-only"
     trajectory_only.mkdir()
     (trajectory_only / "run.xtc").write_text("input\n", encoding="ascii")
+
+    for directory in (tmp_path, topology_only, trajectory_only):
+        candidates = application.projects.discover_inputs(directory, require_complete=False)
+        assert candidates.root == directory
+        assert all(path.is_file() for path in (*candidates.topology, *candidates.trajectory))
+    assert not application.projects.discover_inputs(tmp_path, require_complete=False).topology
+    assert application.projects.discover_inputs(
+        topology_only, require_complete=False,
+    ).topology == (topology_only / "system.tpr",)
+    assert application.projects.discover_inputs(
+        trajectory_only, require_complete=False,
+    ).trajectory == (trajectory_only / "run.xtc",)
 
     with pytest.raises(InputFileError, match="trajectory"):
         application.projects.discover_inputs(topology_only)

@@ -18,6 +18,7 @@ from mdhelper.core.plotting import result_plot
 from mdhelper.core.system import FrameRange
 from mdhelper.integrations.registry import IntegrationAdapter, IntegrationRegistry
 from mdhelper.services.config import UserConfig
+from tests.support.molecular import write_trajectory as _write_trajectory
 
 
 class _GromacsAdapter(IntegrationAdapter):
@@ -350,7 +351,6 @@ def test_gromacs_rdf_uses_native_commands_and_frame_range(
     analysis_type: str,
     expected_data: dict[str, list[float]],
 ) -> None:
-    from test_synthetic_system import _write_trajectory
 
     synthetic_path = tmp_path / "trajectory.gro"
     _write_trajectory(synthetic_path, 6)
@@ -446,7 +446,6 @@ def test_gromacs_pipeline_uses_its_own_input_and_expression_processing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from test_synthetic_system import _write_trajectory
 
     trajectory = tmp_path / "trajectory.gro"
     _write_trajectory(trajectory, 3)
@@ -532,7 +531,6 @@ def test_gromacs_rdf_failure_reports_native_selection_error(tmp_path: Path) -> N
 def test_gromacs_open_sampled_range_uses_metadata_without_loading_trajectory(
     tmp_path: Path,
 ) -> None:
-    from test_synthetic_system import _write_trajectory
 
     trajectory = tmp_path / "trajectory.gro"
     _write_trajectory(trajectory, 6)

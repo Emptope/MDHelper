@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -198,6 +199,33 @@ def test_terminal_command_uses_windows_console_or_available_posix_launcher(
     )
 
 
+def test_macos_terminal_preserves_arguments_directory_and_environment(tmp_path: Path) -> None:
+    cwd = tmp_path / "working directory's data"
+    cwd.mkdir()
+    command = ["/opt/tools/tool", "", "a'b", 'a"b', "$(touch injected);\nnext"]
+    environment = {"PATH": "/opt/tools:/usr/bin", "HOME": "/Users/a b"}
+    launcher, flags = terminal_command(
+        command,
+        "darwin",
+        {"osascript": "/usr/bin/osascript"}.get,
+        working_directory=cwd,
+        environment=environment,
+    )
+    assert launcher[0] == "/usr/bin/osascript"
+    assert flags == 0
+    assert command[-1] not in launcher[2]
+    tokens = shlex.split(launcher[-1])
+    assert tokens == [
+        "cd", str(cwd.resolve()), "&&", "/usr/bin/env", "-i",
+        *(f"{key}={value}" for key, value in environment.items()), *command,
+    ]
+
+
+def test_macos_terminal_requires_native_launcher() -> None:
+    with pytest.raises(OSError):
+        terminal_command(["tool"], "darwin", lambda _name: None)
+
+
 def test_terminal_launch_preserves_argv_and_bounds_environment(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -207,11 +235,12 @@ def test_terminal_launch_preserves_argv_and_bounds_environment(
     adapter = manager.registry.get("fake")
     launches: list[tuple[list[str], dict[str, object]]] = []
     logged: list[tuple[str, Path]] = []
-    monkeypatch.setattr(
-        terminal_module,
-        "terminal_command",
-        lambda command: (["terminal", "-e", *command], 0),
-    )
+    def terminal(command, **kwargs):
+        assert kwargs["working_directory"] == tmp_path.resolve()
+        assert kwargs["environment"] == {"PATH": "/bin"}
+        return ["terminal", "-e", *command], 0
+
+    monkeypatch.setattr(terminal_module, "terminal_command", terminal)
     monkeypatch.setattr(
         terminal_module.subprocess,
         "Popen",

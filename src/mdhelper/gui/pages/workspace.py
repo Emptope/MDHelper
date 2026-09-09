@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QTabWidget, QWidget
 from mdhelper.gui.pages.analysis import AnalysisPanel
 from mdhelper.gui.pages.load import LoadPanel
 from mdhelper.gui.pages.results import ResultPanel
+from mdhelper.gui.workspace.editor import WorkspaceEditor
 
 if TYPE_CHECKING:
     from mdhelper.gui.windows import WindowManager
@@ -25,9 +26,18 @@ class WorkspaceTabs(QTabWidget):
         super().__init__(parent)
         self.setDocumentMode(True)
         self.setMovable(False)
+        self.editor = WorkspaceEditor()
         self.load = LoadPanel()
         self.analysis = AnalysisPanel()
         self.results = ResultPanel(windows=windows)
+        self.addTab(self.editor, "Workspace")
         self.addTab(self.load, "Load")
         self.addTab(self.analysis, "Analysis")
         self.addTab(self.results, "Result")
+        self.currentChanged.connect(self._page_changed)
+
+    def _page_changed(self, index: int) -> None:
+        if self.widget(index) is self.editor:
+            self.editor.resume()
+        else:
+            self.editor.suspend()
