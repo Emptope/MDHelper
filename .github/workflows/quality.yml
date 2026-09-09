@@ -42,9 +42,7 @@ jobs:
           enable-cache: true
       - name: Install Linux GUI runtime dependencies
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes libegl1
+        run: bash packaging/posix/install-deps.sh
       - name: Install locked GUI development environment
         run: uv sync --frozen --extra gui --group dev
       - name: Validate release metadata

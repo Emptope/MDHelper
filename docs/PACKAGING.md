@@ -51,10 +51,19 @@ The artifact version comes from `pyproject.toml`.
 
 ## Linux
 
+On Ubuntu/Debian, install the system GUI libraries before freezing the application:
+
 ```bash
+bash packaging/posix/install-deps.sh
 uv sync --frozen --extra gui --group dev
 PYTHON=.venv/bin/python bash packaging/posix/build.sh linux
 ```
+
+Both Linux CI workflows use the same dependency installer. The XCB and XKB runtime libraries
+must be available when freezing so the GUI payload can include Qt's X11 dependencies.
+Installing the Python `gui` extra or testing with `QT_QPA_PLATFORM=offscreen` does not supply or
+validate those system libraries. Source and wheel GUI installs need them on the target system too.
+The installer uses `sudo` and APT; other distributions need equivalent runtime packages.
 
 Outputs:
 

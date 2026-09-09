@@ -122,6 +122,40 @@ def test_dmg_audits_and_cleans_up_installation(
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Requires a POSIX build host")
+@pytest.mark.parametrize("failure", ["", "update", "install"])
+def test_linux_gui_dependency_installation(tmp_path: Path, failure: str) -> None:
+    script = ROOT / "packaging" / "posix" / "install-deps.sh"
+    log = tmp_path / "commands.log"
+    result = subprocess.run(
+        ["bash", "-c", '''
+sudo() {
+    printf '%s\\n' "$*" >> "$COMMAND_LOG"
+    if [[ "$2" == "$FAILURE" ]]; then return 23; fi
+}
+source "$1"
+''', "bash", str(script)],
+        env=dict(os.environ, COMMAND_LOG=str(log), FAILURE=failure),
+        capture_output=True, text=True, check=False,
+    )
+    commands = [line.split() for line in log.read_text(encoding="ascii").splitlines()]
+    assert commands[0] == ["apt-get", "update"]
+    if failure:
+        assert result.returncode == 23, result.stderr
+        assert len(commands) == (1 if failure == "update" else 2)
+        return
+    assert result.returncode == 0, result.stderr
+    assert commands[1][:2] == ["apt-get", "install"]
+    assert "--yes" in commands[1]
+    # Runtime packages required by the EGL and XCB platform integrations.
+    required = {
+        "libegl1", "libxcb-cursor0", "libxcb-icccm4", "libxcb-image0",
+        "libxcb-keysyms1", "libxcb-render-util0", "libxcb-shape0",
+        "libxcb-util1", "libxcb-xkb1", "libxkbcommon-x11-0",
+    }
+    assert required <= set(commands[1][2:])
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Requires a POSIX build host")
 @pytest.mark.parametrize("smoke", [False, True])
 @pytest.mark.parametrize("outcome", ["created", "failed", "missing", "empty", "expansion"])
 def test_posix_build_requires_release_artifact(
