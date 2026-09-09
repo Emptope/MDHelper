@@ -116,34 +116,45 @@ def test_image_display_is_fitted_and_releases_pixels_on_navigation(tmp_path: Pat
         editor.close()
 
 
-def test_cancelled_image_decode_cannot_replace_new_file(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("preloaded", [False, True])
+@pytest.mark.parametrize("cooperative", [False, True])
+def test_cancelled_image_decode_cannot_replace_new_file(
+    tmp_path: Path, monkeypatch, preloaded: bool, cooperative: bool,
+) -> None:
     from PIL import Image
 
     from mdhelper.services.workspace import images
 
     QApplication.instance() or QApplication([])
     path = tmp_path / "image.png"
-    text = tmp_path / "notes.txt"
+    text = tmp_path / "document.txt"
     text.write_text("notes", encoding="ascii")
     Image.new("RGB", (160, 80)).save(path)
     entered, release = Event(), Event()
     original = images.image_pixels
 
     def decode(*args):
+        pixels = original(*args)
         entered.set()
-        release.wait(10)
-        return original(*args)
+        assert release.wait(10)
+        return original(*args) if cooperative else pixels
 
     monkeypatch.setattr("mdhelper.services.workspace.document.image_pixels", decode)
     editor = WorkspaceEditor()
+    loaded = []
+    editor.files.directoryLoaded.connect(lambda folder: loaded.append(Path(folder)))
     try:
         editor.set_root(tmp_path)
+        if preloaded:
+            wait_until(lambda: tmp_path in loaded)
         editor.show()
         editor.open_path(str(path))
         wait_until(entered.is_set)
+        assert Path(editor.files.filePath(editor.tree.currentIndex())) == path.resolve()
         editor.open_path(str(text))
         release.set()
-        wait_until(lambda: editor.current_path == str(text))
+        wait_until(lambda: editor.current_path == str(text.resolve()))
+        assert Path(editor.files.filePath(editor.tree.currentIndex())) == text.resolve()
         assert editor.content.currentWidget() is editor.editor
         assert editor.image.pixels.isNull()
         assert editor.editor.toPlainText() == text.read_text(encoding="ascii")

@@ -7,6 +7,8 @@ import subprocess
 import sys
 import tomllib
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 import yaml
@@ -88,6 +90,36 @@ def test_tag_release_graph_does_not_repeat_commit_tests() -> None:
                     r"\b(?:ruff|mypy|pytest|SmokeRequest|SMOKE_REQUEST)\b|--smoke-test",
                     command,
                 ), (path, command)
+
+
+@pytest.mark.parametrize("spec", sorted((ROOT / "packaging").rglob("*.spec")))
+def test_freezer_specs_reference_existing_resources(spec: Path, monkeypatch) -> None:
+    from PIL import Image
+
+    monkeypatch.setenv("MDHELPER_GUI_BUILD", "1")
+    analysis = Mock(return_value=SimpleNamespace(
+        pure=[], scripts=[], binaries=[], datas=[], dependencies=[],
+    ))
+    executable = Mock()
+    runpy.run_path(str(spec), init_globals={
+        "SPECPATH": str(spec.parent), "Analysis": analysis, "PYZ": Mock(), "EXE": executable,
+    })
+    analysis.assert_called_once()
+    executable.assert_called_once()
+    args, options = analysis.call_args
+    for source in args[0]:
+        assert Path(source).is_file()
+    for directory in (*options["pathex"], *options["hookspath"]):
+        assert Path(directory).is_dir()
+    assert options["datas"]
+    for source, destination in options["datas"]:
+        assert Path(source).exists()
+        assert destination and not Path(destination).is_absolute()
+    icon = executable.call_args.kwargs.get("icon")
+    if icon is not None:
+        with Image.open(icon) as image:
+            image.load()
+            assert image.width > 0 and image.height > 0
 
 
 def test_build_cleanup_removes_only_generated_tree(tmp_path: Path) -> None:

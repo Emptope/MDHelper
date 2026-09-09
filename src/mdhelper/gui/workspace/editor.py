@@ -167,8 +167,16 @@ class WorkspaceEditor(QWidget):
         if not self.confirm_discard():
             return False
         self.clear()
+        source = Path(path).expanduser().resolve()
+        selection = self.tree.selectionModel()
+        blocked = selection.blockSignals(True)
+        try:
+            # Keep delayed focus events from selecting a different file.
+            self.tree.setCurrentIndex(self.files.index(str(source)))
+        finally:
+            selection.blockSignals(blocked)
         self.info.setText(Path(path).name)
-        self.info.setToolTip(str(Path(path).expanduser().resolve()))
+        self.info.setToolTip(str(source))
         self.status.setText("Reading file...")
         self.cancel_button.show()
         self._loading_path = path

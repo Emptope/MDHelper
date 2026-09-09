@@ -3,7 +3,7 @@ from pathlib import Path
 project_root = Path(SPECPATH).parents[1]
 source_root = project_root / "src"
 resource_root = source_root / "mdhelper" / "resources"
-application_icon = icon_root / "mdhelper.ico"
+application_icon = resource_root / "icons" / "mdhelper.ico"
 hook_root = project_root / "packaging" / "hooks"
 figure_backends = [
     "matplotlib.backends.backend_agg",
