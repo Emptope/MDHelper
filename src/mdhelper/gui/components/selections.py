@@ -33,7 +33,6 @@ class SelectionInput(QStackedWidget):
     def __init__(self):
         super().__init__()
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setMaximumHeight(36)
         self.expression = QLineEdit()
         self.group = QComboBox()
         self.addWidget(self.expression)

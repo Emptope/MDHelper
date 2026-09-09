@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from PySide6.QtGui import QAction, QActionGroup
-from PySide6.QtWidgets import QMainWindow, QMenu, QMessageBox
+from PySide6.QtCore import QTranslator
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence
+from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QMessageBox
 
 from mdhelper.services.config import THEME_MODES, ThemeMode
 from mdhelper.version import DEVELOPER, __version__
+
+_IS_MACOS = sys.platform == "darwin"
 
 DOCUMENT_LINKS = {
     "MDAnalysis": "https://www.mdanalysis.org/",
@@ -19,6 +23,28 @@ DOCUMENT_LINKS = {
     "VASP": "https://vasp.at/wiki/The_VASP_Manual",
     "VMD": "https://www.ks.uiuc.edu/Research/vmd/current/ug/",
 }
+
+
+class _MacMenuLabels(QTranslator):
+    """Qt's Cocoa merge otherwise renames PreferencesRole to Preferences...."""
+
+    # None maps to a null QString: let Qt try other translators/source text.
+    def translate(
+        self, context: str, sourceText: str, disambiguation: str | None = None, n: int = -1,
+    ) -> str | None:
+        if context == "QMenuBar" and sourceText == "Preferences...":
+            return "Settings..."
+        return None
+
+    def isEmpty(self) -> bool:
+        return False
+
+
+def _configure_mac_menu_labels() -> None:
+    app = QApplication.instance()
+    if app is not None and app.findChild(_MacMenuLabels) is None:
+        # The application owns the translator for the lifetime of native menus.
+        app.installTranslator(_MacMenuLabels(app))
 
 
 @dataclass(frozen=True)
@@ -51,6 +77,8 @@ def install_menu(
     set_theme: Callable[[ThemeMode], None],
     open_document: Callable[[str], None],
 ) -> MenuActions:
+    if _IS_MACOS:
+        _configure_mac_menu_labels()
     file_menu = window.menuBar().addMenu("&File")
     open_action = QAction("Open Project...", window)
     open_action.triggered.connect(open_project)
@@ -104,9 +132,17 @@ def install_menu(
 
     theme_group.triggered.connect(select_theme)
 
-    settings_action = QAction("&Settings", window)
+    settings_action = QAction("&Settings..." if _IS_MACOS else "&Settings", window)
     settings_action.triggered.connect(settings)
-    window.menuBar().addAction(settings_action)
+    if _IS_MACOS:
+        # Cocoa merges submenu actions with PreferencesRole into MDHelper's
+        # application menu; standalone menu-bar actions are not rendered there.
+        settings_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        settings_action.setShortcuts(QKeySequence.StandardKey.Preferences)
+        file_menu.insertAction(exit_action, settings_action)
+    else:
+        # Preserve the existing Windows/Linux top-level Settings entry.
+        window.menuBar().addAction(settings_action)
 
     help_menu = window.menuBar().addMenu("&Help")
     documents_menu = help_menu.addMenu("Documents")

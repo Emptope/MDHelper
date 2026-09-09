@@ -112,6 +112,8 @@ class DataModel(QAbstractTableModel):
 
 
 class DataView(QWidget):
+    selection_changed = Signal()
+
     def __init__(self):
         super().__init__()
         self.table = QTableView()
@@ -163,10 +165,29 @@ class DataView(QWidget):
             self.items.addItem(item)
             self._select_item(item)
 
+        self.selection_changed.emit()
+
+    def export_columns(self) -> tuple[int, ...]:
+        unchecked = {
+            self.items.item(index).data(Qt.ItemDataRole.UserRole)
+            for index in range(self.items.count())
+            if self.items.item(index).checkState() != Qt.CheckState.Checked
+        }
+        return tuple(
+            column for column in range(self.model.columnCount()) if column not in unchecked
+        )
+
+    def has_selected_terms(self) -> bool:
+        return not self.items.count() or any(
+            self.items.item(index).checkState() == Qt.CheckState.Checked
+            for index in range(self.items.count())
+        )
+
     def _select_item(self, item: QListWidgetItem) -> None:
         self.table.setColumnHidden(
             item.data(Qt.ItemDataRole.UserRole), item.checkState() != Qt.CheckState.Checked,
         )
+        self.selection_changed.emit()
 
     def _filter_items(self, text: str) -> None:
         for index in range(self.items.count()):

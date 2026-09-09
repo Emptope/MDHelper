@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QApplication
 from mdhelper.core.workspace import DATA_COLUMNS, DataPage, DataSection
 from mdhelper.gui.workspace.data import DataView
 from mdhelper.gui.workspace.editor import WorkspaceEditor
-from tests.support.qt import fetch_all, wait_until
+from tests.support.qt import wait_until
 
 
 def test_streaming_model_fetches_only_requested_batches() -> None:
@@ -47,10 +47,14 @@ def test_streaming_model_fetches_only_requested_batches() -> None:
     view.close()
 
 
-def test_large_text_scroll_loads_more_without_enabling_save(tmp_path: Path) -> None:
+@pytest.mark.parametrize("suffix", ["gro", "txt", "data"])
+def test_large_text_shows_raw_preview_without_enabling_save(tmp_path: Path, suffix: str) -> None:
+    from mdhelper.services.workspace.text import TEXT_LIMIT
+
     QApplication.instance() or QApplication([])
-    path = tmp_path / "large.txt"
-    path.write_bytes(b"text\n" * 900_000)
+    path = tmp_path / f"large.{suffix}"
+    content = b"original line with spaces  1.234  2.345\n" * 50_000
+    path.write_bytes(content)
     editor = WorkspaceEditor()
     try:
         editor.set_root(tmp_path)
@@ -58,21 +62,15 @@ def test_large_text_scroll_loads_more_without_enabling_save(tmp_path: Path) -> N
         editor.show()
         editor.open_path(str(path))
         wait_until(lambda: editor.current_path == str(path))
-        model = editor.data.model
-        wait_until(lambda: not model.loading)
-        assert editor.content.currentWidget() is editor.data
-        assert model.canFetchMore()
+        assert editor.content.currentWidget() is editor.editor
+        assert editor.editor.isReadOnly()
+        assert editor.editor.toPlainText() == content[:TEXT_LIMIT].decode("utf-8")
+        assert "preview" in editor.status.text()
+        assert editor.cursor_position.isVisible()
+        assert not editor.export_button.isVisible()
         assert not editor.save()
-        first = model.rowCount()
-        QTest.qWait(100)
-        assert model.rowCount() == first
-        model.fetchMore()
-        wait_until(lambda: not model.loading)
-        assert model.rowCount() > first
-        fetch_all(model)
-        assert not model.canFetchMore()
-        editor.suspend()
-        assert model.rowCount() == 0
+        assert path.read_bytes() == content
+        assert editor.data.model.rowCount() == 0
     finally:
         editor.shutdown()
         editor.close()

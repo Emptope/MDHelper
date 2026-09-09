@@ -32,7 +32,6 @@ class PlotTable(QTableWidget):
         self.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setMinimumHeight(100)
-        self.setMaximumHeight(180)
 
     def show_entries(
         self,

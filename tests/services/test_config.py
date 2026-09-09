@@ -127,7 +127,10 @@ def test_environment_override_selects_config_path(tmp_path: Path) -> None:
     assert config_path({"MDHELPER_CONFIG": str(expected)}) == expected
 
 
-def test_frozen_distribution_uses_colocated_config(tmp_path: Path) -> None:
+def test_frozen_distribution_uses_colocated_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.platform", "win32")
     executable = tmp_path / "mdhelper.exe"
     executable.write_bytes(b"")
     environment = {"APPDATA": "/settings", "MDHELPER_CONFIG": ""}
@@ -158,9 +161,9 @@ def test_app_bundle_uses_user_config_outside_signed_payload(
     from mdhelper.services.config import storage
 
     executable = tmp_path / bundle_name / "Contents" / "MacOS" / "launcher"
-    expected = tmp_path / "user settings" / "config.toml"
+    expected = tmp_path / ".config" / "mdhelper" / "config.toml"
     monkeypatch.setattr(storage.sys, "platform", "darwin")
-    monkeypatch.setattr(storage, "user_config_path", lambda *args, **kwargs: expected.parent)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
     assert config_path({}, executable) == expected
     assert portable_config_path(executable, frozen=True) == expected
     environment: dict[str, str] = {}
@@ -175,10 +178,26 @@ def test_app_bundle_uses_user_config_outside_signed_payload(
     assert not executable.parent.exists()
 
 
-def test_default_config_path_is_colocated_with_executable(tmp_path: Path) -> None:
+@pytest.mark.parametrize("platform", ["win32", "linux"])
+def test_default_config_path_is_colocated_with_executable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, platform: str,
+) -> None:
+    monkeypatch.setattr("sys.platform", platform)
     executable = tmp_path / "bin" / "python"
-
     assert config_path({}, executable) == executable.parent / "config.toml"
+
+
+def test_macos_source_and_frozen_launches_share_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.platform", "darwin")
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    expected = tmp_path / ".config" / "mdhelper" / "config.toml"
+    for executable in (tmp_path / "venv/bin/python", tmp_path / "bin/mdhelper"):
+        assert config_path({}, executable) == expected
+        assert portable_config_path(executable, frozen=True) == expected
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert config_path({"MDHELPER_CONFIG": "~/custom.toml"}) == tmp_path / "custom.toml"
 
 
 @pytest.mark.parametrize(

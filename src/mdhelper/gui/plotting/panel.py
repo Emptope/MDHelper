@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QSignalBlocker, Signal
 from PySide6.QtWidgets import QWidget
 
 from mdhelper.core.analysis import AnalysisResult
@@ -154,7 +154,9 @@ class PlotPanel(PlotControls):
             self._state.restore(state, results)
             scheme_index = self.scheme.findData(state.scheme)
             if scheme_index >= 0:
-                self.scheme.setCurrentIndex(scheme_index)
+                # The restored session and old table differ until _render completes.
+                with QSignalBlocker(self.scheme):
+                    self.scheme.setCurrentIndex(scheme_index)
             self.set_limits(state.limits)
             self._render()
             self.open_button.setEnabled(bool(self._state.results))

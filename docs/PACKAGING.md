@@ -108,7 +108,7 @@ Output: `dist/macos/MDHelper-<version>-macOS-arm64.dmg`. Open the DMG, drag
 `MDHelper.app` to Applications, eject the image, and launch the app from Finder.
 For terminal interfaces, run `/Applications/MDHelper.app/Contents/MacOS/mdhelper tui`
 or `/Applications/MDHelper.app/Contents/MacOS/mdhelper cli --help`.
-Settings are saved to `~/Library/Application Support/MDHelper/config.toml`, outside the
+Settings are saved to `~/.config/mdhelper/config.toml`, outside the
 signed bundle. `--settings` and `MDHELPER_CONFIG` still override the default.
 Documentation, schemas, licenses, and the example configuration are in `Contents/Resources`.
 PySide6 is a default dependency on macOS, so source and wheel installs need no `gui` extra.

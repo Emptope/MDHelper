@@ -96,7 +96,7 @@ PYTHON=.venv/bin/python bash packaging/posix/build.sh macos
 拖入 Applications，推出磁盘映像后从 Finder 启动应用。终端模式可执行
 `/Applications/MDHelper.app/Contents/MacOS/mdhelper tui` 或
 `/Applications/MDHelper.app/Contents/MacOS/mdhelper cli --help`。
-配置保存到签名包之外的 `~/Library/Application Support/MDHelper/config.toml`；
+配置保存到签名包之外的 `~/.config/mdhelper/config.toml`；
 `--settings` 和 `MDHELPER_CONFIG` 仍可覆盖默认路径。
 文档、schema、许可证和示例配置位于应用的 `Contents/Resources`。
 macOS 默认安装 PySide6，源码与 wheel 安装无需额外指定 `gui` extra。

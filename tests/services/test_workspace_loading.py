@@ -97,29 +97,28 @@ def test_trajectory_open_does_not_scan_offsets_or_decode_later_frames(
 
 
 @pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
-def test_large_text_is_read_in_bounded_blocks_without_partial_saves(
-    tmp_path: Path, newline: str,
+@pytest.mark.parametrize("suffix", ["gro", "txt", "data"])
+def test_large_text_is_raw_readonly_preview_without_partial_saves(
+    tmp_path: Path, newline: str, suffix: str, monkeypatch,
 ) -> None:
-    path = tmp_path / "notes.txt"
+    from mdhelper.services.workspace.text import TEXT_LIMIT
+
+    path = tmp_path / f"notes.{suffix}"
     text = ("a" * 65535 + chr(233) + newline) * 20
     path.write_bytes(text.encode("utf-8"))
+
+    def reject(*_args):
+        pytest.fail("Text must not enter the binary parser")
+
+    monkeypatch.setattr("mdhelper.backends.mdanalysis.workspace.BinaryDocument", reject)
     with WorkspaceDocument(path) as document:
         assert not document.file.editable
-        assert document.file.parsed
-        assert document.file.text == ""
+        assert not document.file.parsed
+        assert text.startswith(document.file.text)
+        assert 0 < len(document.file.text.encode("utf-8")) <= TEXT_LIMIT
+        assert "preview" in document.file.message
         assert document.rows == 0
-        first = document.page(0, 1)
-        assert not first.complete
-        assert len(first.rows[0][-1]) <= 65536
-        rows = list(first.rows)
-        offset = len(rows)
-        while True:
-            page = document.page(offset, 2)
-            rows.extend(page.rows)
-            offset += len(page.rows)
-            if page.complete:
-                break
-        assert "".join(row[-1] for row in rows) == text
+        assert document.store is None
     assert path.read_bytes() == text.encode("utf-8")
 
 
@@ -184,8 +183,10 @@ def test_invalid_energy_counts_fail_without_allocating_records(
 
 
 def test_lazy_page_cancellation_closes_resources(tmp_path: Path) -> None:
-    path = tmp_path / "large.txt"
-    path.write_bytes(b"a" * 2_000_000)
+    from tests.support.energy import write_energy
+
+    path = tmp_path / "energy.edr"
+    write_energy(path, {"Time": [0, 1], "signal": [2, 3]}, {"signal": "kJ/mol"})
     cancel = Event()
     with WorkspaceDocument(path, cancel) as document:
         document.page(0, 1)

@@ -8,7 +8,6 @@ import tomllib
 from pathlib import Path
 
 import tomli_w
-from platformdirs import user_config_path
 
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.services.config.contracts import UserConfig
@@ -56,14 +55,10 @@ def config_path(
     explicit = env.get("MDHELPER_CONFIG")
     if explicit:
         return Path(explicit).expanduser()
+    if sys.platform == "darwin":
+        # Keep source, CLI and signed .app launches on the same writable path.
+        return Path.home() / ".config" / "mdhelper" / "config.toml"
     program = Path(sys.executable if executable is None else executable).resolve()
-    if (
-        sys.platform == "darwin"
-        and program.parent.name == "MacOS"
-        and program.parent.parent.name == "Contents"
-        and program.parent.parent.parent.suffix == ".app"
-    ):
-        return user_config_path("MDHelper", appauthor=False) / "config.toml"
     return program.parent / "config.toml"
 
 

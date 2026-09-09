@@ -91,8 +91,8 @@ flowchart TB
 ## 装配与流程
 
 `bootstrap/portable.py` 选择 GUI、TUI 或 CLI。无显式模式时，有 Qt 和 display 即启动 GUI，
-否则启动 TUI。冻结程序使用同目录 `config.toml`，除非设置了 `MDHELPER_CONFIG`。
-macOS 应用包改用用户配置目录，避免将可变配置写入签名包。
+否则启动 TUI。macOS 的源码与冻结程序均使用 `~/.config/mdhelper/config.toml`，
+避免将可变配置写入签名包；其他平台使用同目录 `config.toml`。`MDHELPER_CONFIG` 可覆盖默认路径。
 
 `app/facade.py` 构造配置、Integration、分析注册表和输入加载器。表现层构造 Core request，
 再调用功能组。注册表和加载器支持注入。

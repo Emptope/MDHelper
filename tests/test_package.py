@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import multiprocessing
 import os
 import plistlib
 import runpy
@@ -14,6 +15,31 @@ from PIL import Image
 ROOT = Path(__file__).parents[1]
 PACKAGE = runpy.run_path(str(ROOT / "packaging" / "posix" / "dmg.py"))
 SMOKE = runpy.run_path(str(ROOT / "packaging" / "smoke_check.py"))
+
+
+@pytest.mark.parametrize("worker", [False, True])
+def test_frozen_entry_dispatches_workers_before_application(
+    monkeypatch: pytest.MonkeyPatch, worker: bool,
+) -> None:
+    from mdhelper.bootstrap import portable
+
+    calls: list[str] = []
+
+    def freeze_support() -> None:
+        calls.append("freeze_support")
+        if worker:
+            raise SystemExit(0)
+
+    def main() -> int:
+        calls.append("application")
+        return 7
+
+    monkeypatch.setattr(multiprocessing, "freeze_support", freeze_support)
+    monkeypatch.setattr(portable, "main", main)
+    with pytest.raises(SystemExit) as exit_info:
+        runpy.run_path(str(ROOT / "packaging" / "entry.py"), run_name="__main__")
+    assert exit_info.value.code == (0 if worker else 7)
+    assert calls == (["freeze_support"] if worker else ["freeze_support", "application"])
 
 
 def make_bundle(tmp_path: Path) -> Path:

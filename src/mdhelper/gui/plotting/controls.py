@@ -51,7 +51,7 @@ class PlotControls(QWidget):
         layout.addLayout(queue_controls)
 
         self.queue = PlotTable()
-        layout.addWidget(self.queue)
+        layout.addWidget(self.queue, 1)
 
         self.settings = QGroupBox("Plot Settings")
         settings = QGridLayout(self.settings)
@@ -90,7 +90,8 @@ class PlotControls(QWidget):
             settings.addWidget(QLabel(label), row, 0)
             settings.addWidget(minimum, row, 1)
             settings.addWidget(maximum, row, 2)
-        for column in range(3):
+        # Labels stay compact; the editable range columns share spare width.
+        for column in (1, 2):
             settings.setColumnStretch(column, 1)
         settings.setRowStretch(settings.rowCount(), 1)
         advanced_row = QHBoxLayout()
@@ -136,7 +137,6 @@ def _limit_edit(placeholder: str) -> QLineEdit:
     validator.setNotation(QDoubleValidator.Notation.ScientificNotation)
     edit.setValidator(validator)
     edit.setPlaceholderText(placeholder)
-    edit.setMaximumWidth(76)
     return edit
 
 

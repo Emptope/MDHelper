@@ -13,7 +13,7 @@ from mdhelper.core.workspace import DataLayout, DataPage, ImagePixels, Workspace
 from mdhelper.io.workspace import DataStore
 
 from .images import image_info, image_pixels
-from .text import TEXT_LIMIT, check_cancel, is_text, text_records
+from .text import TEXT_LIMIT, check_cancel, is_text, raw_text_file
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterator
@@ -41,19 +41,8 @@ class WorkspaceDocument:
             )
             return
         if is_text(self.source, cancel):
-            if self.source.stat().st_size <= TEXT_LIMIT:
-                try:
-                    text = self.source.read_text(encoding="utf-8")
-                except UnicodeDecodeError:
-                    pass
-                else:
-                    self.file = WorkspaceFile(str(self.source), text, True, False, "Text")
-                    return
-            else:
-                layout = DataLayout(("Character", "Text"), streaming=True)
-                self._batches = text_records(self.source, cancel)
-                self._start(layout, "Read-only text")
-                return
+            self.file = raw_text_file(self.source, cancel)
+            return
         from mdhelper.backends.mdanalysis.workspace import BinaryDocument
 
         try:

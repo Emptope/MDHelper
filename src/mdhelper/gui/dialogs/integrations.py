@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from mdhelper.app import ApplicationService
 from mdhelper.core.integrations import IntegrationConfig, IntegrationStatus
+from mdhelper.gui.components.layout import configure_form
 from mdhelper.gui.components.paths import PathRow
 from mdhelper.gui.formatting import error_text
 from mdhelper.services.config import save_config
@@ -61,6 +62,7 @@ class IntegrationsDialog(QDialog):
         self.capabilities = QListWidget()
         self.capabilities.setMinimumHeight(180)
         form = QFormLayout()
+        configure_form(form)
         form.addRow("Software", self.tool)
         form.addRow("Executable", self.executable)
         form.addRow("", self.enabled)
@@ -70,6 +72,7 @@ class IntegrationsDialog(QDialog):
         configuration = QGroupBox("Configuration")
         configuration.setLayout(form)
         status_form = QFormLayout()
+        configure_form(status_form)
         status_form.addRow("Status", self.status)
         status_form.addRow("Version", self.version)
         status_form.addRow("Detected from", self.source)

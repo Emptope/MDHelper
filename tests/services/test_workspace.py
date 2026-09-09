@@ -11,6 +11,23 @@ from mdhelper.core.errors import ConfigurationError, JobCancelled
 from mdhelper.services.workspace import WorkspaceDocument, open_workspace_file
 
 
+@pytest.mark.parametrize("suffix", ["gro", "txt", "edr", "unknown"])
+def test_text_content_is_preserved_regardless_of_extension(tmp_path: Path, monkeypatch, suffix):
+    path = tmp_path / f"source.{suffix}"
+    text = "Original title\r\n    1\r\n    1MOL     C    1   0.123   0.456   0.789\r\n"
+    path.write_bytes(text.encode("utf-8"))
+
+    def reject(*_args):
+        pytest.fail("Text must not enter the binary parser")
+
+    monkeypatch.setattr("mdhelper.backends.mdanalysis.workspace.BinaryDocument", reject)
+    file = open_workspace_file(path)
+    assert file.editable
+    assert not file.parsed
+    assert file.text == text
+    assert path.read_bytes() == text.encode("utf-8")
+
+
 def test_small_text_detection_preserves_utf8_boundaries(tmp_path: Path) -> None:
     path = tmp_path / "text.dat"
     text = "a" * 65535 + chr(233) + "b" * 8192

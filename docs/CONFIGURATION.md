@@ -8,8 +8,14 @@ Configuration resolution order is:
 
 1. CLI `--settings`.
 2. `MDHELPER_CONFIG`.
-3. For a macOS application bundle, `~/Library/Application Support/MDHelper/config.toml`;
+3. On macOS, `~/.config/mdhelper/config.toml` (both source and `.app` launches);
    otherwise, `config.toml` beside the executable or Python runtime.
+
+Open **MDHelper > Settings…** on macOS (**⌘,**), or the existing **Settings** menu-bar entry elsewhere,
+to edit the active file in your default TOML editor. A missing file is created automatically.
+Run `mdhelper config path` to check its location. Existing configurations in
+`~/Library/Application Support/MDHelper/` or beside Python are not moved automatically;
+copy them to the new location if needed, or use `MDHELPER_CONFIG` to keep the old path.
 
 ## GUI
 
@@ -21,8 +27,24 @@ theme = "system" # system, light, dark
 font_size = 11.0 # 6 through 32 points
 ```
 
-**View > Appearance** applies and saves these fields. `system` follows the operating-system color
-scheme.
+**View > Appearance** applies and saves the theme. `system` follows the operating-system color
+scheme. Edit `font_size` in the configuration and restart to change the application font size.
+
+The Workspace text editor uses the system fixed-width font at a minimum of 14pt, or the
+application font size when larger. Line numbers stay outside the document and are never saved
+as file content. The footer shows the 1-based line and column, plus the selected character count.
+Columns count Unicode code points, with tab stops every four columns; selected line breaks count
+as one character. This position display is hidden for image and data-table previews.
+
+Workspace detects text by content, without extension-specific exceptions. Text is displayed in
+its original form rather than parsed into a table. Files larger than 1 MiB show a clearly labeled,
+read-only preview of the first 1 MiB; saving that partial preview is disabled. Images retain their
+image preview, and only binary data is passed to the scientific data readers.
+
+**Export Text...** defaults to UTF-8 CSV (comma-separated); TXT (tab-delimited) remains available,
+but TSV is not offered. EDR exports contain Frame, Time, and only the checked terms, including
+units in the headers and all frames. Search filters do not change checked terms. At least one
+term must be checked; export uses the selection at the time it is started.
 
 ## Workflows
 

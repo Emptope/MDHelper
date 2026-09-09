@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import codecs
-from collections.abc import Generator
 from pathlib import Path
 from threading import Event
 
 from mdhelper.core.errors import JobCancelled
+from mdhelper.core.workspace import WorkspaceFile
 
 TEXT_LIMIT = 1024 * 1024
 BLOCK_SIZE = 65536
@@ -31,18 +31,21 @@ def is_text(path: Path, cancel: Event | None) -> bool:
     return True
 
 
-def text_records(
-    path: Path, cancel: Event | None,
-) -> Generator[tuple[tuple[str, ...], ...], None, None]:
-    decoder = codecs.getincrementaldecoder("utf-8")()
-    offset = 0
+def raw_text_file(path: Path, cancel: Event | None = None) -> WorkspaceFile:
+    """Preview detected text without invoking a structural reader."""
+    check_cancel(cancel)
     with path.open("rb") as handle:
-        while True:
-            check_cancel(cancel)
-            chunk = handle.read(4096)
-            text = decoder.decode(chunk, final=not chunk)
-            if text:
-                yield ((str(offset), text),)
-                offset += len(text)
-            if not chunk:
-                break
+        data = handle.read(TEXT_LIMIT + 1)
+    check_cancel(cancel)
+    complete = len(data) <= TEXT_LIMIT
+    data = data[:TEXT_LIMIT]
+    editable = complete
+    try:
+        text = codecs.getincrementaldecoder("utf-8")().decode(data, final=complete)
+    except UnicodeDecodeError:
+        text = codecs.getincrementaldecoder("utf-8")("replace").decode(data, final=complete)
+        editable = False
+    message = "Text" if editable else "Read-only text (invalid UTF-8)"
+    if not complete:
+        message = f"Read-only text preview (first {TEXT_LIMIT} bytes; file exceeds preview limit)"
+    return WorkspaceFile(str(path), text, editable, False, message)

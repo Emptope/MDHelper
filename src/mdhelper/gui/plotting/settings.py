@@ -24,6 +24,7 @@ from mdhelper.core.plotting import (
     PLOT_LEGEND_LOCATIONS,
     PlotAppearance,
 )
+from mdhelper.gui.components.layout import configure_form
 
 
 class PlotSettingsDialog(QDialog):
@@ -52,8 +53,7 @@ class PlotSettingsDialog(QDialog):
         self.legend_visible.toggled.connect(self.legend_location.setEnabled)
 
         display_form = QFormLayout()
-        display_form.setHorizontalSpacing(12)
-        display_form.setVerticalSpacing(10)
+        configure_form(display_form)
         display_form.addRow("Line width", self.line_width)
         display_form.addRow("", self.grid_visible)
         display_form.addRow("", self.legend_visible)
@@ -66,8 +66,7 @@ class PlotSettingsDialog(QDialog):
         self.tick_font_size = _font_control()
         self.legend_font_size = _font_control()
         text_form = QFormLayout()
-        text_form.setHorizontalSpacing(12)
-        text_form.setVerticalSpacing(10)
+        configure_form(text_form)
         text_form.addRow("Title", self.title_font_size)
         text_form.addRow("Axis labels", self.label_font_size)
         text_form.addRow("Tick labels", self.tick_font_size)

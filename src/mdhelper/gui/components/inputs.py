@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QFormLayout, QGroupBox, QLabel, QWidget
 
 from mdhelper.core.analysis import AnalysisRequest, RadialRequest
 from mdhelper.core.trajectory import TOPOLOGY_SUFFIXES, TRAJECTORY_SUFFIXES
+from mdhelper.gui.components.layout import configure_form
 from mdhelper.gui.components.paths import PathRow, file_filter
 
 
@@ -17,8 +18,7 @@ class InputPanel(QGroupBox):
     def __init__(self, parent: QWidget | None = None):
         super().__init__("Inputs", parent)
         form = QFormLayout(self)
-        form.setHorizontalSpacing(12)
-        form.setVerticalSpacing(10)
+        configure_form(form)
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         self.topology = PathRow(
             "Select topology", file_filter("GROMACS topology", TOPOLOGY_SUFFIXES),

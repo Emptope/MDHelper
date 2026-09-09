@@ -30,7 +30,11 @@ def page_layout(parent: QWidget) -> QVBoxLayout:
 def configure_form(form: QFormLayout) -> None:
     """Apply the compact spacing shared by parameter forms."""
 
-    form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
+    # macOS defaults to FieldsStayAtSizeHint and centers the form. Explicit
+    # policies let paths, queues, and parameter editors use the available width.
+    form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+    form.setFormAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+    form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
     form.setHorizontalSpacing(14)
     form.setVerticalSpacing(10)
 
@@ -42,10 +46,9 @@ def configure_button(
 ) -> QPushButton:
     """Apply consistent geometry and visual emphasis to an action button."""
 
-    if compact:
-        button.setFixedHeight(24)
-    else:
-        button.setMinimumHeight(28)
+    # A fixed height can clip native macOS buttons or larger configured fonts.
+    # Keep the compact baseline while allowing the style's size hint to win.
+    button.setMinimumHeight(24 if compact else 28)
     button.setProperty("importance", "primary" if primary else "secondary")
     return button
 

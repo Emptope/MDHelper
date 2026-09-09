@@ -7,13 +7,13 @@ from pathlib import Path
 from typing import cast
 
 from PySide6.QtCore import QDir, QModelIndex, Qt, Signal
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
+    QFileDialog,
     QFileSystemModel,
     QHBoxLayout,
     QLabel,
     QMessageBox,
-    QPlainTextEdit,
     QPushButton,
     QSizePolicy,
     QSplitter,
@@ -23,10 +23,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from mdhelper.core.errors import JobCancelled
 from mdhelper.core.workspace import DataPage, ImagePixels, WorkspaceFile
 from mdhelper.gui.components.layout import page_layout
 from mdhelper.gui.workspace.data import DataView
 from mdhelper.gui.workspace.image import ImageView
+from mdhelper.gui.workspace.text import FileTextEditor
 from mdhelper.gui.workspace.worker import DocumentWorker
 from mdhelper.services.workspace import save_workspace_text
 
@@ -41,6 +43,8 @@ class WorkspaceEditor(QWidget):
         self.current_path: str | None = None
         self._loading_path: str | None = None
         self._resume_path: str | None = None
+        self._exporting = False
+        self._exportable = False
         self.worker = DocumentWorker(self)
         self.empty = QWidget()
         empty_layout = QVBoxLayout(self.empty)
@@ -74,10 +78,15 @@ class WorkspaceEditor(QWidget):
         self.info.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.info.setTextFormat(Qt.TextFormat.PlainText)
         self.info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.export_button = QPushButton("Export Text...")
+        self.export_button.setToolTip(
+            "Export all frames of the selected data as CSV or TXT"
+        )
         self.save_button = QPushButton("Save")
         self.cancel_button = QPushButton("Cancel")
         controls = QHBoxLayout()
         controls.addWidget(self.info, 1)
+        controls.addWidget(self.export_button)
         controls.addWidget(self.save_button)
         controls.addWidget(self.cancel_button)
         detail_layout.addLayout(controls)
@@ -85,8 +94,7 @@ class WorkspaceEditor(QWidget):
         self.status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.editor = QPlainTextEdit()
-        self.editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.editor = FileTextEditor()
         self.editor.setReadOnly(True)
         self.data = DataView()
         self.image = ImageView()
@@ -95,7 +103,23 @@ class WorkspaceEditor(QWidget):
         self.content.addWidget(self.data)
         self.content.addWidget(self.image)
         detail_layout.addWidget(self.content, 1)
-        detail_layout.addWidget(self.status)
+        self.cursor_position = QLabel()
+        self.cursor_position.setAccessibleName("Cursor position")
+        self.cursor_position.setSizePolicy(
+            QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred,
+        )
+        self.cursor_position.setToolTip(
+            "Line and column start at 1. Tabs span 4 columns; "
+            "Unicode code points and line breaks count as one selected character."
+        )
+        footer = QHBoxLayout()
+        footer.addWidget(self.status, 1)
+        footer.addWidget(self.cursor_position)
+        detail_layout.addLayout(footer)
+        self.editor.cursorPositionChanged.connect(self._update_cursor_position)
+        self.editor.selectionChanged.connect(self._update_cursor_position)
+        self.editor.textChanged.connect(self._update_cursor_position)
+        self.content.currentChanged.connect(self._update_cursor_position)
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setChildrenCollapsible(False)
         self.splitter.addWidget(self.tree)
@@ -107,6 +131,7 @@ class WorkspaceEditor(QWidget):
         self.stack.addWidget(self.splitter)
         page_layout(self).addWidget(self.stack)
         self.save_button.clicked.connect(self.save)
+        self.export_button.clicked.connect(self.export_text)
         self.cancel_button.clicked.connect(self.cancel)
         self.save_action = QAction("Save", self)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
@@ -118,10 +143,14 @@ class WorkspaceEditor(QWidget):
         self.worker.paged.connect(self._paged)
         self.worker.imaged.connect(self._imaged)
         self.worker.failed.connect(self._failed)
+        self.worker.exported.connect(self._exported)
+        self.worker.export_failed.connect(self._export_failed)
         self.data.model.page_requested.connect(self._load_page)
+        self.data.selection_changed.connect(self._update_save_state)
         self.image.requested.connect(self._load_image)
         self.cancel_button.hide()
         self._update_save_state()
+        self._update_cursor_position()
 
     def set_root(self, path: str | Path | None) -> bool:
         if not self.confirm_discard():
@@ -138,6 +167,8 @@ class WorkspaceEditor(QWidget):
 
     def clear(self) -> None:
         self.worker.cancel()
+        self._exporting = False
+        self._exportable = False
         self.current_path = None
         self._loading_path = None
         self._resume_path = None
@@ -189,6 +220,9 @@ class WorkspaceEditor(QWidget):
         elif self.content.currentWidget() in (self.data, self.image):
             self._resume_path = self.current_path
         self.worker.cancel()
+        self._exporting = False
+        self._exportable = False
+        self._update_save_state()
         self._loading_path = None
         self.data.configure(0)
         self.image.clear()
@@ -223,7 +257,7 @@ class WorkspaceEditor(QWidget):
 
     def _paged(self, page: DataPage) -> None:
         self.data.model.set_page(page)
-        self.cancel_button.setVisible(self.data.model.loading)
+        self.cancel_button.setVisible(self._exporting or self.data.model.loading)
 
     def _load_image(self, size: tuple[int, int]) -> None:
         self.cancel_button.show()
@@ -231,10 +265,11 @@ class WorkspaceEditor(QWidget):
 
     def _imaged(self, pixels: ImagePixels) -> None:
         self.image.set_pixels(pixels)
-        self.cancel_button.hide()
+        self.cancel_button.setVisible(self._exporting)
 
     def set_file(self, file: WorkspaceFile) -> None:
         self.current_path = file.path
+        self._exportable = file.parsed
         self.editor.setPlainText(file.text)
         self.editor.setReadOnly(not file.editable)
         self.editor.document().setModified(False)
@@ -243,12 +278,13 @@ class WorkspaceEditor(QWidget):
         modified = datetime.fromtimestamp(stat.st_mtime).isoformat(sep=" ", timespec="seconds")
         self.info.setText(source.name)
         self.info.setToolTip(f"{source}\n{stat.st_size} bytes\n{modified}")
-        readable = file.editable or file.parsed or file.image is not None
+        readable = file.editable or bool(file.text) or file.parsed or file.image is not None
         summary = file.message if readable else "Cannot parse this format"
         metadata = f"{stat.st_size} bytes | Modified {modified}"
         self.status.setText(f"{metadata} | {summary}")
         self.status.setToolTip(f"{metadata}\n{file.message}")
         self._update_save_state()
+        self._update_cursor_position()
 
     def save(self) -> bool:
         if self.current_path is None or self.editor.isReadOnly():
@@ -259,6 +295,52 @@ class WorkspaceEditor(QWidget):
         except Exception as exc:
             self.error_reported.emit(exc)
             return False
+
+    def export_text(self) -> None:
+        if (
+            not self._exportable or self.current_path is None or self._exporting
+            or not self.data.has_selected_terms()
+        ):
+            return
+        columns = self.data.export_columns()
+        target, selected_filter = QFileDialog.getSaveFileName(
+            self, "Export Parsed Data", f"{self.current_path}.csv",
+            "CSV files (*.csv);;Text files (*.txt)",
+        )
+        if not target:
+            return
+        if not Path(target).suffix:
+            target += ".txt" if selected_filter == "Text files (*.txt)" else ".csv"
+            # Qt normally appends the suffix before confirming an overwrite.
+            # Check again when a platform dialog returns an extensionless name.
+            if Path(target).exists() and QMessageBox.question(
+                self, "Overwrite File?", f"Replace {Path(target).name}?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            ) != QMessageBox.StandardButton.Yes:
+                return
+        self._exporting = True
+        self._update_save_state()
+        self.status.setText("Exporting parsed data...")
+        self.cancel_button.show()
+        self.worker.export(self.current_path, target, columns)
+
+    def _exported(self, target: Path) -> None:
+        self._exporting = False
+        self._update_save_state()
+        self.cancel_button.setVisible(self.data.model.loading)
+        self.status.setText(f"Exported: {target.name}")
+        self.status.setToolTip(str(target))
+
+    def _export_failed(self, error: BaseException) -> None:
+        self._exporting = False
+        self._update_save_state()
+        self.cancel_button.setVisible(self.data.model.loading)
+        cancelled = isinstance(error, JobCancelled)
+        self.status.setText("Export cancelled" if cancelled else "Could not export data")
+        if not cancelled:
+            self.status.setToolTip(str(error))
+            self.error_reported.emit(error)
 
     def confirm_discard(self) -> bool:
         if not self.editor.document().isModified():
@@ -274,10 +356,16 @@ class WorkspaceEditor(QWidget):
         return answer == QMessageBox.StandardButton.Discard
 
     def cancel(self) -> None:
-        self.clear()
+        if self._exporting:
+            self.worker.cancel_export()
+        else:
+            self.clear()
 
     def _failed(self, error: BaseException) -> None:
         self.worker.cancel()
+        self._exporting = False
+        self._exportable = False
+        self._update_save_state()
         self._loading_path = None
         self._resume_path = None
         self.data.configure(0)
@@ -287,7 +375,25 @@ class WorkspaceEditor(QWidget):
         self.status.setToolTip(str(error))
         self.error_reported.emit(error)
 
+    def _update_cursor_position(self) -> None:
+        cursor = self.editor.textCursor()
+        prefix = QTextCursor(cursor)
+        prefix.clearSelection()
+        prefix.setPosition(cursor.block().position(), QTextCursor.MoveMode.KeepAnchor)
+        column = len(prefix.selectedText().expandtabs(4)) + 1
+        position = f"Ln {cursor.blockNumber() + 1}, Col {column}"
+        if cursor.hasSelection():
+            position += f" | {len(cursor.selectedText())} selected"
+        self.cursor_position.setText(position)
+        self.cursor_position.setVisible(
+            self.current_path is not None and self.content.currentWidget() is self.editor
+        )
+
     def _update_save_state(self) -> None:
+        self.export_button.setVisible(self._exportable)
+        self.export_button.setEnabled(
+            self._exportable and not self._exporting and self.data.has_selected_terms()
+        )
         editable = self.current_path is not None and not self.editor.isReadOnly()
         self.save_button.setEnabled(editable)
         self.save_button.setVisible(editable)

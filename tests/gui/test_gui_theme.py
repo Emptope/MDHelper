@@ -10,7 +10,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6", reason="GUI dependencies are not installed")
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 import mdhelper.gui.components.paths as paths_module
+import mdhelper.gui.menu as menu_module
 import mdhelper.gui.window as window_module
 from mdhelper.app import ApplicationService
 from mdhelper.core.analysis import AnalysisResult, RadialRequest
@@ -461,6 +463,35 @@ def test_result_panel_keeps_mixed_analysis_types_in_one_figure() -> None:
     panel.close()
 
 
+@pytest.mark.parametrize("scheme", ["residue_name", "fixed"])
+def test_restore_different_scheme_and_row_count_is_atomic(scheme: str) -> None:
+    from dataclasses import replace
+
+    panel = ResultPanel()
+    source = ResultPanel()
+    result = _rdf_result("A", "B")
+    changed = []
+    try:
+        source.show_result(result)
+        source.plot_queue.item(0, 2).setText("Restored label")
+        state = replace(source.plot_state(), scheme=scheme)
+        other = "fixed" if scheme == "residue_name" else "residue_name"
+        panel.color_scheme.setCurrentIndex(panel.color_scheme.findData(other))
+        panel.color_scheme.currentIndexChanged.connect(changed.append)
+        # Restore into an empty table and then restore an empty session over it.
+        panel.restore_state(state, (result,))
+        assert not changed
+        assert panel.plot_state() == state
+        assert panel.plot_queue.cellWidget(0, 3).isEnabled() == (scheme == "fixed")
+        panel.restore_state(replace(state, selections=(), scheme=other), ())
+        assert not changed
+        assert panel.plot_queue.rowCount() == 0
+        assert not panel.plot_state().selections
+    finally:
+        source.close()
+        panel.close()
+
+
 def test_result_panel_edits_only_the_selected_energy_plot_title(
     energy_result: AnalysisResult,
 ) -> None:
@@ -564,12 +595,37 @@ def test_analysis_details_opens_the_retained_job_log() -> None:
     window.close()
 
 
+def test_mac_menu_translation_only_renames_native_preferences() -> None:
+    translator = menu_module._MacMenuLabels()
+    assert not translator.isEmpty()
+    assert translator.translate("QMenuBar", "Preferences...") == "Settings..."
+    assert translator.translate("QMenuBar", "Quit") is None
+    assert translator.translate("OtherContext", "Preferences...") is None
+    menu_module._configure_mac_menu_labels()
+    menu_module._configure_mac_menu_labels()
+    assert len(_QT_APPLICATION.findChildren(menu_module._MacMenuLabels)) == 1
+    assert QCoreApplication.translate("QMenuBar", "Preferences...") == "Settings..."
+    assert QCoreApplication.translate("QMenuBar", "About %1") == "About %1"
+    assert QCoreApplication.translate("OtherContext", "Preferences...") == "Preferences..."
+
+
+@pytest.mark.parametrize("platform", ["darwin", "win32", "linux"])
+@pytest.mark.parametrize("override", [True, False])
 def test_settings_menu_creates_and_opens_the_active_config(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    override: bool,
+    platform: str,
 ) -> None:
+    monkeypatch.setattr(menu_module, "_IS_MACOS", platform == "darwin")
     path = tmp_path / "config.toml"
-    monkeypatch.setenv("MDHELPER_CONFIG", str(path))
+    if override:
+        monkeypatch.setenv("MDHELPER_CONFIG", str(path))
+    else:
+        monkeypatch.delenv("MDHELPER_CONFIG", raising=False)
+        monkeypatch.setattr("sys.platform", "darwin")
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        path = tmp_path / ".config" / "mdhelper" / "config.toml"
     opened: list[str] = []
     monkeypatch.setattr(
         window_module.QDesktopServices,
@@ -578,7 +634,22 @@ def test_settings_menu_creates_and_opens_the_active_config(
     )
     window = MainWindow()
 
-    window.menu_actions.settings.trigger()
+    action = window.menu_actions.settings
+    file_menu = window.menuBar().actions()[0].menu()
+    if platform == "darwin":
+        assert action.menuRole() == QAction.MenuRole.PreferencesRole
+        assert action.shortcuts() == QKeySequence.keyBindings(QKeySequence.StandardKey.Preferences)
+        assert action.text() == "&Settings..."
+        # Cocoa merges submenu preferences into the application menu.
+        assert action in file_menu.actions()
+        assert action not in window.menuBar().actions()
+    else:
+        assert action.text() == "&Settings"
+        assert action.menuRole() == QAction.MenuRole.TextHeuristicRole
+        assert action.shortcuts() == []
+        assert action in window.menuBar().actions()
+        assert action not in file_menu.actions()
+    action.trigger()
 
     assert path.is_file()
     assert load_config(path) == window.application.config
@@ -843,7 +914,12 @@ def test_window_manager_close_requires_confirmation(
         def accept(self) -> None:
             self.accepted = True
 
-    def reject(_parent: object, title: str, message: str) -> QMessageBox.StandardButton:
+    def reject(
+        _parent: object, title: str, message: str,
+        buttons: QMessageBox.StandardButton, default: QMessageBox.StandardButton,
+    ) -> QMessageBox.StandardButton:
+        assert buttons == QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        assert default == QMessageBox.StandardButton.Yes
         calls.append((title, message))
         return QMessageBox.StandardButton.No
 

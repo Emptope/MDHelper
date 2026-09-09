@@ -8,7 +8,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject, Signal
 
-from mdhelper.services.workspace import WorkspaceDocument
+from mdhelper.services.workspace import WorkspaceDocument, export_workspace_data
 
 
 class DocumentWorker(QObject):
@@ -16,6 +16,8 @@ class DocumentWorker(QObject):
     paged = Signal(object)
     imaged = Signal(object)
     failed = Signal(object)
+    exported = Signal(object)
+    export_failed = Signal(object)
     _finished = Signal(int, str, object)
 
     def __init__(self, parent: QObject | None = None):
@@ -25,6 +27,7 @@ class DocumentWorker(QObject):
         self._lock = Lock()
         self._generation = 0
         self._cancel = Event()
+        self._export_cancel = Event()
         self._closed = False
         self._finished.connect(self._deliver)
 
@@ -37,7 +40,17 @@ class DocumentWorker(QObject):
     def image(self, size: tuple[int, int]) -> None:
         self._submit("imaged", size)
 
+    def export(
+        self, source: str, destination: str, columns: tuple[int, ...] | None = None,
+    ) -> None:
+        self._export_cancel = Event()
+        self._submit("exported", source, destination, self._export_cancel, columns)
+
+    def cancel_export(self) -> None:
+        self._export_cancel.set()
+
     def cancel(self) -> None:
+        self.cancel_export()
         with self._lock:
             self._generation += 1
             self._cancel.set()
@@ -49,6 +62,7 @@ class DocumentWorker(QObject):
             if self._closed:
                 return
             if operation == "opened":
+                self.cancel_export()
                 self._cancel.set()
                 self._cancel = Event()
                 self._generation += 1
@@ -59,6 +73,9 @@ class DocumentWorker(QObject):
     def _run(self, operation: str, cancel: Event, args: tuple[Any, ...]) -> object:
         if cancel.is_set():
             return None
+        # Export owns a separate reader; failures must not invalidate the preview.
+        if operation == "exported":
+            return export_workspace_data(*args)
         try:
             if operation == "opened":
                 self._close_document()
@@ -80,7 +97,7 @@ class DocumentWorker(QObject):
         try:
             result = future.result()
         except BaseException as exc:
-            operation, result = "failed", exc
+            operation, result = "export_failed" if operation == "exported" else "failed", exc
         with self._lock:
             if not self._closed and generation == self._generation:
                 self._finished.emit(generation, operation, result)

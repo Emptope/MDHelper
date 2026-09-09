@@ -155,7 +155,8 @@ Request、result、manifest 和 plot state 使用严格 schema 1。项目重定�
 路径。检测和执行使用参数向量、受限环境、输出捕获、超时和 `shell=False`。取消和超时终止
 进程组，并在 run record 中保留已捕获输出。
 
-`MDHELPER_CONFIG` 覆盖同目录 `config.toml`。配置通过校验后才原子替换。Template 按路径顺序
+`MDHELPER_CONFIG` 覆盖默认配置路径（见[配置文档](CONFIGURATION.zh-CN.md)）。
+配置通过校验后才原子替换。Template 按路径顺序
 读取非空 ASCII 内容，并拒绝重复的不区分大小写 key。
 
 Job 从 pending 进入 running，再进入 completed、failed 或 cancelled。取消点位于 hash chunk、

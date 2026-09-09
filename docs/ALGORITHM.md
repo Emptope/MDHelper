@@ -168,7 +168,8 @@ adapter environment paths, `PATH`, then adapter paths. Detection and execution u
 restricted environments, captured output, timeouts, and `shell=False`. Cancellation and timeout
 terminate the process group and preserve captured output in the run record.
 
-`MDHELPER_CONFIG` overrides the colocated `config.toml`. Configuration is validated before atomic
+`MDHELPER_CONFIG` overrides the default configuration path (see [configuration](CONFIGURATION.md)).
+Configuration is validated before atomic
 replacement. Templates are read in path order as non-empty ASCII and reject duplicate
 case-insensitive keys.
 

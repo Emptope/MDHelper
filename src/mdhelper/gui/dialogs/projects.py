@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from mdhelper.app import InputCandidates
 from mdhelper.core.trajectory import TOPOLOGY_SUFFIXES, TRAJECTORY_SUFFIXES
+from mdhelper.gui.components.layout import configure_form
 from mdhelper.gui.components.path_choice import PathChoice
 
 
@@ -30,8 +31,7 @@ class NewProjectDialog(QDialog):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
         form = QFormLayout()
-        form.setHorizontalSpacing(12)
-        form.setVerticalSpacing(10)
+        configure_form(form)
 
         directory = QLabel(str(candidates.root))
         directory.setWordWrap(True)

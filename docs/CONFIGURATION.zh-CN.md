@@ -8,8 +8,13 @@ MDHelper 使用带 schema version 的 TOML 文件。
 
 1. CLI `--settings`。
 2. `MDHELPER_CONFIG`。
-3. macOS 应用包使用 `~/Library/Application Support/MDHelper/config.toml`；
+3. macOS 统一使用 `~/.config/mdhelper/config.toml`（源码与 `.app` 启动一致）；
    其他情况使用可执行程序或 Python runtime 同目录的 `config.toml`。
+
+macOS 从 **MDHelper > Settings…**（**⌘,**）打开配置，Windows/Linux 保持原有菜单栏 **Settings** 入口。
+配置会交给系统默认的 TOML 编辑器；文件不存在时自动创建。
+`mdhelper config path` 可查询实际路径。旧的 `~/Library/Application Support/MDHelper/`
+或 Python 同目录配置不会自动迁移；需要时手动复制到新路径，或用 `MDHELPER_CONFIG` 保留旧路径。
 
 ## GUI
 
@@ -21,7 +26,21 @@ theme = "system" # system, light, dark
 font_size = 11.0 # 6 到 32 pt
 ```
 
-**View > Appearance** 应用并保存这些字段。`system` 跟随操作系统配色。
+**View > Appearance** 应用并保存主题，`system` 跟随操作系统配色。
+应用字号通过配置中的 `font_size` 修改，重启后生效。
+
+Workspace 文本编辑区使用系统等宽字体，至少 14pt；应用字号更大时随之增大。
+行号绘制在文档之外，不写入保存的文件。底部显示从 1 开始的行列位置和选中字符数。
+列按 Unicode 码点计数，制表符每四列对齐；选区中的换行计为一个字符。
+图片与数据表预览不显示文本光标位置。
+
+Workspace 按内容识别文本，不根据扩展名特判。文本直接显示原文，不转成解析表格；
+超过 1 MiB 时显示明确标注的只读原文预览，仅包含前 1 MiB，禁用保存以防截断源文件。
+图片保持图片预览，只有二进制数据交给科学数据读取器。
+
+**Export Text...** 默认导出 UTF-8 CSV（逗号分隔），保留 TXT（制表符分隔），不再提供 TSV。
+EDR 导出包含 Frame、Time 和已勾选的 term，表头保留单位，并包含全部帧。
+搜索过滤不改变勾选状态；至少勾选一个 term 才能导出，使用点击导出时的选择。
 
 ## Workflow
 

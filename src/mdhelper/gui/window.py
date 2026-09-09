@@ -288,7 +288,11 @@ class MainWindow(QMainWindow):
                 if self.job_controller.running
                 else "Quit MDHelper?"
             )
-            answer = QMessageBox.question(self, "Really Quit?", message)
+            answer = QMessageBox.question(
+                self, "Really Quit?", message,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
             if answer != QMessageBox.StandardButton.Yes:
                 event.ignore()
                 return

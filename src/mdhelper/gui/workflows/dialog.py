@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from mdhelper.core.analysis import AnalysisType, analysis_label
-from mdhelper.gui.components.layout import ActionBar
+from mdhelper.gui.components.layout import ActionBar, configure_form
 from mdhelper.gui.components.parameters import ParameterPanel
 from mdhelper.gui.controllers.analysis_state import RunItem
 
@@ -48,6 +48,7 @@ class WorkflowDialog(QDialog):
         self.choice = QComboBox()
         self.choice.currentIndexChanged.connect(self._workflow_changed)
         selection = QFormLayout()
+        configure_form(selection)
         selection.addRow("Workflow", self.choice)
 
         self.steps = QListWidget()
