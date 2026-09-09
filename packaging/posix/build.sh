@@ -20,12 +20,19 @@ if [[ -n "$smoke_request" && "$smoke_request" != /* ]]; then
 fi
 version=$("$python" "$project_root/packaging/check_release.py" --root "$project_root")
 stage=$(mktemp -d)
+build_status=1
 export MPLCONFIGDIR="$work_root/matplotlib"
 
 cleanup() {
+    local status=$1
+    # Some shells report status zero after expansion errors; require explicit completion.
+    if [[ "$status" == 0 ]]; then
+        status=$build_status
+    fi
     rm -rf -- "$stage"
+    exit "$status"
 }
-trap cleanup EXIT
+trap 'cleanup "$?"' EXIT
 
 case "$release_output" in
     "$project_root"/dist/*) ;;
@@ -87,14 +94,17 @@ build_variant() {
     "$python" "${notices[@]}"
 
     if [[ "$platform" == macos ]]; then
-        local dmg_options=()
+        local artifact="$release_output/$name.dmg"
+        local dmg_options=(--source "$root" --artifact "$artifact" --version "$version")
         if [[ -n "$smoke_request" ]]; then
             dmg_options+=(--request "$smoke_request")
         fi
         MAX_ARTIFACT_SIZE_MB="$max_size_mb" \
-            "$python" "$project_root/packaging/posix/dmg.py" \
-            --source "$root" --artifact "$release_output/$name.dmg" --version "$version" \
-            "${dmg_options[@]}"
+            "$python" "$project_root/packaging/posix/dmg.py" "${dmg_options[@]}"
+        if [[ ! -s "$artifact" ]]; then
+            echo "Missing or empty release artifact: $artifact" >&2
+            exit 1
+        fi
         return
     fi
 
@@ -122,3 +132,4 @@ if [[ "$platform" == linux ]]; then
 else
     build_variant gui 1 "MDHelper-$version-$label" macos
 fi
+build_status=0

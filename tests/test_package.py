@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 import plistlib
 import runpy
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -117,6 +119,89 @@ def test_dmg_audits_and_cleans_up_installation(
     else:
         assert ("hdiutil", "attach") not in actions
         assert not environments
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Requires a POSIX build host")
+@pytest.mark.parametrize("smoke", [False, True])
+@pytest.mark.parametrize("outcome", ["created", "failed", "missing", "empty", "expansion"])
+def test_posix_build_requires_release_artifact(
+    tmp_path: Path, smoke: bool, outcome: str,
+) -> None:
+    project = tmp_path / "project with spaces"
+    scripts = project / "packaging" / "posix"
+    scripts.mkdir(parents=True)
+    shutil.copy2(ROOT / "packaging" / "posix" / "build.sh", scripts / "build.sh")
+    for name in ("LICENSE", "README.md", "README.zh-CN.md", "config.example.toml"):
+        (project / name).write_text("payload", encoding="ascii")
+    for name in ("docs", "schemas"):
+        (project / name).mkdir()
+    driver = tmp_path / "driver.sh"
+    driver.write_text(
+        """set -euo pipefail
+uname() {
+    case "$1" in
+        -s) printf 'Darwin\\n' ;;
+        -m) printf 'arm64\\n' ;;
+    esac
+}
+lipo() { printf 'arm64\\n'; }
+codesign() { return 0; }
+python() {
+    case "$1" in
+        -c) return 0 ;;
+        */check_release.py) printf '%s\\n' "$VERSION" ;;
+        */clean_build.py) rm -rf -- "$PROJECT/build" ;;
+        -m)
+            test ! -e "$PROJECT/build/stale"
+            while [[ "$1" != --distpath ]]; do shift; done
+            mkdir -p "$2"
+            printf 'application' > "$2/mdhelper"
+            ;;
+        */dmg.py)
+            shift
+            local artifact= request=
+            while [[ $# -gt 0 ]]; do
+                case "$1" in
+                    --artifact) artifact=$2 ;;
+                    --request) request=$2 ;;
+                esac
+                shift 2
+            done
+            test "$request" = "${SMOKE_REQUEST:-}"
+            case "$OUTCOME" in
+                created) printf 'image' > "$artifact" ;;
+                failed) return 23 ;;
+                missing) return 0 ;;
+                empty) touch "$artifact" ;;
+                expansion) printf '%s' "${1:?missing command argument}" ;;
+            esac
+            ;;
+    esac
+}
+source "$PROJECT/packaging/posix/build.sh" macos
+""",
+        encoding="ascii",
+    )
+    (project / "build").mkdir()
+    (project / "build" / "stale").touch()
+    version = "3.5.7"
+    environment = dict(os.environ, PROJECT=str(project), VERSION=version, OUTCOME=outcome)
+    environment.pop("SMOKE_REQUEST", None)
+    environment["PYTHON"] = "python"
+    if smoke:
+        environment["SMOKE_REQUEST"] = str(project / "smoke request.json")
+    result = subprocess.run(
+        ["bash", str(driver)], env=environment, capture_output=True, text=True, check=False,
+    )
+    artifact = project / "dist" / "macos" / f"MDHelper-{version}-macOS-arm64.dmg"
+    if outcome == "created":
+        assert result.returncode == 0, result.stderr
+        assert artifact.is_file(), result.stderr
+    else:
+        assert result.returncode != 0, result.stderr
+        assert not artifact.exists() or artifact.stat().st_size == 0
+        if outcome == "failed":
+            assert result.returncode == 23
 
 
 @pytest.mark.parametrize("field", ["CFBundleExecutable", "CFBundleIconFile"])

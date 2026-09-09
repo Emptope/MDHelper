@@ -37,6 +37,7 @@ jobs:
     uses: $/.github/workflows/windows-release.yml
 
   macos:
+    name: macOS arm64
     needs: validate
     uses: $/.github/workflows/macos-release.yml
 
