@@ -49,7 +49,7 @@ jobs:
           uv run python packaging/generate_notices.py \
             --output build/license-audit/THIRD_PARTY_NOTICES.json
       - name: Build and audit Linux applications
-        run: PYTHON=.venv/bin/python ./packaging/linux/build.sh
+        run: PYTHON=.venv/bin/python bash packaging/posix/build.sh linux
       - name: Upload Linux release candidates
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

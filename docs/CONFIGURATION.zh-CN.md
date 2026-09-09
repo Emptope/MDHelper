@@ -8,7 +8,8 @@ MDHelper 使用带 schema version 的 TOML 文件。
 
 1. CLI `--settings`。
 2. `MDHELPER_CONFIG`。
-3. 可执行程序或 Python runtime 同目录的 `config.toml`。
+3. macOS 应用包使用 `~/Library/Application Support/MDHelper/config.toml`；
+   其他情况使用可执行程序或 Python runtime 同目录的 `config.toml`。
 
 ## GUI
 

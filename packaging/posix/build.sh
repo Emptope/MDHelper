@@ -86,6 +86,18 @@ build_variant() {
     cp -R "$project_root/schemas" "$root/schemas"
     "$python" "${notices[@]}"
 
+    if [[ "$platform" == macos ]]; then
+        local dmg_options=()
+        if [[ -n "$smoke_request" ]]; then
+            dmg_options+=(--request "$smoke_request")
+        fi
+        MAX_ARTIFACT_SIZE_MB="$max_size_mb" \
+            "$python" "$project_root/packaging/posix/dmg.py" \
+            --source "$root" --artifact "$release_output/$name.dmg" --version "$version" \
+            "${dmg_options[@]}"
+        return
+    fi
+
     tar -C "$stage" -czf "$archive" "$name"
     "$python" "$project_root/packaging/frozen_audit.py" \
         --artifact "$archive" \

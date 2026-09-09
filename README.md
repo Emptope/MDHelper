@@ -34,16 +34,36 @@ MDHelper is a local data post-processing application designed for molecular dyna
 
 | Mode | Command | Primary use | Supported platforms |
 | :--- | :--- | :--- | :--- |
-| **GUI** | `mdhelper` or `mdhelper gui` | Visual project management, interactive analysis, and real-time plotting | Windows / Linux |
-| **TUI** | `mdhelper tui` | Guided terminal interaction for servers without a graphical environment | Windows / Linux |
-| **CLI** | `mdhelper <command>` or `mdhelper cli <command>` | Command-line automation and batch processing | Windows / Linux |
+| **GUI** | `mdhelper` or `mdhelper gui` | Visual project management, interactive analysis, and real-time plotting | Windows / Linux / macOS arm64 |
+| **TUI** | `mdhelper tui` | Guided terminal interaction for servers without a graphical environment | Windows / Linux / macOS arm64 |
+| **CLI** | `mdhelper <command>` or `mdhelper cli <command>` | Command-line automation and batch processing | Windows / Linux / macOS arm64 |
 
 ### Running and Launching
 
 - **Automatic Interface Fallback**: When `mdhelper` is run directly, it first checks for Qt and a display environment and starts the GUI when they are available; otherwise, it falls back smoothly to the TUI.
 - **Ready to Use**: Linux and Windows release packages contain a single executable and a colocated `config.toml` file, with no administrator privileges required.
-- **macOS arm64 Candidate**: Source/wheel desktop dependencies, native Terminal launch, and an Apple Silicon archive build are implemented. Native macOS build and runtime validation are pending; see [macOS packaging](docs/PACKAGING.md#macos-arm64) for commands and signing limits.
+- **macOS arm64**: GUI, TUI, and CLI are supported on Apple Silicon. Open the DMG and drag `MDHelper.app` to Applications; source and wheel installations also include desktop dependencies. See [macOS packaging](docs/PACKAGING.md#macos-arm64) for commands and signing details.
 - **Source Development Requirements**: Building from source requires Python 3.12+ and the [`uv`](https://docs.astral.sh/uv/) package manager.
+
+### macOS First Launch
+
+After verifying the DMG against `SHA256SUMS` and copying the trusted app to Applications,
+remove download quarantine and verify its signature:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/MDHelper.app
+codesign --verify --deep --strict --verbose=2 /Applications/MDHelper.app
+```
+
+`xattr` does not sign the app. The release is already ad-hoc signed; only re-sign an
+intentionally modified, trusted local copy when needed:
+
+```bash
+codesign --force --sign - /Applications/MDHelper.app
+codesign --verify --deep --strict --verbose=2 /Applications/MDHelper.app
+```
+
+Ad-hoc signing is not Developer ID signing or notarization. Do not disable Gatekeeper globally.
 
 For detailed instructions, see [Usage](docs/USAGE.md) and [Packaging and Release Validation](docs/PACKAGING.md).
 

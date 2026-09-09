@@ -8,7 +8,8 @@ Configuration resolution order is:
 
 1. CLI `--settings`.
 2. `MDHELPER_CONFIG`.
-3. `config.toml` beside the executable or Python runtime.
+3. For a macOS application bundle, `~/Library/Application Support/MDHelper/config.toml`;
+   otherwise, `config.toml` beside the executable or Python runtime.
 
 ## GUI
 

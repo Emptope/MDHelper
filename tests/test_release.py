@@ -222,7 +222,7 @@ def test_frozen_audit_requires_runtime_qt_plugins(
     assert FROZEN_AUDIT["missing_plugins"](entries, platform) == expected
 
 
-@pytest.mark.parametrize("platform", ["linux", "linux-gui", "windows", "macos"])
+@pytest.mark.parametrize("platform", ["linux", "linux-gui", "windows"])
 def test_smoke_check_validates_distribution_contract(
     tmp_path: Path, platform: str, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

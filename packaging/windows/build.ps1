@@ -85,7 +85,7 @@ Compress-Archive `
 if ($LASTEXITCODE -ne 0) { throw "Release archive size audit failed." }
 
 if ($smokeRequestPath) {
-    & (Join-Path $PSScriptRoot "archive_smoke.ps1") `
+    & (Join-Path $PSScriptRoot "smoke.ps1") `
         -Archive $archivePath `
         -Request $smokeRequestPath `
         -Python $Python

@@ -93,7 +93,8 @@ The package root contains entry points and version metadata only.
 
 `bootstrap/portable.py` selects GUI, TUI, or CLI. With no mode, it starts GUI when Qt and a display
 are available, then falls back to TUI. Frozen builds use the colocated `config.toml` unless
-`MDHELPER_CONFIG` is set.
+`MDHELPER_CONFIG` is set. macOS application bundles instead use the user's configuration
+directory, keeping mutable settings outside the signed bundle.
 
 `app/facade.py` constructs configuration, integrations, the analysis registry, and input loaders.
 Presentation adapters build core requests and call its feature groups. Registries and loaders are

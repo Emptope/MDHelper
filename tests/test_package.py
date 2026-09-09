@@ -1,0 +1,144 @@
+from __future__ import annotations
+
+import plistlib
+import runpy
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+from PIL import Image
+
+ROOT = Path(__file__).parents[1]
+PACKAGE = runpy.run_path(str(ROOT / "packaging" / "posix" / "dmg.py"))
+SMOKE = runpy.run_path(str(ROOT / "packaging" / "smoke_check.py"))
+
+
+def make_bundle(tmp_path: Path) -> Path:
+    source = tmp_path / "portable"
+    source.mkdir()
+    executable = source / "mdhelper"
+    executable.write_bytes(b"application")
+    executable.chmod(0o755)
+    for name in SMOKE["REQUIRED_FILES"]:
+        (source / name).write_text("example", encoding="ascii")
+    for name in SMOKE["REQUIRED_DIRECTORIES"]:
+        (source / name).mkdir()
+        (source / name / "data.json").write_text("{}", encoding="ascii")
+    icon = tmp_path / "icon.png"
+    Image.new("RGBA", (1024, 1024), "red").save(icon)
+    bundle = tmp_path / "image" / "Sample App.app"
+    PACKAGE["create_bundle"](source, bundle, "2.4.6", icon)
+    return bundle
+
+
+def test_bundle_preserves_payload_and_registers_executable(tmp_path: Path) -> None:
+    bundle = make_bundle(tmp_path)
+    contents = bundle / "Contents"
+    with (contents / "Info.plist").open("rb") as handle:
+        info = plistlib.load(handle)
+    executable = contents / "MacOS" / info["CFBundleExecutable"]
+    assert executable.read_bytes() == b"application"
+    assert info["CFBundlePackageType"] == "APPL"
+    assert info["CFBundleShortVersionString"] == "2.4.6"
+    resources = contents / "Resources"
+    with Image.open(resources / info["CFBundleIconFile"]) as image:
+        image.load()
+        assert image.width > 0
+    assert not list(bundle.rglob("config.toml"))
+    assert (resources / "config.example.toml").is_file()
+    assert SMOKE["validate_distribution"](bundle, "macos") == executable
+    renamed = executable.with_name("renamed-launcher")
+    executable.rename(renamed)
+    info["CFBundleExecutable"] = renamed.name
+    with (contents / "Info.plist").open("wb") as handle:
+        plistlib.dump(info, handle)
+    assert SMOKE["validate_distribution"](bundle, "macos") == renamed
+
+
+@pytest.mark.parametrize("smoke, fail_copy", [(False, False), (True, False), (True, True)])
+def test_dmg_audits_and_cleans_up_installation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, smoke: bool, fail_copy: bool,
+) -> None:
+    make_bundle(tmp_path)
+    commands: list[tuple[str, ...]] = []
+    environments: list[dict[str, str]] = []
+    image: Path | None = None
+
+    def run(command: tuple[str, ...], *, check: bool, env: dict[str, str] | None) -> None:
+        nonlocal image
+        assert check
+        commands.append(command)
+        if command[:2] == ("hdiutil", "create"):
+            image = Path(command[command.index("-srcfolder") + 1])
+            assert "-format" in command and "UDZO" in command
+            Path(command[-1]).write_bytes(b"image")
+        if command[0] == "ditto":
+            if fail_copy:
+                raise subprocess.CalledProcessError(1, command)
+            assert image is not None
+            shutil.copytree(image / Path(command[1]).name, command[2])
+        if command[0] == "bash":
+            assert env is not None
+            environments.append(env)
+            assert Path(command[2]).is_dir()
+            assert Path(env["HOME"]).is_dir()
+
+    monkeypatch.setattr(PACKAGE["subprocess"], "run", run)
+    links: list[tuple[Path, str]] = []
+    monkeypatch.setattr(
+        Path, "symlink_to",
+        lambda path, target, **kwargs: links.append((path, target)),
+    )
+    monkeypatch.setattr(Path, "readlink", lambda path: Path(links[0][1]))
+    monkeypatch.setenv("MDHELPER_CONFIG", str(tmp_path / "existing.toml"))
+    artifact = tmp_path / "release.dmg"
+    request = tmp_path / "request.json" if smoke else None
+    if fail_copy:
+        with pytest.raises(subprocess.CalledProcessError):
+            PACKAGE["create_dmg"](tmp_path / "portable", artifact, "2.4.6", request)
+    else:
+        PACKAGE["create_dmg"](tmp_path / "portable", artifact, "2.4.6", request)
+    assert image is not None and not image.parent.exists()
+    assert links[0][1] == "/Applications"
+    assert ("hdiutil", "verify", str(artifact)) in commands
+    assert any("--artifact" in command for command in commands)
+    actions = [command[:2] for command in commands]
+    if smoke:
+        assert ("hdiutil", "attach") in actions
+        assert ("hdiutil", "detach") in actions
+        attach = commands[actions.index(("hdiutil", "attach"))]
+        assert "-readonly" in attach
+        if not fail_copy:
+            launch = next(i for i, command in enumerate(commands) if command[0] == "bash")
+            assert actions.index(("hdiutil", "detach")) < launch
+            assert "MDHELPER_CONFIG" not in environments[0]
+            assert commands[-1][0] == "open"
+    else:
+        assert ("hdiutil", "attach") not in actions
+        assert not environments
+
+
+@pytest.mark.parametrize("field", ["CFBundleExecutable", "CFBundleIconFile"])
+def test_bundle_validation_rejects_missing_resources(tmp_path: Path, field: str) -> None:
+    bundle = make_bundle(tmp_path)
+    contents = bundle / "Contents"
+    with (contents / "Info.plist").open("rb") as handle:
+        info = plistlib.load(handle)
+    directory = "MacOS" if field == "CFBundleExecutable" else "Resources"
+    (contents / directory / info[field]).unlink()
+    with pytest.raises(SMOKE["SmokeFailure"]):
+        SMOKE["validate_distribution"](bundle, "macos")
+
+
+@pytest.mark.parametrize("value", ["../outside", "/outside", ""])
+def test_bundle_validation_rejects_unsafe_executable(tmp_path: Path, value: str) -> None:
+    bundle = make_bundle(tmp_path)
+    path = bundle / "Contents" / "Info.plist"
+    with path.open("rb") as handle:
+        info = plistlib.load(handle)
+    info["CFBundleExecutable"] = value
+    with path.open("wb") as handle:
+        plistlib.dump(info, handle)
+    with pytest.raises(SMOKE["SmokeFailure"]):
+        SMOKE["validate_distribution"](bundle, "macos")

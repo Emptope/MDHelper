@@ -49,6 +49,10 @@ else
 fi
 
 config="$distribution/config.toml"
+if [[ "$platform" == macos ]]; then
+    config="$HOME/Library/Application Support/MDHelper/config.toml"
+    env -u MDHELPER_CONFIG "$application" cli config init
+fi
 config_report="$smoke_root/config.json"
 env -u MDHELPER_CONFIG "$application" cli config check >"$config_report"
 "$python" "$check_script" config \

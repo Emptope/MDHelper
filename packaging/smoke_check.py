@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import plistlib
 from pathlib import Path
 from typing import Any
 
@@ -37,29 +38,56 @@ def validate_distribution(root: Path, platform: str) -> Path:
     if not distribution.is_dir():
         raise SmokeFailure(f"distribution directory is missing: {distribution}")
 
-    missing_files = [name for name in REQUIRED_FILES if not (distribution / name).is_file()]
+    payload = distribution
+    binaries = distribution
+    required_files: tuple[str, ...] = REQUIRED_FILES
+    executable = "mdhelper.exe" if platform == "windows" else "mdhelper"
+    if platform == "macos":
+        contents = distribution / "Contents"
+        try:
+            with (contents / "Info.plist").open("rb") as handle:
+                info = plistlib.load(handle)
+        except (OSError, ValueError, plistlib.InvalidFileException) as exc:
+            raise SmokeFailure("application bundle metadata is missing or invalid") from exc
+        if not isinstance(info, dict) or info.get("CFBundlePackageType") != "APPL":
+            raise SmokeFailure("bundle is not an application")
+        for field in ("CFBundleExecutable", "CFBundleIconFile"):
+            value = info.get(field)
+            if (
+                not isinstance(value, str) or not value or value in {".", ".."}
+                or Path(value).name != value or "\\" in value
+            ):
+                raise SmokeFailure(f"invalid bundle resource name: {field}")
+        executable = info["CFBundleExecutable"]
+        payload = contents / "Resources"
+        binaries = contents / "MacOS"
+        if not (payload / info["CFBundleIconFile"]).is_file():
+            raise SmokeFailure("application bundle icon is missing")
+        required_files = tuple(name for name in REQUIRED_FILES if name != "config.toml")
+
+    missing_files = [name for name in required_files if not (payload / name).is_file()]
     if missing_files:
         raise SmokeFailure(f"distribution files are missing: {missing_files}")
     for name in REQUIRED_DIRECTORIES:
-        directory = distribution / name
+        directory = payload / name
         if not directory.is_dir() or not _files(directory):
             raise SmokeFailure(f"distribution directory is missing or empty: {name}")
 
-    metadata = list((distribution / "licenses").glob("*.json"))
+    metadata = list((payload / "licenses").glob("*.json"))
     if len(metadata) != 1:
         raise SmokeFailure(f"expected one license metadata file, found {len(metadata)}")
-    if not list((distribution / "schemas").glob("*.json")):
+    if not list((payload / "schemas").glob("*.json")):
         raise SmokeFailure("schemas does not contain a JSON contract")
 
-    application = distribution / ("mdhelper.exe" if platform == "windows" else "mdhelper")
+    application = binaries / executable
     if not application.is_file():
         raise SmokeFailure(f"packaged application is missing: {application}")
     if platform == "windows":
-        executables = list(distribution.glob("*.exe"))
+        executables = list(binaries.glob("*.exe"))
     else:
         executables = [
             path
-            for path in distribution.iterdir()
+            for path in binaries.iterdir()
             if path.is_file() and os.access(path, os.X_OK)
         ]
     if executables != [application]:

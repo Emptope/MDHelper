@@ -1,4 +1,4 @@
-name: macOS arm64 release candidate
+name: macOS arm64 release
 
 on:
   workflow_call:
@@ -38,12 +38,12 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: uv run python packaging/check_release.py --tag "$RELEASE_TAG"
-      - name: Build and audit native archive
-        run: PYTHON=.venv/bin/python bash packaging/macos/build.sh
-      - name: Upload macOS release candidate
+      - name: Build and audit native DMG
+        run: PYTHON=.venv/bin/python bash packaging/posix/build.sh macos
+      - name: Upload macOS DMG
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: mdhelper-macos-arm64
-          path: dist/macos/MDHelper-*-macOS-arm64.tar.gz
+          path: dist/macos/MDHelper-*-macOS-arm64.dmg
           if-no-files-found: error
           retention-days: 14

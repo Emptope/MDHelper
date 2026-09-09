@@ -9,10 +9,10 @@
 | Linux x86_64 | 无头版 `tar.gz` | TUI、CLI | 排除 PySide6 |
 | Linux x86_64 | GUI 版 `tar.gz` | GUI、TUI、CLI | 包含所需 Qt plugin |
 | Windows x64 | ZIP | GUI、TUI、CLI | 包含 |
-| macOS arm64 | 候选版 `tar.gz` | GUI、TUI、CLI | 包含；尚需原生验证 |
+| macOS arm64 | 包含 `.app` 的 DMG | GUI、TUI、CLI | 包含 |
 | Python | Wheel | 取决于平台 | Linux 使用可选 `gui` extra |
 
-便携归档包含一个 executable、文档和同目录可编辑 `config.toml`。每个 wheel、executable 和 archive 不得超过 256 MB。
+Linux 和 Windows 便携归档包含一个 executable、文档和同目录可编辑 `config.toml`。macOS DMG 包含 `MDHelper.app` 和 Applications 快捷入口。每个 wheel、executable、归档和磁盘映像不得超过 256 MB。
 
 ## Wheel
 
@@ -52,7 +52,7 @@ QT_QPA_PLATFORM=offscreen /tmp/mdhelper-wheel-test/bin/mdhelper gui --smoke-test
 
 ```bash
 uv sync --frozen --extra gui --group dev
-PYTHON=.venv/bin/python ./packaging/linux/build.sh
+PYTHON=.venv/bin/python bash packaging/posix/build.sh linux
 ```
 
 产物为：
@@ -89,32 +89,51 @@ uv sync --frozen --group dev
 
 ```bash
 uv sync --frozen --group dev
-PYTHON=.venv/bin/python bash packaging/macos/build.sh
+PYTHON=.venv/bin/python bash packaging/posix/build.sh macos
 ```
 
-产物为 `dist/macos/MDHelper-<version>-macOS-arm64.tar.gz`。解压后保留与 `mdhelper`
-同目录的 `config.toml`，在 Terminal 中执行 `./mdhelper`。macOS 默认安装 PySide6，
-源码与 wheel 安装无需额外指定 `gui` extra。
+产物为 `dist/macos/MDHelper-<version>-macOS-arm64.dmg`。打开 DMG，将 `MDHelper.app`
+拖入 Applications，推出磁盘映像后从 Finder 启动应用。终端模式可执行
+`/Applications/MDHelper.app/Contents/MacOS/mdhelper tui` 或
+`/Applications/MDHelper.app/Contents/MacOS/mdhelper cli --help`。
+配置保存到签名包之外的 `~/Library/Application Support/MDHelper/config.toml`；
+`--settings` 和 `MDHELPER_CONFIG` 仍可覆盖默认路径。
+文档、schema、许可证和示例配置位于应用的 `Contents/Resources`。
+macOS 默认安装 PySide6，源码与 wheel 安装无需额外指定 `gui` extra。
 
-Linux 与 macOS 入口共享 `packaging/posix/`，每个变体构建前均完整清理 `build`。
-构建审计 arm64 可执行文件、临时代码签名、Qt 内容和 256 MB 体积限制。commit 检查设置
-`SMOKE_REQUEST=packaging/smoke/request.json`，测试解压布局、CLI/TUI、offscreen 与 Cocoa GUI、
-同目录配置、资源，以及分析和导出结果。
+Linux 与 macOS 直接调用 `packaging/posix/build.sh` 并传入平台参数；每个变体构建前完整清理
+`build`。构建审计 arm64 可执行文件、应用临时代码签名、Qt 内容、DMG 完整性和 256 MB 体积限制。
+commit 检查设置 `SMOKE_REQUEST=packaging/smoke/request.json`，只读挂载 DMG，
+将应用复制到含空格的目录并推出映像，再检查安装后的签名、CLI/TUI、offscreen 与 Cocoa GUI、
+用户配置、资源、分析和导出结果，并通过 Launch Services 启动安装后的应用。
 外部交互工具通过 Terminal 启动，分别传递经 shell 引用的参数、工作目录与过滤后的环境；
 系统可能要求授予自动化权限。
 
-候选版使用 ad-hoc 签名，尚无 Developer ID 签名和公证。Gatekeeper 可能阻止下载的程序；
-请先核对 `SHA256SUMS`，再对可信程序使用系统提供的单应用放行方式，不要全局关闭 Gatekeeper。
-目前仍待原生 macOS 构建、Cocoa 及交互 Terminal 验证；Linux/Windows 测试和平台模拟测试
-不代表 macOS 已满足发布条件。标记支持完成前，需要记录 commit、原生 arm64 Python 与 macOS
-版本、`Quality` 运行链接、归档哈希，以及从含空格目录启动外部工具的结果；确认授予自动化权限后
-Terminal 正确保留参数和工作目录。
+应用使用 ad-hoc 签名，尚无 Developer ID 签名和公证。Gatekeeper 可能阻止下载的程序。
+先将 DMG 的 SHA-256 与发布的 `SHA256SUMS` 核对一致。确认来源可信且已将应用复制到
+Applications 后，可移除该应用的下载隔离属性并验证现有签名：
+
+```bash
+xattr -dr com.apple.quarantine /Applications/MDHelper.app
+codesign --verify --deep --strict --verbose=2 /Applications/MDHelper.app
+```
+
+`xattr` 只解除下载隔离，不负责签名。发布的应用已带 ad-hoc 签名；仅在有意修改了可信的本地
+副本、需要重新进行临时签名时执行：
+
+```bash
+codesign --force --sign - /Applications/MDHelper.app
+codesign --verify --deep --strict --verbose=2 /Applications/MDHelper.app
+```
+
+本地 ad-hoc 签名不提供 Developer ID 身份认证或公证。以上命令只作用于该应用，不要全局关闭
+Gatekeeper。
 
 ## 自动化流程
 
 `Quality` 工作流在 pull request、推送到 `main` 和手动触发时运行。Linux、Windows 与
 macOS arm64 job 均会安装锁定环境、校验版本元数据、运行 Ruff、mypy 和完整测试集，再构建原生
-归档并运行 smoke test、检查平台对应的启动路径。Linux 与 macOS job 还会构建和审计 wheel，
+安装包并运行 smoke test、检查平台对应的启动路径。Linux 与 macOS job 还会构建和审计 wheel，
 并在干净环境中安装验证。Linux 测试使用四进程，Windows 保持串行；所有源码和运行时测试均由
 这些 commit 检查负责。
 
@@ -124,8 +143,8 @@ macOS arm64 job 均会安装锁定环境、校验版本元数据、运行 Ruff�
 - `Quality / Windows`
 - `Quality / macOS arm64`
 
-Linux、Windows 与 macOS 发布候选工作流仍可手动触发，同时暴露可复用工作流入口，供标签发布调用
-同一套目标平台构建。候选和标签 release 只校验版本、构建、审计内容、许可、签名和大小，再上传或
+Linux、Windows 与 macOS 打包工作流仍可手动触发，同时暴露可复用工作流入口，供标签发布调用
+同一套目标平台构建。手动和标签 release 构建只校验版本、构建、审计内容、许可、签名和大小，再上传或
 发布产物；不重复执行 lint、类型检查、单元测试、依赖审计或运行时 smoke test。Dependabot 每周将
 依赖和工作流 action 更新各自分组为 pull request，更新仍需通过 commit 质量门禁。
 
@@ -150,6 +169,6 @@ git tag -a "v${version}" -m "MDHelper ${version}"
 git push origin "v${version}"
 ```
 
-`Release` 工作流会拒绝不匹配的标签，构建 wheel 和四个便携式归档，并等待三个目标平台 job
+`Release` 工作流会拒绝不匹配的标签，构建 wheel、三个便携式归档和 macOS DMG，并等待三个目标平台 job
 完成。只有最后的 job 获得 `contents: write` 权限；它下载已审计的产物、生成 `SHA256SUMS`，
 并创建带自动生成说明的 GitHub Release。在对应 commit 通过必需检查前，不要创建或移动发布标签。

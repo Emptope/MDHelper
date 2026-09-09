@@ -34,16 +34,36 @@ MDHelper 是一款为分子动力学模拟设计的本地数据后处理应用�
 
 | 模式 | 执行命令 | 核心用途 | 适用平台 |
 | :--- | :--- | :--- | :--- |
-| **GUI** | `mdhelper` 或 `mdhelper gui` | 可视化项目管理、交互分析与实时绘图 | Windows / Linux |
-| **TUI** | `mdhelper tui` | 终端引导式交互，适用于无图形界面的服务器环境 | Windows / Linux |
-| **CLI** | `mdhelper <command>` 或 `mdhelper cli <command>` | 命令行自动化脚本与批量任务处理 | Windows / Linux |
+| **GUI** | `mdhelper` 或 `mdhelper gui` | 可视化项目管理、交互分析与实时绘图 | Windows / Linux / macOS arm64 |
+| **TUI** | `mdhelper tui` | 终端引导式交互，适用于无图形界面的服务器环境 | Windows / Linux / macOS arm64 |
+| **CLI** | `mdhelper <command>` 或 `mdhelper cli <command>` | 命令行自动化脚本与批量任务处理 | Windows / Linux / macOS arm64 |
 
 ### 运行与启动
 
 - **界面自动回退**：直接运行 `mdhelper` 时，系统将优先检测 Qt 及显示环境以启动 GUI 模式；若环境不可用，则平滑回退至 TUI 模式。
-- **macOS arm64 候选支持**：已实现源码与 wheel 桌面依赖、原生 Terminal 启动及 Apple Silicon 归档构建，仍待原生构建和运行验证；命令与签名限制见 [macOS 打包说明](docs/PACKAGING.zh-CN.md#macos-arm64)。
+- **macOS arm64 支持**：Apple Silicon 支持 GUI、TUI 和 CLI。打开 DMG 后将 `MDHelper.app` 拖入 Applications；源码与 wheel 安装也包含桌面依赖。命令与签名说明见 [macOS 打包说明](docs/PACKAGING.zh-CN.md#macos-arm64)。
 - **开箱即用**：Linux 与 Windows 的发布包包含单一可执行程序及同目录的 `config.toml` 配置文件，无需管理员权限。
 - **源码开发要求**：从源码构建需要 Python 3.12+ 及包管理器 [`uv`](https://docs.astral.sh/uv/)。
+
+### macOS 首次启动
+
+先核对 DMG 与发布的 `SHA256SUMS` 一致，将来源可信的应用复制到 Applications 后，
+移除下载隔离属性并验证签名：
+
+```bash
+xattr -dr com.apple.quarantine /Applications/MDHelper.app
+codesign --verify --deep --strict --verbose=2 /Applications/MDHelper.app
+```
+
+`xattr` 不负责签名。发布的应用已带 ad-hoc 签名；仅在有意修改了可信的本地副本、需要重新
+临时签名时执行：
+
+```bash
+codesign --force --sign - /Applications/MDHelper.app
+codesign --verify --deep --strict --verbose=2 /Applications/MDHelper.app
+```
+
+ad-hoc 签名不等于 Developer ID 签名或公证，不要全局关闭 Gatekeeper。
 
 详细操作请参阅 [使用说明](docs/USAGE.zh-CN.md) 与 [打包与发布验证](docs/PACKAGING.zh-CN.md)。
 

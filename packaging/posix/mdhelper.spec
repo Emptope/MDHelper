@@ -59,7 +59,7 @@ else:
     excluded_modules.append("PySide6")
 
 application_analysis = Analysis(
-    [str(project_root / "packaging/posix/entry.py")],
+    [str(project_root / "packaging/entry.py")],
     pathex=[str(source_root)],
     binaries=[],
     datas=[

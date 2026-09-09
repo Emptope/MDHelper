@@ -65,12 +65,12 @@ jobs:
         if: runner.os == 'Linux'
         run: >-
           PYTHON=.venv/bin/python SMOKE_REQUEST=packaging/smoke/request.json
-          bash packaging/linux/build.sh
-      - name: Build and smoke test macOS archive
+          bash packaging/posix/build.sh linux
+      - name: Build and smoke test macOS DMG
         if: runner.os == 'macOS'
         run: >-
           PYTHON=.venv/bin/python SMOKE_REQUEST=packaging/smoke/request.json
-          bash packaging/macos/build.sh
+          bash packaging/posix/build.sh macos
       - name: Build and smoke test Windows archive
         if: runner.os == 'Windows'
         shell: pwsh

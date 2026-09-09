@@ -9,10 +9,10 @@
 | Linux x86_64 | Headless `tar.gz` | TUI, CLI | Excludes PySide6 |
 | Linux x86_64 | GUI `tar.gz` | GUI, TUI, CLI | Includes required Qt plugins |
 | Windows x64 | ZIP | GUI, TUI, CLI | Included |
-| macOS arm64 | Candidate `tar.gz` | GUI, TUI, CLI | Included; native validation required |
+| macOS arm64 | DMG with `.app` | GUI, TUI, CLI | Included |
 | Python | Wheel | Platform-dependent | Linux uses optional `gui` extra |
 
-Portable archives contain one executable, documentation, and a colocated editable `config.toml`. Each wheel, executable, and archive must not exceed 256 MB.
+Linux and Windows portable archives contain one executable, documentation, and a colocated editable `config.toml`. The macOS DMG contains `MDHelper.app` and an Applications shortcut. Each wheel, executable, archive, and disk image must not exceed 256 MB.
 
 ## Wheel
 
@@ -53,7 +53,7 @@ The artifact version comes from `pyproject.toml`.
 
 ```bash
 uv sync --frozen --extra gui --group dev
-PYTHON=.venv/bin/python ./packaging/linux/build.sh
+PYTHON=.venv/bin/python bash packaging/posix/build.sh linux
 ```
 
 Outputs:
@@ -92,35 +92,54 @@ tools. Intel hosts and translated x86_64 Python are rejected; this is not a cros
 
 ```bash
 uv sync --frozen --group dev
-PYTHON=.venv/bin/python bash packaging/macos/build.sh
+PYTHON=.venv/bin/python bash packaging/posix/build.sh macos
 ```
 
-Output: `dist/macos/MDHelper-<version>-macOS-arm64.tar.gz`. Extract the archive,
-keep `config.toml` beside `mdhelper`, and run `./mdhelper` from Terminal. PySide6 is
-a default dependency on macOS, so source and wheel installs need no `gui` extra.
+Output: `dist/macos/MDHelper-<version>-macOS-arm64.dmg`. Open the DMG, drag
+`MDHelper.app` to Applications, eject the image, and launch the app from Finder.
+For terminal interfaces, run `/Applications/MDHelper.app/Contents/MacOS/mdhelper tui`
+or `/Applications/MDHelper.app/Contents/MacOS/mdhelper cli --help`.
+Settings are saved to `~/Library/Application Support/MDHelper/config.toml`, outside the
+signed bundle. `--settings` and `MDHELPER_CONFIG` still override the default.
+Documentation, schemas, licenses, and the example configuration are in `Contents/Resources`.
+PySide6 is a default dependency on macOS, so source and wheel installs need no `gui` extra.
 
-The Linux and macOS wrappers share `packaging/posix/`. Each variant removes `build`
-before freezing. The build audits the arm64 executable, ad-hoc code signature, Qt payload,
-and 256 MB size limit. Commit checks set `SMOKE_REQUEST=packaging/smoke/request.json` to test
-extracted archive layout, CLI/TUI, offscreen and Cocoa GUI startup, colocated configuration,
-resources, and analysis/export results.
+Linux and macOS use `packaging/posix/build.sh` with an explicit platform argument.
+Each variant removes `build` before freezing. The build audits the arm64 executable,
+ad-hoc application signature, Qt payload, DMG integrity, and 256 MB size limit.
+Commit checks set `SMOKE_REQUEST=packaging/smoke/request.json` to mount the DMG read-only,
+copy the app to a directory containing spaces, eject the image, and check the installed
+signature, CLI/TUI, offscreen and Cocoa GUI, user configuration, resources, and analysis/export
+results. The installed bundle is also launched through Launch Services.
 Interactive external tools open in Terminal with separately quoted arguments,
 working directory, and a filtered environment; macOS may request Automation permission.
 
-This candidate is ad-hoc signed, not Developer ID signed or notarized. Gatekeeper may
-block downloaded executables. Verify `SHA256SUMS` and use the operating system's
-per-application approval for a trusted download; do not disable Gatekeeper globally.
-Native macOS build, Cocoa, and interactive Terminal verification are still pending;
-Linux/Windows tests and mocked platform tests do not establish macOS release readiness.
-Before marking support complete, record the commit, native arm64 Python and macOS versions,
-`Quality` run URL, archive hash, and results of launching an external tool from a folder with
-spaces. Confirm that Terminal preserves arguments and working directory after Automation approval.
+The application is ad-hoc signed, not Developer ID signed or notarized. Gatekeeper may
+block downloaded applications. First verify the DMG's SHA-256 against the published
+`SHA256SUMS`. For a trusted application already copied to Applications, remove its
+quarantine attribute and verify the existing signature:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/MDHelper.app
+codesign --verify --deep --strict --verbose=2 /Applications/MDHelper.app
+```
+
+`xattr` removes download quarantine; it does not sign the app. The released app is already
+ad-hoc signed. Only when intentionally re-signing a locally modified, trusted copy, run:
+
+```bash
+codesign --force --sign - /Applications/MDHelper.app
+codesign --verify --deep --strict --verbose=2 /Applications/MDHelper.app
+```
+
+Local ad-hoc signing does not provide Developer ID identity or notarization. These commands
+apply only to this app; do not disable Gatekeeper globally.
 
 ## Automation
 
 The `Quality` workflow runs for pull requests, pushes to `main`, and manual dispatches. Its Linux,
 Windows, and macOS arm64 jobs install the locked environment, validate version metadata, run Ruff,
-mypy, and the complete test suite, then build and smoke-test the native archives and exercise the
+mypy, and the complete test suite, then build and smoke-test the native packages and exercise the
 platform-specific startup path. Linux and macOS also build, audit, and install the wheel in a clean
 environment. Linux tests use four workers; Windows tests remain serial. These commit checks own all
 source and runtime tests.
@@ -131,9 +150,9 @@ Configure the default branch to require these checks before merging:
 - `Quality / Windows`
 - `Quality / macOS arm64`
 
-The Linux, Windows, and macOS release-candidate workflows remain manually dispatchable. They also expose
+The Linux, Windows, and macOS packaging workflows remain manually dispatchable. They also expose
 reusable workflow entry points so the tag workflow can run the exact same target-platform builds.
-Candidate and tag releases only validate versions, build, audit payloads, licenses, signatures and
+Manual and tag release builds only validate versions, build, audit payloads, licenses, signatures and
 size, and upload or publish artifacts. They do not repeat lint, typing, unit tests, dependency audits,
 or runtime smoke tests. Dependency and workflow action updates are grouped into weekly pull
 requests by Dependabot and still pass through the commit quality gates.
@@ -161,7 +180,7 @@ git tag -a "v${version}" -m "MDHelper ${version}"
 git push origin "v${version}"
 ```
 
-The `Release` workflow rejects mismatched tags, builds the wheel and all four portable archives,
+The `Release` workflow rejects mismatched tags, builds the wheel, three portable archives, and macOS DMG,
 and waits for all three target-platform jobs. Only its final job receives `contents: write`; it downloads
 the audited artifacts, creates `SHA256SUMS`, and publishes the GitHub Release with generated
 notes. Do not create or move a release tag until the corresponding commit has passed the required

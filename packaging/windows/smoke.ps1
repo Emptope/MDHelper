@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$DistributionDirectory,
+    [string]$Archive,
     [Parameter(Mandatory = $true)]
     [string]$Request,
     [string]$Python = "python"
@@ -9,12 +9,8 @@ param(
 $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $checkScript = Join-Path $PSScriptRoot "../smoke_check.py"
-$distribution = (Resolve-Path $DistributionDirectory).Path
-$application = (& $Python $checkScript distribution `
-    --root $distribution `
-    --platform windows | Out-String).Trim()
-if ($LASTEXITCODE -ne 0) { throw "Packaged distribution validation failed." }
-$config = Join-Path $distribution "config.toml"
+$archivePath = (Resolve-Path $Archive).Path
+$expectedName = [IO.Path]::GetFileNameWithoutExtension($archivePath)
 $requestPath = (Resolve-Path $Request).Path
 
 $smokeRoot = Join-Path ([IO.Path]::GetTempPath()) ("mdhelper-smoke-" + [guid]::NewGuid())
@@ -23,6 +19,17 @@ $previousConfig = $env:MDHELPER_CONFIG
 $previousQtPlatform = $env:QT_QPA_PLATFORM
 $previousPythonWarnings = $env:PYTHONWARNINGS
 try {
+    $extraction = Join-Path $smokeRoot "extracted"
+    Expand-Archive -Path $archivePath -DestinationPath $extraction
+    $distribution = (& $Python $checkScript archive-root `
+        --root $extraction `
+        --expected-name $expectedName | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) { throw "Release archive layout validation failed." }
+    $application = (& $Python $checkScript distribution `
+        --root $distribution `
+        --platform windows | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) { throw "Packaged distribution validation failed." }
+    $config = Join-Path $distribution "config.toml"
     $env:PYTHONWARNINGS = "error"
     & $application --version | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Packaged version check failed." }

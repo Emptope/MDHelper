@@ -151,6 +151,30 @@ def test_portable_config_preserves_explicit_environment_override(tmp_path: Path)
     assert environment["MDHELPER_CONFIG"] == str(explicit)
 
 
+@pytest.mark.parametrize("bundle_name", ["MDHelper.app", "Renamed App.app"])
+def test_app_bundle_uses_user_config_outside_signed_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bundle_name: str,
+) -> None:
+    from mdhelper.services.config import storage
+
+    executable = tmp_path / bundle_name / "Contents" / "MacOS" / "launcher"
+    expected = tmp_path / "user settings" / "config.toml"
+    monkeypatch.setattr(storage.sys, "platform", "darwin")
+    monkeypatch.setattr(storage, "user_config_path", lambda *args, **kwargs: expected.parent)
+    assert config_path({}, executable) == expected
+    assert portable_config_path(executable, frozen=True) == expected
+    environment: dict[str, str] = {}
+    activate_portable_config(environment, executable, frozen=True)
+    assert config_path(environment, executable) == expected
+    custom = tmp_path / "explicit.toml"
+    environment["MDHELPER_CONFIG"] = str(custom)
+    activate_portable_config(environment, executable, frozen=True)
+    assert config_path(environment, executable) == custom
+    save_config(UserConfig(), expected)
+    assert load_config(expected) == UserConfig()
+    assert not executable.parent.exists()
+
+
 def test_default_config_path_is_colocated_with_executable(tmp_path: Path) -> None:
     executable = tmp_path / "bin" / "python"
 

@@ -8,7 +8,6 @@ from collections.abc import Callable, MutableMapping
 from importlib.util import find_spec
 from pathlib import Path
 
-PORTABLE_CONFIG = "config.toml"
 GUI_UNAVAILABLE = 6
 
 
@@ -16,13 +15,14 @@ def portable_config_path(
     executable: str | Path | None = None,
     frozen: bool | None = None,
 ) -> Path | None:
-    """Return the colocated config for every frozen distribution."""
+    """Resolve frozen settings without writing into signed application bundles."""
 
     is_frozen = bool(getattr(sys, "frozen", False)) if frozen is None else frozen
     if not is_frozen:
         return None
-    program = Path(sys.executable if executable is None else executable).resolve()
-    return program.parent / PORTABLE_CONFIG
+    from mdhelper.services.config import config_path
+
+    return config_path({}, executable)
 
 
 def activate_portable_config(
@@ -30,7 +30,7 @@ def activate_portable_config(
     executable: str | Path | None = None,
     frozen: bool | None = None,
 ) -> Path | None:
-    """Select the colocated config unless the caller already supplied an override."""
+    """Select frozen settings unless the caller already supplied an override."""
 
     env = os.environ if environment is None else environment
     path = portable_config_path(executable, frozen)

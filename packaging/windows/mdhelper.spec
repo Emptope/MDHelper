@@ -46,7 +46,7 @@ common = {
 }
 
 application_analysis = Analysis(
-    [str(project_root / "packaging/windows/entry.py")],
+    [str(project_root / "packaging/entry.py")],
     **{
         **common,
         "hiddenimports": [
