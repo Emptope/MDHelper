@@ -20,12 +20,12 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Chemistry",
 ]
 dependencies = [
-  "filelock>=3.13,<4",
-  "jsonargparse>=4.40,<5",
+  "filelock>=3.32.5,<4",
+  "jsonargparse>=4.52.0,<5",
   "MDAnalysis>=2.8,<3",
   "matplotlib>=3.8,<4",
   "numpy>=1.26,<3",
-  "platformdirs>=4.11.5,<5",
+  "platformdirs>=4.11.7,<5",
   "Pillow>=12.3,<13",
   "pyedr>=0.8,<1",
   "tomli-w>=1.1,<2",
