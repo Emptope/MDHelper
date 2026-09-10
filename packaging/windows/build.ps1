@@ -47,6 +47,11 @@ if (Test-Path $releaseOutput) {
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with exit code $LASTEXITCODE." }
 
 $application = Join-Path $applicationOutput "mdhelper.exe"
+& $Python (Join-Path $PSScriptRoot "launcher.py") `
+    --output (Join-Path $applicationOutput "mdhelper.com") `
+    --work (Join-Path $stage "launcher")
+if ($LASTEXITCODE -ne 0) { throw "Native console launcher build failed." }
+
 & $Python (Join-Path $projectRoot "packaging/frozen_audit.py") `
     --application $application `
     --platform windows `

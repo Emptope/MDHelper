@@ -104,7 +104,6 @@ application = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,
-    hide_console="hide-early",
+    console=False,
     icon=str(application_icon),
 )

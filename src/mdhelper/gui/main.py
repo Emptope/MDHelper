@@ -18,11 +18,13 @@ def tui_command(
     executable: str | Path | None = None,
     frozen: bool | None = None,
 ) -> list[str]:
-    """Build the unified application command that opens the TUI adapter."""
+    """Build the terminal entry command without importing the TUI adapter."""
 
     program = str(sys.executable if executable is None else executable)
     is_frozen = bool(getattr(sys, "frozen", False)) if frozen is None else frozen
     if is_frozen:
+        if sys.platform == "win32":
+            program = str(Path(program).with_suffix(".com"))
         return [program, "tui"]
     return [program, "-m", "mdhelper", "tui"]
 
@@ -47,7 +49,7 @@ def start_tui() -> bool:
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
     if arguments not in ([], ["--smoke-test"]):
-        sys.stderr.write("Usage: mdhelper gui [--smoke-test]\n")
+        _write_error("Usage: mdhelper gui [--smoke-test]")
         return 2
     try:
         from PySide6.QtCore import QTimer

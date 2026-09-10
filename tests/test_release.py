@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import runpy
+import struct
 import subprocess
 import sys
 import tomllib
@@ -23,6 +24,8 @@ def write_distribution(root: Path, platform: str) -> Path:
     root.mkdir()
     application = root / ("mdhelper.exe" if platform == "windows" else "mdhelper")
     application.write_bytes(b"application")
+    if platform == "windows":
+        application.with_suffix(".com").write_bytes(b"console")
     application.chmod(0o755)
     for name in (
         "LICENSE",
@@ -96,6 +99,9 @@ def test_freezer_specs_reference_existing_resources(platform: str, monkeypatch) 
         assert not executable.call_args.kwargs.get("exclude_binaries", False)
         collect.assert_not_called()
         bundle.assert_not_called()
+        if platform == "win32":
+            assert executable.call_args.kwargs["console"] is False
+            assert "hide_console" not in executable.call_args.kwargs
     analysis.assert_called_once()
     executable.assert_called_once()
     args, options = analysis.call_args
@@ -112,6 +118,76 @@ def test_freezer_specs_reference_existing_resources(platform: str, monkeypatch) 
         with Image.open(icon) as image:
             image.load()
             assert image.width > 0 and image.height > 0
+
+
+@pytest.mark.parametrize("subsystem", [2, 3])
+@pytest.mark.parametrize("console", [False, True])
+def test_windows_audit_checks_the_requested_interface_subsystem(
+    tmp_path: Path, subsystem: int, console: bool,
+) -> None:
+    application = tmp_path / "launcher.exe"
+    header = bytearray(64 + 94)
+    header[:2] = b"MZ"
+    struct.pack_into("<I", header, 0x3C, 64)
+    header[64:68] = b"PE\0\0"
+    struct.pack_into("<H", header, 64 + 24, 0x20B)
+    struct.pack_into("<H", header, 64 + 24 + 68, subsystem)
+    application.write_bytes(header)
+    if subsystem == (3 if console else 2):
+        FROZEN_AUDIT["check_subsystem"](application, "windows", console=console)
+    else:
+        with pytest.raises(SystemExit, match="subsystem"):
+            FROZEN_AUDIT["check_subsystem"](application, "windows", console=console)
+
+
+@pytest.mark.parametrize("extra", [None, "runtime.dll", "dependencies"])
+def test_windows_distribution_requires_encapsulated_dependencies(
+    tmp_path: Path, extra: str | None,
+) -> None:
+    distribution = tmp_path / "distribution"
+    application = write_distribution(distribution, "windows")
+    if extra is None:
+        application.with_suffix(".com").unlink()
+    elif Path(extra).suffix:
+        (distribution / extra).write_bytes(b"dependency")
+    else:
+        (distribution / extra).mkdir()
+    with pytest.raises(SMOKE_CHECK["SmokeFailure"]):
+        SMOKE_CHECK["validate_distribution"](distribution, "windows")
+
+
+def test_windows_audit_keeps_the_forwarder_small_and_the_payload_unique(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    application = tmp_path / "application.exe"
+    terminal = application.with_suffix(".com")
+    application.write_bytes(b"payload")
+    terminal.write_bytes(b"forwarder")
+    globals_ = FROZEN_AUDIT["audit"].__globals__
+    monkeypatch.setitem(globals_, "windows_subsystem", {application: 2, terminal: 3}.__getitem__)
+    archive = Mock(return_value=(["PySide6/plugins/platforms/qwindows.dll"], []))
+    monkeypatch.setitem(globals_, "archive", archive)
+    FROZEN_AUDIT["audit"](application, "windows", 256)
+    archive.assert_called_once_with(application)
+    terminal.write_bytes(b"x" * 1_000_001)
+    with pytest.raises(SystemExit, match="limit"):
+        FROZEN_AUDIT["audit"](application, "windows", 256)
+
+
+def test_native_toolchain_initializes_the_installed_build_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    launcher = runpy.run_path(str(ROOT / "packaging/windows/launcher.py"))
+    monkeypatch.setenv("PROGRAMFILES(X86)", "C:/Program Files (x86)")
+    compiler = "D:/compiler/cl.exe"
+    which = Mock(side_effect=[None, None, compiler])
+    monkeypatch.setattr(launcher["shutil"], "which", which)
+    output = Mock(side_effect=["D:/Build Tools\n", "PATH=D:/compiler\nLIB=D:/libraries\n"])
+    monkeypatch.setattr(launcher["subprocess"], "check_output", output)
+    found, environment = launcher["toolchain"]()
+    assert found == compiler
+    assert environment["LIB"] == "D:/libraries"
+    which.assert_called_with("cl", path=environment["PATH"])
 
 
 def test_build_cleanup_removes_only_generated_tree(tmp_path: Path) -> None:
@@ -227,7 +303,7 @@ def test_smoke_check_validates_distribution_contract(
     extra = application.with_name("unexpected" + application.suffix)
     extra.write_bytes(b"application")
     executable_paths.add(extra)
-    with pytest.raises(SMOKE_CHECK["SmokeFailure"], match="only the packaged application"):
+    with pytest.raises(SMOKE_CHECK["SmokeFailure"], match="packaged application"):
         SMOKE_CHECK["validate_distribution"](distribution, platform)
     extra.unlink()
 

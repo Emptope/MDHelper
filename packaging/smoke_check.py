@@ -85,17 +85,26 @@ def validate_distribution(root: Path, platform: str) -> Path:
     application = binaries / executable
     if not application.is_file():
         raise SmokeFailure(f"packaged application is missing: {application}")
+    expected_executables = {application}
     if platform == "windows":
-        executables = list(binaries.glob("*.exe"))
+        expected_executables.add(application.with_suffix(".com"))
+        allowed = expected_executables | {
+            binaries / name for name in (*REQUIRED_FILES, *REQUIRED_DIRECTORIES)
+        }
+        if set(binaries.iterdir()) != allowed:
+            raise SmokeFailure("unexpected or missing files beside the packaged application")
+        executables = [
+            path for path in binaries.iterdir() if path.suffix.lower() in {".exe", ".com"}
+        ]
     else:
         executables = [
             path
             for path in binaries.iterdir()
             if path.is_file() and os.access(path, os.X_OK)
         ]
-    if executables != [application]:
+    if set(executables) != expected_executables:
         names = sorted(path.name for path in executables)
-        raise SmokeFailure(f"expected only the packaged application, found: {names}")
+        raise SmokeFailure(f"expected only the packaged application launchers, found: {names}")
     return application
 
 

@@ -29,15 +29,16 @@ try {
         --root $distribution `
         --platform windows | Out-String).Trim()
     if ($LASTEXITCODE -ne 0) { throw "Packaged distribution validation failed." }
+    $terminal = [IO.Path]::ChangeExtension($application, ".com")
     $config = Join-Path $distribution "config.toml"
     $env:PYTHONWARNINGS = "error"
-    & $application --version | Out-Host
+    & $terminal --version | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Packaged version check failed." }
-    & $application tui --smoke-test | Out-Host
+    & $terminal tui --smoke-test | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Packaged TUI startup check failed." }
 
     $env:MDHELPER_CONFIG = $null
-    $configReport = & $application cli config check | Out-String
+    $configReport = & $terminal cli config check | Out-String
     if ($LASTEXITCODE -ne 0) { throw "Packaged CLI config validation failed." }
     $configReportPath = Join-Path $smokeRoot "config.json"
     [IO.File]::WriteAllText($configReportPath, $configReport)
@@ -45,8 +46,11 @@ try {
         --report $configReportPath `
         --expected-path $config
     if ($LASTEXITCODE -ne 0) { throw "Colocated configuration validation failed." }
-    & $application cli templates list | Out-Null
+    & $terminal cli templates list | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Packaged template catalog validation failed." }
+
+    & $Python (Join-Path $PSScriptRoot "launch_check.py") --application $application
+    if ($LASTEXITCODE -ne 0) { throw "Native Windows launcher validation failed." }
 
     $env:QT_QPA_PLATFORM = "offscreen"
     & $application gui --smoke-test | Out-Host
@@ -55,7 +59,7 @@ try {
     $analysisOutput = Join-Path $smokeRoot "analysis"
     Push-Location $projectRoot
     try {
-        $analysisReport = & $application cli analyze request `
+        $analysisReport = & $terminal cli analyze request `
             --request $requestPath `
             --output $analysisOutput | Out-String
         $analysisStatus = $LASTEXITCODE

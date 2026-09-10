@@ -4,6 +4,8 @@ import sys
 from io import StringIO
 from pathlib import Path
 
+import pytest
+
 import mdhelper.bootstrap.portable as portable
 import mdhelper.bootstrap.windows_console as windows_console
 from mdhelper.app import ApplicationService
@@ -167,7 +169,7 @@ def test_console_visibility_is_limited_to_frozen_windows(monkeypatch) -> None:
         kernel32 = Kernel()
         user32 = User()
 
-    monkeypatch.setattr("ctypes.windll", Windll(), raising=False)
+    monkeypatch.setattr(windows_console, "_api", lambda: Windll())
 
     portable.show_console("linux", frozen=True)
     portable.show_console("win32", frozen=False)
@@ -187,7 +189,7 @@ def test_console_detachment_is_limited_to_frozen_windows(monkeypatch) -> None:
     class Windll:
         kernel32 = Kernel()
 
-    monkeypatch.setattr("ctypes.windll", Windll(), raising=False)
+    monkeypatch.setattr(windows_console, "_api", lambda: Windll())
 
     portable.detach_console("linux", frozen=True)
     portable.detach_console("win32", frozen=False)
@@ -240,7 +242,7 @@ def test_windowed_launcher_attaches_to_parent_console(monkeypatch) -> None:
         kernel32 = Kernel()
         user32 = User()
 
-    monkeypatch.setattr("ctypes.windll", Windll(), raising=False)
+    monkeypatch.setattr(windows_console, "_api", lambda: Windll())
 
     windows_console.show()
 
@@ -275,7 +277,7 @@ def test_windowed_launcher_allocates_console_without_parent(monkeypatch) -> None
         kernel32 = Kernel()
         user32 = User()
 
-    monkeypatch.setattr("ctypes.windll", Windll(), raising=False)
+    monkeypatch.setattr(windows_console, "_api", lambda: Windll())
 
     windows_console.show()
 
@@ -325,10 +327,13 @@ def test_gui_availability_requires_qt_and_a_linux_display() -> None:
     assert not portable.gui_available({"DISPLAY": ":0"}, "linux", missing)
 
 
-def test_gui_tui_command_reuses_the_unified_entry() -> None:
+@pytest.mark.parametrize("platform", ["win32", "linux", "darwin"])
+def test_gui_tui_command_reuses_the_terminal_entry(platform: str, monkeypatch) -> None:
     executable = Path("runtime") / "python"
+    monkeypatch.setattr(sys, "platform", platform)
+    expected = executable.with_suffix(".com") if platform == "win32" else executable
 
-    assert tui_command(executable, frozen=True) == [str(executable), "tui"]
+    assert tui_command(executable, frozen=True) == [str(expected), "tui"]
     assert tui_command(executable, frozen=False) == [
         str(executable),
         "-m",

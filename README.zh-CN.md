@@ -42,7 +42,7 @@ MDHelper 是一款为分子动力学模拟设计的本地数据后处理应用�
 
 - **界面自动回退**：直接运行 `mdhelper` 时，系统将优先检测 Qt 及显示环境以启动 GUI 模式；若环境不可用，则平滑回退至 TUI 模式。
 - **macOS arm64 支持**：Apple Silicon 支持 GUI、TUI 和 CLI。打开 DMG 后将 `MDHelper.app` 拖入 Applications；源码与 wheel 安装也包含桌面依赖。命令与签名说明见 [macOS 打包说明](docs/PACKAGING.zh-CN.md#macos-arm64)。
-- **开箱即用**：Linux 与 Windows 的发布包包含单一可执行程序及同目录的 `config.toml` 配置文件，无需管理员权限。
+- **开箱即用**：发布包包含同目录的 `config.toml` 配置文件，无需管理员权限。Windows 将依赖封装在 `mdhelper.exe` 内，并提供小型 `mdhelper.com` 终端入口运行 CLI/TUI，不暴露库依赖目录。
 - **源码开发要求**：从源码构建需要 Python 3.12+ 及包管理器 [`uv`](https://docs.astral.sh/uv/)。
 
 ### macOS 首次启动

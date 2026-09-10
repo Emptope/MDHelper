@@ -101,6 +101,7 @@ REQUIRED_QT_PLUGINS = {
     "linux-gui": {"libqxcb.so"},
     "macos": {"libqcocoa.dylib"},
 }
+WINDOWS_GUI_SUBSYSTEM = 2
 WINDOWS_CONSOLE_SUBSYSTEM = 3
 
 
@@ -209,16 +210,17 @@ def windows_subsystem(application: Path) -> int:
     return struct.unpack_from("<H", pe_header, 24 + 68)[0]
 
 
-def check_subsystem(application: Path, platform: str) -> None:
+def check_subsystem(application: Path, platform: str, *, console: bool = False) -> None:
     if platform != "windows":
         return
     try:
         subsystem = windows_subsystem(application)
     except (OSError, ValueError) as exc:
         raise SystemExit(f"Could not read the Windows PE subsystem: {application}") from exc
-    if subsystem != WINDOWS_CONSOLE_SUBSYSTEM:
+    expected = WINDOWS_CONSOLE_SUBSYSTEM if console else WINDOWS_GUI_SUBSYSTEM
+    if subsystem != expected:
         raise SystemExit(
-            f"Windows application must use the console subsystem, found {subsystem}: "
+            f"Windows launcher must use subsystem {expected}, found {subsystem}: "
             f"{application}"
         )
 
@@ -256,6 +258,10 @@ def audit(application: Path, platform: str, max_size_mb: int) -> None:
     else:
         check_size(application, max_size_mb)
         check_subsystem(application, platform)
+        if platform == "windows":
+            terminal = application.with_suffix(".com")
+            check_subsystem(terminal, platform, console=True)
+            check_size(terminal, 1)
         entries, options = archive(application)
     missing = missing_options(options, platform)
     if missing:

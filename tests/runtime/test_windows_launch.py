@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import subprocess
 from importlib import import_module
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
+import mdhelper.bootstrap.windows_console as console
 import mdhelper.runtime.detection as detection
 import mdhelper.runtime.process.lifecycle as lifecycle
 import mdhelper.runtime.process.terminal as terminal
@@ -75,14 +77,56 @@ def test_gui_tui_launch_requests_an_interactive_console(
 ) -> None:
     launch = Mock()
     monkeypatch.setattr(subprocess, "Popen", launch)
-    monkeypatch.setattr(gui_main, "sys", SimpleNamespace(platform="win32"))
-    monkeypatch.setattr(gui_main, "tui_command", lambda: ["mdhelper.exe", "tui"])
+    monkeypatch.setattr(
+        gui_main, "sys",
+        SimpleNamespace(platform="win32", executable="mdhelper.exe", frozen=True),
+    )
     assert gui_main.start_tui()
-    assert launch.call_args.args == (["mdhelper.exe", "tui"],)
+    assert launch.call_args.args == (["mdhelper.com", "tui"],)
     assert launch.call_args.kwargs["creationflags"] == NEW_CONSOLE
     assert launch.call_args.kwargs["close_fds"] is True
     launch.side_effect = OSError("launch failed")
     assert not gui_main.start_tui()
+
+
+@pytest.mark.parametrize("parent", ["1729", "invalid", "-2", "4294967296"])
+def test_console_attaches_to_forwarder_without_losing_redirects(
+    monkeypatch: pytest.MonkeyPatch, parent: str,
+) -> None:
+    handles = {-10: 101, -11: 102, -12: 103}
+    kernel = Mock()
+    kernel.GetConsoleWindow.side_effect = [0, 50]
+    kernel.GetStdHandle.side_effect = handles.__getitem__
+    kernel.GetFileType.side_effect = lambda handle: {101: 2, 102: 1, 103: 3}[handle]
+
+    def attach(pid: int) -> bool:
+        handles.update({-10: 201, -11: 202, -12: 203})
+        return True
+
+    kernel.AttachConsole.side_effect = attach
+    opened: list[tuple[int, str]] = []
+
+    def stream(handle: int, mode: str) -> StringIO:
+        opened.append((handle, mode))
+        return StringIO()
+
+    with monkeypatch.context() as patch:
+        patch.setenv("MDHELPER_CONSOLE_PID", parent)
+        patch.setattr(console, "_api", lambda: SimpleNamespace(kernel32=kernel, user32=Mock()))
+        patch.setattr(console, "_open_stream", stream)
+        patch.setattr(console, "sys", SimpleNamespace(stdin=None, stdout=None, stderr=None))
+        console.show()
+        assert "MDHELPER_CONSOLE_PID" not in console.os.environ
+    kernel.AttachConsole.assert_called_once_with(1729 if parent == "1729" else -1)
+    kernel.AllocConsole.assert_not_called()
+    assert opened == [(102, "w"), (103, "w"), (201, "r")]
+
+
+def test_windowed_gui_rejects_invalid_arguments_without_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(gui_main, "sys", SimpleNamespace(stderr=None))
+    assert gui_main.main(["--invalid-option"]) == 2
 
 
 def test_interactive_tool_launch_requests_a_console(

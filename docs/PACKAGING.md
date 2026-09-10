@@ -12,7 +12,7 @@
 | macOS arm64 | `macos/MDHelper-<version>-macOS-arm64.dmg` | GUI, TUI, CLI |
 | Python | `mdhelper-<version>-py3-none-any.whl` | Linux GUI requires the `gui` extra |
 
-Each wheel, executable, archive, and disk image is limited to 256 MB. Linux/Windows archives contain one executable, documentation, and editable `config.toml`. macOS distributes a complete `.app` and uses external user settings. See [Configuration](CONFIGURATION.md) for overrides. Build on the native target with Python 3.12+ and `uv`; cross-builds are unsupported.
+Each wheel, executable, archive, and disk image is limited to 256 MB. Linux archives contain one executable; Windows archives contain a self-contained executable and a small native terminal forwarder. Both include documentation and editable `config.toml`. macOS distributes a complete `.app` and uses external user settings. See [Configuration](CONFIGURATION.md) for overrides. Build on the native target with Python 3.12+ and `uv`; cross-builds are unsupported.
 
 ## Wheel
 
@@ -44,19 +44,23 @@ uv sync --frozen --group dev
 .\packaging\windows\build.ps1 -Python ".venv-windows\Scripts\python.exe"
 ```
 
-Keep `config.toml` beside `mdhelper.exe` when extracting the ZIP.
+Building also requires an x64 C compiler (Visual Studio C++ build tools or MinGW-w64). The build script detects the installed toolchain and compiles the terminal forwarder with a static runtime.
 
-The unified executable intentionally uses the console PE subsystem (`console=True`) with PyInstaller `hide_console="hide-early"`. This preserves shell waiting and standard streams for explicit CLI/TUI use. GUI startup detaches with `FreeConsole()` in the same application process; it must not relaunch another GUI process. Background detection, analysis, and process-tree cancellation use `CREATE_NO_WINDOW`. GUI-to-TUI and interactive external tools use `CREATE_NEW_CONSOLE`, so the system default terminal can host them; MDHelper does not force `wt.exe` or change that default.
+- `mdhelper.exe`: self-contained GUI application using the Windows GUI PE subsystem (`console=False`). Python, Qt, and application modules are compressed inside this file.
+- `mdhelper.com`: small native console forwarder; defaults to TUI. It starts the sibling `.exe`, forwards arguments and streams, and returns its exit status. It contains no second Python or Qt payload.
 
-Console visibility requires a native Windows desktop check; offscreen startup and mocked creation-flag tests cannot prove that no Terminal window appears. Test the extracted ZIP with both Windows Console Host and Windows Terminal selected as the default terminal:
+Keep both files and `config.toml` together. There is no exposed library directory. The onefile runtime expands into a temporary directory and is cleaned up on exit; both bootloader processes use the GUI subsystem, so neither creates a startup console. Terminal modes attach to the forwarder's console and preserve redirected handles before attachment. The forwarder preserves shell waiting and exit status, and starts an independent onefile runtime so a TUI opened from the GUI survives GUI shutdown. Use `mdhelper.com tui` or `mdhelper.com cli <command>` for terminal work. With the default Windows `PATHEXT` ordering, `mdhelper tui` also selects the `.com` entry; use the explicit extension if that ordering was customized. Background detection, analysis, and process-tree cancellation use `CREATE_NO_WINDOW`. GUI-to-TUI and interactive external tools use `CREATE_NEW_CONSOLE`, so the system default terminal can host them; MDHelper does not force `wt.exe` or change that default.
 
-1. Double-click `mdhelper.exe`, then launch `mdhelper.exe gui` from an existing terminal. The GUI should open without leaving an extra terminal window; the existing terminal must remain usable.
+The Windows smoke script validates both PE subsystems and the extracted layout, then runs `launch_check.py` on the native desktop. It checks default/explicit GUI launch for visible application windows and absence of console ownership in both onefile processes, plus terminal allocation, piped input, output, independent runtime ownership, quoted paths, file redirection, and exit status. Offscreen GUI, CLI configuration, and analysis exports are also checked.
+
+For manual checks with Windows Console Host and Windows Terminal selected as the default terminal:
+
+1. Double-click `mdhelper.exe`, then launch `mdhelper.exe gui` from an existing terminal. The GUI should open without an extra terminal window; the existing terminal must remain usable.
 2. Let startup detection finish, run integration detection and an analysis, then cancel an analysis. No background command should open a console.
-3. Run `mdhelper.exe tui` and `mdhelper.exe cli --help` from PowerShell inside Windows Terminal. Check keyboard input, shell waiting until exit, exit status, and redirected CLI output (`mdhelper.exe cli config show > config.json`).
+3. Run `mdhelper.com tui` and `mdhelper.com cli --help` from PowerShell inside Windows Terminal. Check keyboard input, shell waiting until exit, exit status, and redirected CLI output (`mdhelper.com cli config show > config.json`).
 4. Open TUI from the GUI and an interactive `gmx make_ndx` session. Each should receive its requested terminal and accept input.
-5. If an unwanted window remains, record the Windows/default-terminal versions, exact launch command, time of appearance (before GUI, detection, or analysis), and the process tree including both PyInstaller onefile processes, `conhost.exe`, `OpenConsole.exe`, `WindowsTerminal.exe`, and external tools. Do not infer ownership solely from a window title or hide the user's existing terminal.
 
-The onefile bootloader creates processes before Python dispatch. `hide-early` and application-level detachment are therefore not proof of zero startup flicker on every terminal host; investigate the native process tree before changing the executable subsystem.
+Do not use the GUI executable for shell automation: Windows shells do not guarantee waiting for GUI-subsystem applications. Source and wheel entry points are unchanged.
 
 ## macOS arm64
 
