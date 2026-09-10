@@ -20,7 +20,7 @@ from mdhelper.gui.dialogs.integrations import IntegrationsDialog
 from mdhelper.gui.dialogs.projects import NewProjectDialog
 from mdhelper.gui.dialogs.templates import TemplatesDialog
 from mdhelper.gui.dialogs.tools import MakeIndexHelpDialog
-from mdhelper.gui.fonts import configure_ui_font
+from mdhelper.gui.fonts import configure_ui_font, workspace_font
 from mdhelper.gui.formatting import error_text
 from mdhelper.gui.menu import install_menu
 from mdhelper.gui.pages.workspace import WorkspaceTabs
@@ -58,6 +58,10 @@ class MainWindow(QMainWindow):
         self.resize(860, 800)
         self.tabs = WorkspaceTabs(windows=self.windows)
         self.editor = self.tabs.editor
+        self.editor.editor.set_workspace_font(workspace_font(
+            application.config.gui.workspace_font_family,
+            application.config.gui.workspace_font_size,
+        ))
         self.load = self.tabs.load
         self.analysis = self.tabs.analysis
         self.results = self.tabs.results
@@ -131,7 +135,6 @@ class MainWindow(QMainWindow):
         self.menu_actions = install_menu(
             self,
             self._open_project,
-            self.project_actions.change_inputs,
             self._export_result,
             self._integrations,
             self._templates,

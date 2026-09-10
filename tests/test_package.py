@@ -211,6 +211,27 @@ def test_dmg_audits_and_cleans_up_installation(
         assert not environments
 
 
+@pytest.mark.parametrize("field", ["LSBackgroundOnly", "LSUIElement"])
+@pytest.mark.parametrize("value", [True, False, None])
+def test_bundle_validation_requires_foreground_application(
+    tmp_path: Path, field: str, value: bool | None,
+) -> None:
+    bundle = make_bundle(tmp_path)
+    path = bundle / "Contents" / "Info.plist"
+    with path.open("rb") as handle:
+        info = plistlib.load(handle)
+    if value is not None:
+        info[field] = value
+    with path.open("wb") as handle:
+        plistlib.dump(info, handle)
+
+    if value:
+        with pytest.raises(SMOKE["SmokeFailure"], match=field):
+            SMOKE["validate_distribution"](bundle, "macos")
+    else:
+        assert SMOKE["validate_distribution"](bundle, "macos").is_file()
+
+
 @pytest.mark.parametrize("field", ["CFBundleExecutable", "CFBundleIconFile"])
 def test_bundle_validation_rejects_missing_resources(tmp_path: Path, field: str) -> None:
     bundle = make_bundle(tmp_path)

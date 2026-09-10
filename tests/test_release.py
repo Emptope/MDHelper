@@ -87,6 +87,11 @@ def test_freezer_specs_reference_existing_resources(platform: str, monkeypatch) 
         assert bundle.call_args.kwargs["name"] == "MDHelper.app"
         assert Path(bundle.call_args.kwargs["icon"]).is_file()
         assert bundle.call_args.kwargs["version"]
+        # Keep terminal adapters without registering a background-only app.
+        assert executable.call_args.kwargs["console"] is True
+        info = bundle.call_args.kwargs["info_plist"]
+        assert info["LSBackgroundOnly"] is False
+        assert info["LSUIElement"] is False
     else:
         assert not executable.call_args.kwargs.get("exclude_binaries", False)
         collect.assert_not_called()

@@ -78,8 +78,8 @@ def _theme(table: dict[str, Any], path: Path) -> ThemeMode:
     return cast(ThemeMode, value)
 
 
-def _font_size(table: dict[str, Any], path: Path) -> float:
-    value = table.get("font_size", GuiConfig().font_size)
+def _font_size(table: dict[str, Any], path: Path, key: str = "font_size") -> float:
+    value = table.get(key, getattr(GuiConfig(), key))
     if (
         isinstance(value, bool)
         or not isinstance(value, (int, float))
@@ -87,10 +87,21 @@ def _font_size(table: dict[str, Any], path: Path) -> float:
         or not 6.0 <= value <= 32.0
     ):
         raise ConfigurationError(
-            "Configuration field 'gui.font_size' must be between 6 and 32 points.",
-            details={"path": str(path), "field": "gui.font_size", "value": value},
+            f"Configuration field 'gui.{key}' must be between 6 and 32 points.",
+            details={"path": str(path), "field": f"gui.{key}", "value": value},
         )
     return float(value)
+
+
+def _workspace_font_family(table: dict[str, Any], path: Path) -> str:
+    value = table.get("workspace_font_family", GuiConfig().workspace_font_family)
+    if not isinstance(value, str) or (value and not value.strip()):
+        raise ConfigurationError(
+            "Configuration field 'gui.workspace_font_family' must be an empty string "
+            "or a nonblank font family name.",
+            details={"path": str(path), "field": "gui.workspace_font_family", "value": value},
+        )
+    return value.strip()
 
 
 def _integration(
@@ -192,7 +203,9 @@ def parse_config(raw: dict[str, Any], path: Path) -> UserConfig:
     )
     gui = _mapping(raw.get("gui"), "gui", path)
     integrations = _mapping(raw.get("integrations"), "integrations", path)
-    _reject_unknown(gui, {"theme", "font_size"}, "gui", path)
+    _reject_unknown(
+        gui, {"theme", "font_size", "workspace_font_family", "workspace_font_size"}, "gui", path
+    )
 
     default_integrations = UserConfig().integrations
     source_integrations = integrations or {
@@ -211,6 +224,8 @@ def parse_config(raw: dict[str, Any], path: Path) -> UserConfig:
         gui=GuiConfig(
             theme=_theme(gui, path),
             font_size=_font_size(gui, path),
+            workspace_font_family=_workspace_font_family(gui, path),
+            workspace_font_size=_font_size(gui, path, "workspace_font_size"),
         ),
         integrations=parsed_integrations,
         workflows=_workflows(raw.get("workflows"), path),

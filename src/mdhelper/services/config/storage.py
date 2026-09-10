@@ -20,8 +20,13 @@ schema_version = 1
 [gui]
 # "system" follows the operating system; "light" and "dark" are explicit overrides.
 theme = "system"
-# GUI font size in points (6-32).
+# GUI font size in points (6-32), excluding the Workspace text editor.
 font_size = 11.0
+# Workspace editor and line numbers only; restart after changing these settings.
+# Empty or unavailable: Consolas on Windows, otherwise the system fixed-width font.
+workspace_font_family = ""
+# Independent editor font size in points (6-32).
+workspace_font_size = 14.0
 
 [workflows]
 # Values are ordered analysis projects: rdf, cumulative_rdf, or energy.

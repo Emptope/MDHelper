@@ -471,6 +471,22 @@ def test_worker_page_failure_closes_document(monkeypatch) -> None:
         worker.shutdown()
 
 
+def test_file_menu_omits_redundant_input_selection() -> None:
+    QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        file_menu = window.menuBar().actions()[0].menu()
+        assert file_menu is not None
+        labels = [action.text().replace("&", "") for action in file_menu.actions()]
+        assert "Open Project..." in labels
+        assert "Export Last Result..." in labels
+        assert "Exit" in labels
+        assert "Select Inputs..." not in labels
+        assert not hasattr(window.menu_actions, "inputs")
+    finally:
+        window.close()
+
+
 def test_load_tab_click_is_distinct_from_programmatic_navigation(monkeypatch) -> None:
     QApplication.instance() or QApplication([])
     window = MainWindow()
@@ -539,10 +555,6 @@ def test_return_to_load_preserves_selected_inputs_without_dialog(
         assert window.results.text.toPlainText() == before
         assert Path(window.load.inputs.topology.edit.text()) == source
         assert Path(window.load.inputs.trajectory.edit.text()) == source
-        requested = []
-        monkeypatch.setattr(window.project_actions, "select_inputs", lambda: requested.append(True))
-        window.menu_actions.inputs.trigger()
-        assert requested == [True]
     finally:
         window.session.project = None
         window.close()

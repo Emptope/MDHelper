@@ -6,8 +6,10 @@ from math import ceil
 from typing import cast
 
 from PySide6.QtCore import QEvent, QRect, QRectF, QSize, Qt, QTimer
-from PySide6.QtGui import QFont, QFontDatabase, QPainter, QPaintEvent, QResizeEvent, QTextBlock
+from PySide6.QtGui import QFont, QPainter, QPaintEvent, QResizeEvent, QTextBlock
 from PySide6.QtWidgets import QApplication, QPlainTextDocumentLayout, QPlainTextEdit, QWidget
+
+from mdhelper.gui.fonts import workspace_font
 
 _GUTTER_LEFT_PADDING = 8
 _GUTTER_RIGHT_PADDING = 16
@@ -58,6 +60,7 @@ class FileTextEditor(QPlainTextEdit):
         self.blockCountChanged.connect(self._update_margin)
         self.updateRequest.connect(self._update_numbers)
         self.cursorPositionChanged.connect(self.line_numbers.update)
+        self._editor_font = workspace_font()
         self._setting_font = False
         self._font_timer = QTimer(self)
         self._font_timer.setSingleShot(True)
@@ -66,8 +69,7 @@ class FileTextEditor(QPlainTextEdit):
         if isinstance(app, QApplication):
             # Run after the theme controller refreshes Qt's stylesheet font cache.
             app.fontChanged.connect(self._schedule_font)
-            self._set_editor_font()
-        self._update_margin()
+        self._set_editor_font()
 
     def setReadOnly(self, read_only: bool) -> None:
         super().setReadOnly(read_only)
@@ -80,14 +82,17 @@ class FileTextEditor(QPlainTextEdit):
     def _schedule_font(self, _font: QFont) -> None:
         self._font_timer.start(0)
 
+    def set_workspace_font(self, font: QFont) -> None:
+        self._editor_font = QFont(font)
+        self._set_editor_font()
+
     def _set_editor_font(self) -> None:
-        application_font = QApplication.font()
-        font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
-        font.setPointSizeF(max(14.0, application_font.pointSizeF()))
         self._setting_font = True
         try:
-            self.setFont(font)
+            self.setFont(self._editor_font)
+            self.line_numbers.setFont(self._editor_font)
             self.setTabStopDistance(self.fontMetrics().horizontalAdvance(" ") * 4)
+            self._update_margin()
         finally:
             self._setting_font = False
 

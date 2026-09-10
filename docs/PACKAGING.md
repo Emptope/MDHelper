@@ -46,6 +46,18 @@ uv sync --frozen --group dev
 
 Keep `config.toml` beside `mdhelper.exe` when extracting the ZIP.
 
+The unified executable intentionally uses the console PE subsystem (`console=True`) with PyInstaller `hide_console="hide-early"`. This preserves shell waiting and standard streams for explicit CLI/TUI use. GUI startup detaches with `FreeConsole()` in the same application process; it must not relaunch another GUI process. Background detection, analysis, and process-tree cancellation use `CREATE_NO_WINDOW`. GUI-to-TUI and interactive external tools use `CREATE_NEW_CONSOLE`, so the system default terminal can host them; MDHelper does not force `wt.exe` or change that default.
+
+Console visibility requires a native Windows desktop check; offscreen startup and mocked creation-flag tests cannot prove that no Terminal window appears. Test the extracted ZIP with both Windows Console Host and Windows Terminal selected as the default terminal:
+
+1. Double-click `mdhelper.exe`, then launch `mdhelper.exe gui` from an existing terminal. The GUI should open without leaving an extra terminal window; the existing terminal must remain usable.
+2. Let startup detection finish, run integration detection and an analysis, then cancel an analysis. No background command should open a console.
+3. Run `mdhelper.exe tui` and `mdhelper.exe cli --help` from PowerShell inside Windows Terminal. Check keyboard input, shell waiting until exit, exit status, and redirected CLI output (`mdhelper.exe cli config show > config.json`).
+4. Open TUI from the GUI and an interactive `gmx make_ndx` session. Each should receive its requested terminal and accept input.
+5. If an unwanted window remains, record the Windows/default-terminal versions, exact launch command, time of appearance (before GUI, detection, or analysis), and the process tree including both PyInstaller onefile processes, `conhost.exe`, `OpenConsole.exe`, `WindowsTerminal.exe`, and external tools. Do not infer ownership solely from a window title or hide the user's existing terminal.
+
+The onefile bootloader creates processes before Python dispatch. `hide-early` and application-level detachment are therefore not proof of zero startup flicker on every terminal host; investigate the native process tree before changing the executable subsystem.
+
 ## macOS arm64
 
 Requires Apple Silicon, native arm64 Python, and Xcode command-line tools:

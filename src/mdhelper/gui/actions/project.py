@@ -156,13 +156,6 @@ class ProjectActions:
             return
         self.select_inputs()
 
-    def change_inputs(self) -> None:
-        if self.tabs.editor.root is None:
-            self.open()
-        if self.tabs.editor.root is not None:
-            self.tabs.setCurrentWidget(self.load)
-            self.select_inputs()
-
     def select_inputs(self) -> None:
         if self._selecting:
             return

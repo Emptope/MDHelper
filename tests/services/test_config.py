@@ -36,6 +36,61 @@ def test_gui_theme_defaults_to_system_and_round_trips(tmp_path: Path) -> None:
     assert load_config(path).gui.font_size == 12.5
 
 
+@pytest.mark.parametrize("legacy", ["", '[gui]\ntheme="dark"\nfont_size=24\n'])
+def test_workspace_font_defaults_support_missing_and_legacy_config(
+    tmp_path: Path, legacy: str,
+) -> None:
+    path = tmp_path / "config.toml"
+    assert load_config(path).gui.workspace_font_family == ""
+    assert load_config(path).gui.workspace_font_size == 14.0
+    path.write_text(legacy, encoding="ascii")
+    loaded = load_config(path)
+    assert loaded.gui.workspace_font_family == ""
+    assert loaded.gui.workspace_font_size == 14.0
+    save_config(loaded, path)
+    assert load_config(path) == loaded
+
+
+@pytest.mark.parametrize("size", [6, 14.5, 32])
+def test_workspace_font_round_trip(tmp_path: Path, size: float) -> None:
+    path = tmp_path / "config.toml"
+    config = UserConfig(gui=GuiConfig(
+        workspace_font_family="Consolas", workspace_font_size=size,
+    ))
+    save_config(config, path)
+    assert load_config(path) == config
+    assert load_config(path).to_dict()["gui"]["workspace_font_size"] == size
+    path.write_text('[gui]\nworkspace_font_family="  Consolas  "\n', encoding="ascii")
+    assert load_config(path).gui.workspace_font_family == "Consolas"
+
+
+@pytest.mark.parametrize("field,value", [
+    ("workspace_font_family", value) for value in ('"   "', "true", "12", "[]", "{}")
+] + [
+    ("workspace_font_size", value)
+    for value in ("true", '"14"', "5.9", "32.1", "nan", "inf", "-inf", "[]", "{}")
+])
+def test_invalid_workspace_font_reports_field(
+    tmp_path: Path, field: str, value: str,
+) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text(f"[gui]\n{field}={value}\n", encoding="ascii")
+    with pytest.raises(ConfigurationError, match=rf"gui\.{field}") as error:
+        load_config(path)
+    assert error.value.details["field"] == f"gui.{field}"
+
+
+def test_invalid_workspace_font_save_preserves_config(tmp_path: Path) -> None:
+    path = initialize_config(tmp_path / "config.toml")
+    original = path.read_bytes()
+    config = load_config(path)
+    config.gui.workspace_font_size = float("nan")
+    with pytest.raises(ConfigurationError, match=r"gui\.workspace_font_size"):
+        save_config(config, path)
+    assert path.read_bytes() == original
+    assert not path.with_name(".config.toml.tmp").exists()
+
+
 def test_workflows_round_trip_in_project_order(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
     config = UserConfig(

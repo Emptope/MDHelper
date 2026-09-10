@@ -154,6 +154,10 @@ if macos_bundle:
         info_plist={
             "CFBundleDisplayName": "MDHelper",
             "CFBundleName": "MDHelper",
+            # console=True preserves CLI/TUI stdio, but PyInstaller then defaults
+            # to LSBackgroundOnly=True, hiding the Dock icon and blocking focus.
+            "LSBackgroundOnly": False,
+            "LSUIElement": False,
             "NSHighResolutionCapable": True,
             "NSAppleEventsUsageDescription": "Open interactive tools in Terminal.",
         },

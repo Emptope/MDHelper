@@ -46,6 +46,18 @@ uv sync --frozen --group dev
 
 解压后将 `config.toml` 保留在 `mdhelper.exe` 同目录。
 
+统一入口有意使用控制台 PE 子系统（`console=True`），同时配置 PyInstaller `hide_console="hide-early"`，以保留显式 CLI/TUI 的 shell 等待行为与标准输入输出。GUI 在当前应用进程调用 `FreeConsole()` 分离控制台，不再另起 GUI 进程。后台检测、分析及进程树取消使用 `CREATE_NO_WINDOW`；GUI 打开 TUI 和交互式外部工具使用 `CREATE_NEW_CONSOLE`，交由系统默认终端承接，不强制调用 `wt.exe` 或改变默认终端。
+
+窗口可见性必须在 Windows 桌面实测，offscreen 启动和创建标志的 mock 测试不能证明不会弹出 Terminal。分别将 Windows Console Host 和 Windows Terminal 设为默认终端，用解压后的 ZIP 检查：
+
+1. 双击 `mdhelper.exe`，再从已有终端运行 `mdhelper.exe gui`。GUI 应正常打开且不遗留额外终端，已有终端仍应可用。
+2. 等待启动检测结束，执行工具检测、分析和取消分析。后台命令不应打开控制台。
+3. 在 Windows Terminal 的 PowerShell 中运行 `mdhelper.exe tui` 与 `mdhelper.exe cli --help`，检查键盘输入、shell 等待程序退出、退出码及 CLI 重定向（`mdhelper.exe cli config show > config.json`）。
+4. 从 GUI 打开 TUI 和交互式 `gmx make_ndx`，各自应获得所需终端并接受输入。
+5. 若仍有多余窗口，记录 Windows 与默认终端版本、启动命令、窗口出现时机（GUI 出现前、检测或分析时），以及包含两个 PyInstaller onefile 进程、`conhost.exe`、`OpenConsole.exe`、`WindowsTerminal.exe` 和外部工具的进程树。不要仅凭窗口标题判断归属，也不要隐藏用户已有终端。
+
+onefile bootloader 在 Python 分流前就会创建进程，因此 `hide-early` 和应用级控制台分离不能证明所有终端宿主都没有启动闪窗；修改可执行文件子系统前，先依据实机进程树定位。
+
 ## macOS arm64
 
 需要 Apple Silicon、原生 arm64 Python 和 Xcode 命令行工具：

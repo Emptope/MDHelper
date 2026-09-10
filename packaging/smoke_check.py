@@ -51,6 +51,9 @@ def validate_distribution(root: Path, platform: str) -> Path:
             raise SmokeFailure("application bundle metadata is missing or invalid") from exc
         if not isinstance(info, dict) or info.get("CFBundlePackageType") != "APPL":
             raise SmokeFailure("bundle is not an application")
+        for field in ("LSBackgroundOnly", "LSUIElement"):
+            if info.get(field, False):
+                raise SmokeFailure(f"application must support Dock visibility and focus: {field}")
         for field in ("CFBundleExecutable", "CFBundleIconFile"):
             value = info.get(field)
             if (

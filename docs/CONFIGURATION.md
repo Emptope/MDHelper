@@ -19,12 +19,16 @@ The GUI stores appearance in the shared configuration:
 ```toml
 [gui]
 theme = "system" # system, light, dark
-font_size = 11.0 # 6 through 32 points
+font_size = 11.0 # 6 through 32 points, excluding the Workspace editor
+workspace_font_family = "" # automatic platform fixed-width font
+workspace_font_size = 14.0 # 6 through 32 points, independent of font_size
 ```
 
 **View > Appearance** applies and saves the theme. `system` follows the operating-system color scheme. Edit `font_size` in the configuration and restart to change the application font size.
 
-The Workspace text editor uses the system fixed-width font at a minimum of 14pt, or the application font size when larger, with 1.35x line spacing for readability. Spacing is display-only: it does not change file content or undo history. Line numbers stay outside the document and are never saved as file content. The footer shows the 1-based line and column, plus the selected character count. Columns count Unicode code points, with tab stops every four columns; selected line breaks count as one character. This position display is hidden for image and data-table previews.
+`workspace_font_family` and `workspace_font_size` apply only to the Workspace text editor and its line numbers, including read-only text previews. Restart after editing these settings; theme switches retain them. The family must be a string: an empty string selects the platform default, while a nonblank name selects an installed font case-insensitively, ignoring surrounding whitespace. Empty or unavailable families fall back to Consolas on Windows when installed, then to the system fixed-width font; other platforms use the system fixed-width font. Both size settings accept finite numbers from 6 through 32 points, not strings or booleans. Older configurations without the Workspace fields use the same automatic family and independent 14pt size. These settings do not affect menus, other controls, plots, images, or data-table previews.
+
+The Workspace text editor uses 1.35x line spacing and four-space tab widths, recalculated together with the line-number gutter for its font. Spacing is display-only: it does not change file content or undo history. Line numbers stay outside the document and are never saved as file content. The footer shows the 1-based line and column, plus the selected character count. Columns count Unicode code points, with tab stops every four columns; selected line breaks count as one character. This position display is hidden for image and data-table previews.
 
 Workspace detects text by content, without extension-specific exceptions. Text is displayed in its original form rather than parsed into a table. Files larger than 1 MiB show a clearly labeled, read-only preview of the first 1 MiB; saving that partial preview is disabled. Images retain their image preview, and only binary data is passed to the scientific data readers.
 

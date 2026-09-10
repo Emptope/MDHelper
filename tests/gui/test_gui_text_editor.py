@@ -15,6 +15,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from mdhelper.core.workspace import WorkspaceFile
+from mdhelper.gui.fonts import workspace_font
 from mdhelper.gui.theme import theme_controller
 from mdhelper.gui.workspace.editor import WorkspaceEditor
 from mdhelper.gui.workspace.text import FileTextEditor
@@ -82,12 +83,15 @@ def test_line_numbers_resize_scroll_and_repaint_without_changing_text() -> None:
         controller.apply(old_mode)
 
 
-def test_editor_font_tracks_larger_application_font() -> None:
+@pytest.mark.parametrize("editor_size", [14.0, 19.5])
+def test_editor_font_is_independent_of_application_font_and_theme(editor_size: float) -> None:
     app = QApplication.instance() or QApplication([])
     original = QFont(app.font())
     controller = theme_controller(app)
     old_mode = controller.mode
     editor = FileTextEditor()
+    configured = workspace_font(point_size=editor_size)
+    editor.set_workspace_font(configured)
     try:
         for size in (11, 18, 11):
             font = QFont(original)
@@ -96,7 +100,10 @@ def test_editor_font_tracks_larger_application_font() -> None:
             for mode in ("system", "light", "dark"):
                 controller.apply(mode)
                 QTest.qWait(20)
-                assert editor.font().pointSizeF() == max(14, size)
+                assert editor.font().pointSizeF() == editor_size
+                assert editor.font().family() == configured.family()
+                assert editor.line_numbers.font() == editor.font()
+                assert app.font().pointSizeF() == size
                 assert editor.viewportMargins().left() == editor.line_number_width()
                 assert editor.tabStopDistance() == editor.fontMetrics().horizontalAdvance(" ") * 4
     finally:
@@ -119,10 +126,10 @@ def test_line_spacing_scales_without_changing_text_or_hit_testing(
     editor.setReadOnly(readonly)
     editor.show()
     try:
-        font = QFont(original)
-        font.setPointSize(point_size)
-        app.setFont(font)
+        font = workspace_font(point_size=point_size)
+        editor.set_workspace_font(font)
         QTest.qWait(20)
+        assert editor.font().pointSizeF() == point_size
         block = editor.document().firstBlock()
         while block.next().isValid():
             editor.setTextCursor(QTextCursor(block))
@@ -157,9 +164,14 @@ def test_spacing_survives_paste_undo_redo_and_theme_switches() -> None:
         cursor.movePosition(QTextCursor.MoveOperation.End)
         editor.setTextCursor(cursor)
         editor.insertPlainText("\npasted\n\nlast")
-        for mode in ("light", "dark", "system"):
+        undo_steps = editor.document().availableUndoSteps()
+        for size, mode in ((6, "light"), (23.5, "dark"), (32, "system")):
+            editor.set_workspace_font(workspace_font(point_size=size))
             controller.apply(mode)
             QTest.qWait(20)
+            assert editor.font().pointSizeF() == size
+            assert editor.document().availableUndoSteps() == undo_steps
+            assert editor.document().isModified()
             block = editor.document().firstBlock()
             while block.isValid():
                 rect = editor.blockBoundingRect(block)

@@ -17,6 +17,8 @@ THEME_MODES: tuple[ThemeMode, ...] = ("system", "light", "dark")
 class GuiConfig:
     theme: ThemeMode = "system"
     font_size: float = 11.0
+    workspace_font_family: str = ""
+    workspace_font_size: float = 14.0
 
 
 @dataclass
