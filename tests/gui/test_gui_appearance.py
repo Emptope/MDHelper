@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import replace
 
 import pytest
@@ -22,10 +23,13 @@ def appearance(qapp: QApplication) -> Iterator[theme.ThemeController]:
     state = replace(controller.state, palette=QPalette(controller.state.palette))
     palette, font, sheet = QPalette(qapp.palette()), QFont(qapp.font()), qapp.styleSheet()
     style = qapp.style().objectName() or controller._active_style
+    native_macos = theme._IS_MACOS
     qapp.installEventFilter(controller)
     try:
         yield controller
     finally:
+        if not native_macos:
+            qapp.removeEventFilter(controller)
         controller.state.changing = True
         controller._refresh_timer.stop()
         if hasattr(qapp.styleHints(), "setColorScheme") and theme._IS_MACOS:
@@ -42,6 +46,45 @@ def appearance(qapp: QApplication) -> Iterator[theme.ThemeController]:
         qapp.processEvents()
         controller.state = state
         controller._active_style = style
+
+
+@pytest.mark.parametrize("macos", [False, True])
+def test_appearance_fixture_restores_event_filter(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch, macos: bool,
+) -> None:
+    controller = theme.theme_controller(qapp)
+    native_macos = theme._IS_MACOS
+    qapp.removeEventFilter(controller)
+    if macos:
+        qapp.installEventFilter(controller)
+    installed = [controller] if native_macos else []
+    install = qapp.installEventFilter
+    remove = qapp.removeEventFilter
+
+    def record_install(watched):
+        if watched not in installed:
+            installed.append(watched)
+        install(watched)
+
+    def record_remove(watched):
+        if watched in installed:
+            installed.remove(watched)
+        remove(watched)
+
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(theme, "_IS_MACOS", macos)
+            patch.setattr(qapp, "installEventFilter", record_install)
+            patch.setattr(qapp, "removeEventFilter", record_remove)
+            installed[:] = [controller] if macos else []
+            for _ in range(2):
+                with contextmanager(appearance.__wrapped__)(qapp):
+                    assert controller in installed
+                assert installed == ([controller] if macos else [])
+    finally:
+        qapp.removeEventFilter(controller)
+        if native_macos:
+            qapp.installEventFilter(controller)
 
 
 def settle(app: QApplication) -> None:

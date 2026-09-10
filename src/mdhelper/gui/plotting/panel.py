@@ -345,7 +345,7 @@ class PlotPanel(PlotControls):
                 window.clear_plot()
         self._update_title_control()
         if windows_open:
-            self._windows.show_all(PlotWindow, activate=False)
+            self._windows.show_all(self._plot_window_type(), activate=False)
 
     def _render(self, selected: tuple[int, ...] = ()) -> None:
         self.queue.show_entries(

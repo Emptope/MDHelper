@@ -57,7 +57,7 @@ jobs:
       - name: Test serially
         if: runner.os != 'Linux'
         run: >-
-          uv run --extra gui pytest -q
+          uv run --extra gui pytest -vv --capture=tee-sys
           --cov=mdhelper --cov-report=term-missing:skip-covered
       - name: Build and smoke test Linux archives
         if: runner.os == 'Linux'
