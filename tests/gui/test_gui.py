@@ -74,6 +74,28 @@ def test_gui_startup_defers_heavy_optional_modules(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
 
 
+def test_gui_startup_preserves_product_casing_for_native_menus(tmp_path: Path) -> None:
+    environment = os.environ.copy()
+    environment["QT_QPA_PLATFORM"] = "offscreen"
+    environment["MDHELPER_CONFIG"] = str(tmp_path / "config.toml")
+    script = "\n".join((
+        "import sys",
+        "sys.argv = ['mdhelper', 'gui', '--smoke-test']",
+        "from PySide6.QtWidgets import QApplication",
+        "from mdhelper.gui.main import main",
+        "assert main(['--smoke-test']) == 0",
+        "app = QApplication.instance()",
+        "assert app.arguments()[0] == 'MDHelper'",
+        "assert app.applicationName() == 'MDHelper'",
+        "assert sys.argv[0] == 'mdhelper'",
+    ))
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True,
+        env=environment, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_gui_workspace_editor_opens_text_and_unsupported_binary(tmp_path: Path) -> None:
     QApplication.instance() or QApplication([])
     text_path = tmp_path / "notes.txt"

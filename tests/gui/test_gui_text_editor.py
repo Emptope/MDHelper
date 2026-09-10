@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from math import ceil
 from pathlib import Path
 
 import pytest
@@ -53,9 +54,10 @@ def test_line_numbers_resize_scroll_and_repaint_without_changing_text(mode: str)
         assert editor.line_numbers.geometry() == gutter_rect
         assert editor.line_numbers.grab().toImage() == before
         assert editor.toPlainText() == text
-        # Pixels must include actual number glyphs, not just a blank gutter.
-        assert len({before.pixelColor(x, y).rgba() for x in range(before.width())
-                    for y in range(before.height())}) > 2
+        # Two colors suffice when the platform disables font antialiasing.
+        background = editor.palette().alternateBase().color()
+        assert any(before.pixelColor(x, y) != background for x in range(before.width())
+                   for y in range(before.height()))
         # Keep a full 16 logical pixels of blank space to the right of the numbers.
         ratio = before.devicePixelRatio()
         gap_start = before.width() - round(16 * ratio)
@@ -67,6 +69,7 @@ def test_line_numbers_resize_scroll_and_repaint_without_changing_text(mode: str)
         cursor = editor.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
         editor.setTextCursor(cursor)
+        assert editor.viewport().rect().contains(editor.cursorRect())
         editor.insertPlainText("\nlast")
         assert editor.blockCount() == 1001
         editor.undo()
@@ -107,12 +110,88 @@ def test_editor_font_tracks_larger_application_font() -> None:
 
 
 @pytest.mark.parametrize("readonly", [False, True])
+@pytest.mark.parametrize("point_size", [11, 18, 28])
+def test_line_spacing_scales_without_changing_text_or_hit_testing(
+    readonly: bool, point_size: int,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    original = QFont(app.font())
+    editor = FileTextEditor()
+    editor.resize(600, 800)
+    text = "first\n\n\tthird\nfourth\nlast"
+    editor.setPlainText(text)
+    editor.setReadOnly(readonly)
+    editor.show()
+    try:
+        font = QFont(original)
+        font.setPointSize(point_size)
+        app.setFont(font)
+        QTest.qWait(20)
+        block = editor.document().firstBlock()
+        while block.next().isValid():
+            editor.setTextCursor(QTextCursor(block))
+            rect = editor.cursorRect()
+            height = block.layout().lineAt(0).height()
+            expected = height + ceil(height * 0.35)
+            assert editor.blockBoundingRect(block).height() == expected
+            editor.setTextCursor(QTextCursor(block.next()))
+            assert editor.cursorRect().top() - rect.top() == pytest.approx(expected, abs=1)
+            QTest.mouseClick(editor.viewport(), Qt.MouseButton.LeftButton, pos=rect.center())
+            assert editor.textCursor().blockNumber() == block.blockNumber()
+            block = block.next()
+        assert editor.toPlainText() == text
+        assert not editor.document().isModified()
+        assert not editor.document().isUndoAvailable()
+    finally:
+        editor.close()
+        editor.deleteLater()
+        app.setFont(original)
+
+
+def test_spacing_survives_paste_undo_redo_and_theme_switches() -> None:
+    app = QApplication.instance() or QApplication([])
+    controller = theme_controller(app)
+    original_mode = controller.mode
+    editor = FileTextEditor()
+    editor.show()
+    text = "first\nsecond"
+    editor.setPlainText(text)
+    try:
+        cursor = editor.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        editor.setTextCursor(cursor)
+        editor.insertPlainText("\npasted\n\nlast")
+        for mode in ("light", "dark", "system"):
+            controller.apply(mode)
+            QTest.qWait(20)
+            block = editor.document().firstBlock()
+            while block.isValid():
+                rect = editor.blockBoundingRect(block)
+                assert rect.height() >= block.layout().lineAt(0).height() * 1.35
+                block = block.next()
+            assert editor.toPlainText() == text + "\npasted\n\nlast"
+        editor.undo()
+        assert editor.toPlainText() == text
+        assert not editor.document().isModified()
+        assert not editor.document().isUndoAvailable()
+        editor.redo()
+        assert editor.toPlainText() == text + "\npasted\n\nlast"
+        editor.setPlainText("reloaded\nfile")
+        assert not editor.document().isModified()
+        assert not editor.document().isUndoAvailable()
+    finally:
+        editor.close()
+        editor.deleteLater()
+        controller.apply(original_mode)
+
+
+@pytest.mark.parametrize("readonly", [False, True])
 def test_cursor_status_tracks_unicode_tabs_selection_and_preview_mode(
     tmp_path: Path, readonly: bool,
 ) -> None:
     QApplication.instance() or QApplication([])
     path = tmp_path / "sample.txt"
-    text = "abc\n\t中\U00020000z\nlast"
+    text = "abc\n\t\u4e2d\U00020000z\nlast"
     path.write_text(text, encoding="utf-8")
     workspace = WorkspaceEditor()
     workspace.resize(880, 650)

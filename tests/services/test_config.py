@@ -196,7 +196,9 @@ def test_macos_source_and_frozen_launches_share_config(
     for executable in (tmp_path / "venv/bin/python", tmp_path / "bin/mdhelper"):
         assert config_path({}, executable) == expected
         assert portable_config_path(executable, frozen=True) == expected
+    # expanduser uses USERPROFILE on Windows even when sys.platform is mocked.
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     assert config_path({"MDHELPER_CONFIG": "~/custom.toml"}) == tmp_path / "custom.toml"
 
 

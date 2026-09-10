@@ -66,7 +66,12 @@ def main(argv: list[str] | None = None) -> int:
         _write_error(f"Import error: {exc}")
         return 6
     existing = QApplication.instance()
-    application = existing if isinstance(existing, QApplication) else QApplication(sys.argv)
+    # Cocoa's native About menu falls back to Qt's original argv[0] outside
+    # an app bundle, independently of setApplicationName(). Keep its casing.
+    application = (
+        existing if isinstance(existing, QApplication)
+        else QApplication(["MDHelper", *sys.argv[1:]])
+    )
     application.setApplicationName("MDHelper")
     application.setApplicationVersion(__version__)
     try:

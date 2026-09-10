@@ -31,8 +31,9 @@ font_size = 11.0 # 6 through 32 points
 scheme. Edit `font_size` in the configuration and restart to change the application font size.
 
 The Workspace text editor uses the system fixed-width font at a minimum of 14pt, or the
-application font size when larger. Line numbers stay outside the document and are never saved
-as file content. The footer shows the 1-based line and column, plus the selected character count.
+application font size when larger, with 1.35x line spacing for readability. Spacing is display-only:
+it does not change file content or undo history. Line numbers stay outside the document and are
+never saved as file content. The footer shows the 1-based line and column, plus the selected character count.
 Columns count Unicode code points, with tab stops every four columns; selected line breaks count
 as one character. This position display is hidden for image and data-table previews.
 

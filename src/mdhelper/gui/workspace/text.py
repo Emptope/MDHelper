@@ -2,14 +2,31 @@
 
 from __future__ import annotations
 
+from math import ceil
 from typing import cast
 
-from PySide6.QtCore import QEvent, QRect, QSize, Qt, QTimer
-from PySide6.QtGui import QFont, QFontDatabase, QPainter, QPaintEvent, QResizeEvent
-from PySide6.QtWidgets import QApplication, QPlainTextEdit, QWidget
+from PySide6.QtCore import QEvent, QRect, QRectF, QSize, Qt, QTimer
+from PySide6.QtGui import QFont, QFontDatabase, QPainter, QPaintEvent, QResizeEvent, QTextBlock
+from PySide6.QtWidgets import QApplication, QPlainTextDocumentLayout, QPlainTextEdit, QWidget
 
 _GUTTER_LEFT_PADDING = 8
 _GUTTER_RIGHT_PADDING = 16
+_LINE_SPACING = 1.35
+
+
+class _SpacedTextLayout(QPlainTextDocumentLayout):
+    """Add display-only space below each unwrapped line, without format edits."""
+
+    def blockBoundingRect(self, block: QTextBlock) -> QRectF:
+        rect = super().blockBoundingRect(block)
+        if block.isValid() and block.isVisible():
+            # QPlainTextDocumentLayout ignores QTextBlockFormat.lineHeight.
+            # Extending its geometry keeps painting, hit testing and scrolling
+            # on the same coordinates without touching text or the undo stack.
+            layout = block.layout()
+            height = sum(layout.lineAt(i).height() for i in range(layout.lineCount()))
+            rect.setHeight(rect.height() + ceil(height * (_LINE_SPACING - 1)))
+        return rect
 
 
 class _LineNumbers(QWidget):
@@ -34,6 +51,8 @@ class FileTextEditor(QPlainTextEdit):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
+        document = self.document()
+        document.setDocumentLayout(_SpacedTextLayout(document))
         self.line_numbers = _LineNumbers(self)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.blockCountChanged.connect(self._update_margin)

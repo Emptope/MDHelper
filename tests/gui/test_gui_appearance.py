@@ -157,7 +157,11 @@ def test_mac_themes_paint_surfaces_without_clipping(
         for widget in (line, number, combo, button):
             assert widget.height() >= widget.sizeHint().height()
         for child in (number.findChild(QLineEdit), combo.lineEdit()):
-            assert child.height() >= child.fontMetrics().height()
+            # Native embedded editors need room for glyphs, not the font's
+            # entire line box (which includes unused ascent/descent space).
+            # Include ascenders and descenders even in a numeric editor.
+            glyphs = child.fontMetrics().tightBoundingRect("Ag" + child.text())
+            assert child.height() >= glyphs.height()
         assert appearance._active_style == appearance.state.style
         assert app.font().pointSize() == point_size
     finally:

@@ -156,7 +156,8 @@ def install_menu(
         documents_menu.addAction(action)
         document_actions[name] = action
     help_menu.addSeparator()
-    about_action = QAction("About", window)
+    about_action = QAction("About MDHelper", window)
+    about_action.setMenuRole(QAction.MenuRole.AboutRole)
     help_menu.addAction(about_action)
     about_action.triggered.connect(
         lambda: QMessageBox.about(

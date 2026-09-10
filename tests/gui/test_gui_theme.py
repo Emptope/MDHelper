@@ -595,6 +595,18 @@ def test_analysis_details_opens_the_retained_job_log() -> None:
     window.close()
 
 
+def test_about_menu_uses_product_casing_and_native_role() -> None:
+    window = MainWindow()
+    try:
+        actions = [action for action in window.findChildren(QAction)
+                   if action.menuRole() == QAction.MenuRole.AboutRole]
+        assert len(actions) == 1
+        assert actions[0].text() == "About MDHelper"
+    finally:
+        window.close()
+        window.deleteLater()
+
+
 def test_mac_menu_translation_only_renames_native_preferences() -> None:
     translator = menu_module._MacMenuLabels()
     assert not translator.isEmpty()
@@ -894,11 +906,12 @@ def test_energy_file_selection_automatically_reloads_terms_without_button(
     window.close()
 
 
+@pytest.mark.parametrize("answer", [QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes])
 def test_window_manager_close_requires_confirmation(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, answer: QMessageBox.StandardButton,
 ) -> None:
     window = MainWindow()
-    calls: list[tuple[str, str]] = []
+    calls: list[str] = []
 
     class CloseEvent:
         ignored = False
@@ -914,22 +927,28 @@ def test_window_manager_close_requires_confirmation(
         def accept(self) -> None:
             self.accepted = True
 
-    def reject(
-        _parent: object, title: str, message: str,
-        buttons: QMessageBox.StandardButton, default: QMessageBox.StandardButton,
-    ) -> QMessageBox.StandardButton:
-        assert buttons == QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        assert default == QMessageBox.StandardButton.Yes
-        calls.append((title, message))
-        return QMessageBox.StandardButton.No
+    def confirm(dialog: QMessageBox) -> int:
+        assert dialog.icon() == QMessageBox.Icon.NoIcon
+        assert dialog.standardButtons() == (
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        assert dialog.defaultButton() == dialog.button(QMessageBox.StandardButton.Yes)
+        assert dialog.escapeButton() == dialog.button(QMessageBox.StandardButton.No)
+        # macOS deliberately ignores QMessageBox window titles.
+        assert dialog.windowTitle() in ("", "Really Quit?")
+        calls.append(dialog.text())
+        return answer.value
 
-    monkeypatch.setattr(QMessageBox, "question", reject)
+    monkeypatch.setattr(QMessageBox, "exec", confirm)
     event = CloseEvent()
-    window.closeEvent(event)  # type: ignore[arg-type]
-
-    assert len(calls) == 1
-    assert event.ignored and not event.accepted
-    window.job_controller.shutdown()
+    try:
+        window.closeEvent(event)  # type: ignore[arg-type]
+        assert calls == ["Quit MDHelper?"]
+        assert event.ignored == (answer == QMessageBox.StandardButton.No)
+        assert event.accepted == (answer == QMessageBox.StandardButton.Yes)
+    finally:
+        window.close()
+        window.deleteLater()
 
 
 def test_gui_analysis_initializes_project_in_trajectory_directory(
