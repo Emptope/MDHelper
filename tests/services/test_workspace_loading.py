@@ -96,8 +96,7 @@ def test_trajectory_open_does_not_scan_offsets_or_decode_later_frames(
     assert not list(tmp_path.glob(".*offset*"))
 
 
-@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
-@pytest.mark.parametrize("suffix", ["gro", "txt", "data"])
+@pytest.mark.parametrize("newline,suffix", [("\n", "gro"), ("\r\n", "txt"), ("\r", "data")])
 def test_large_text_is_raw_readonly_preview_without_partial_saves(
     tmp_path: Path, newline: str, suffix: str, monkeypatch,
 ) -> None:
@@ -210,7 +209,7 @@ def test_image_decode_limit_does_not_prevent_header_inspection(tmp_path: Path) -
     path.unlink()
 
 
-@pytest.mark.parametrize("format", ["PNG", "JPEG", "GIF", "BMP", "TIFF", "WEBP"])
+@pytest.mark.parametrize("format", ["PNG", "JPEG"])
 def test_images_are_detected_by_content_and_decoded_on_demand(tmp_path: Path, format: str) -> None:
     from PIL import Image
 

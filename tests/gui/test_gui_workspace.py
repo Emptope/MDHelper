@@ -6,7 +6,6 @@ from threading import Event
 
 import pytest
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QModelIndex, Qt, QTimer

@@ -1,54 +1,28 @@
-"""Assemble the desktop bundle from the audited portable payload."""
+"""Add release documents to a frozen onedir bundle and create its disk image."""
 
 from __future__ import annotations
 
 import argparse
 import os
-import plistlib
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-from PIL import Image
 
-
-def create_bundle(source: Path, bundle: Path, version: str, icon: Path) -> None:
-    contents = bundle / "Contents"
-    binaries = contents / "MacOS"
-    resources = contents / "Resources"
-    binaries.mkdir(parents=True)
-    resources.mkdir()
-    shutil.copy2(source / "mdhelper", binaries / "mdhelper")
+def create_bundle(source: Path, bundle: Path) -> None:
+    # Preserve PyInstaller's framework layout and relative resource symlinks.
+    shutil.copytree(source / "MDHelper.app", bundle, symlinks=True)
+    resources = bundle / "Contents" / "Resources"
     for entry in source.iterdir():
-        if entry.name in {"mdhelper", "config.toml"}:
+        if entry.name in {"MDHelper.app", "config.toml"}:
             continue
         target = resources / entry.name
         if entry.is_dir():
             shutil.copytree(entry, target)
         else:
             shutil.copy2(entry, target)
-    with Image.open(icon) as image:
-        image.save(resources / "mdhelper.icns", format="ICNS")
-    with (contents / "Info.plist").open("wb") as handle:
-        plistlib.dump(
-            {
-                "CFBundleDevelopmentRegion": "en",
-                "CFBundleDisplayName": "MDHelper",
-                "CFBundleExecutable": "mdhelper",
-                "CFBundleIconFile": "mdhelper.icns",
-                "CFBundleIdentifier": "org.mdhelper.desktop",
-                "CFBundleInfoDictionaryVersion": "6.0",
-                "CFBundleName": "MDHelper",
-                "CFBundlePackageType": "APPL",
-                "CFBundleShortVersionString": version,
-                "CFBundleVersion": version,
-                "NSHighResolutionCapable": True,
-                "NSAppleEventsUsageDescription": "Open interactive tools in Terminal.",
-            },
-            handle,
-        )
 
 
 def create_dmg(source: Path, artifact: Path, version: str, request: Path | None) -> None:
@@ -62,9 +36,7 @@ def create_dmg(source: Path, artifact: Path, version: str, request: Path | None)
         stage = Path(temporary)
         image = stage / "image"
         bundle = image / "MDHelper.app"
-        create_bundle(
-            source, bundle, version, project / "src/mdhelper/resources/icons/mdhelper.png"
-        )
+        create_bundle(source, bundle)
         (image / "Applications").symlink_to("/Applications", target_is_directory=True)
         run("codesign", "--force", "--sign", "-", str(bundle))
         run("codesign", "--verify", "--deep", "--strict", str(bundle))

@@ -2,132 +2,34 @@
 
 [English](ARCHITECTURE.md) | [简体中文](ARCHITECTURE.zh-CN.md)
 
-本文定义 MDHelper 的包职责、依赖规则和运行流程。
-
-## 范围
-
-MDHelper 是本地 Python 3.12 应用，提供 CLI、TUI 和 Qt GUI。当前支持 RDF、Cumulative
-Number RDF 和 EDR energy 提取，并提供两个完整 Backend：
-
-| Backend | RDF | 累积 RDF | Energy | 执行方式 |
-| --- | --- | --- | --- | --- |
-| MDAnalysis | 支持 | 支持 | 支持 | 进程内 |
-| GROMACS | 支持 | 支持 | 支持 | 本地命令 |
-
-一次分析尝试只使用一个 Backend 完成输入加载、选择、帧处理和计算。GROMACS 是可选依赖。
-
-## 依赖
-
-箭头指向被依赖包：
-
-```mermaid
-flowchart TB
-    Bootstrap[bootstrap] --> CLI
-    Bootstrap --> TUI
-    Bootstrap --> GUI
-    CLI --> App[app]
-    TUI --> App
-    GUI --> App
-    CLI --> Jobs[jobs]
-    TUI --> Jobs
-    GUI --> Jobs
-    Jobs --> App
-    App --> Analysis[analysis]
-    App --> Services[services]
-    App --> Project[project]
-    App --> IO[io]
-    App --> Integrations[integrations]
-    Analysis --> Services
-    Analysis --> Integrations
-    Services --> Backends[backends]
-    Services --> IO
-    Services --> Integrations
-    Project --> IO
-    Integrations --> Runtime[runtime]
-    App --> Core[core]
-    Jobs --> Core
-    Analysis --> Core
-    Services --> Core
-    Project --> Core
-    IO --> Core
-    Integrations --> Core
-    Backends --> Core
-    Runtime --> Core
-```
-
-代码遵守以下规则：
-
-- `core` 不依赖其他 MDHelper 包。
-- `cli`、`tui`、`gui` 不互相导入，也不导入 `analysis` 或 `backends`。
-- `bootstrap` 负责装配表现层。
-- Qt 导入只存在于 `gui`；GUI 状态模块不依赖 Qt。
-- `analysis` 和 `backends` 不执行进程，也不导入 `runtime`。
-- 分析代码不依赖绘图。
-- `io` 和 `project` 不依赖应用编排。
-- 顶层包和子包不形成循环依赖。
-
-`tests/test_architecture.py` 检查这些规则。
-
 ## 包职责
 
 | 包 | 职责 |
 | --- | --- |
-| `bootstrap` | 入口分派和便携配置激活 |
-| `cli`、`tui`、`gui` | 输入、表现层状态和渲染 |
-| `app` | 用例编排、导出计划和报告 |
-| `jobs` | 执行状态、进度和取消 |
-| `core` | 领域记录、契约、协议、错误、单位和绘图模型 |
-| `analysis` | Backend 管线和径向诊断 |
-| `backends` | 输入和选择适配器 |
-| `services` | 配置、检查、选择、provenance 和模板 |
-| `integrations` | 外部工具适配、检测和命令协调 |
-| `runtime` | 进程生命周期、环境过滤和日志 |
-| `project` | Manifest、输入身份、结果仓库和原子存储 |
-| `io` | 指纹、流存储、NDX 解析和导出适配器 |
-| `resources` | 随包模板 |
+| `bootstrap` | 统一 CLI/TUI/GUI 分派及便携配置 |
+| `cli`、`tui`、`gui` | 输入与呈现；调用应用功能，不直接调用 backend |
+| `app` | 用例编排、导出计划与报告 |
+| `jobs` | 进度、执行状态与协作取消 |
+| `core` | 领域契约、错误、单位与绘图模型，不依赖 adapter |
+| `analysis`、`backends` | 完整分析管线、输入加载与选择 |
+| `services` | 配置、检查、provenance 与模板 |
+| `integrations`、`runtime` | 外部工具、环境过滤、进程生命周期与日志 |
+| `project`、`io` | Manifest、指纹、存储、解析与导出 |
 
-包根目录只包含入口和版本元数据。
+只有 bootstrap 装配呈现层。Qt 限于 `gui`，状态模型不要求 Qt。分析不能依赖呈现或绘图；进程对象留在 integrations 和 runtime 边界内。避免循环导入及持久化层反向依赖编排层。
 
-## 装配与流程
-
-`bootstrap/portable.py` 选择 GUI、TUI 或 CLI。无显式模式时，有 Qt 和 display 即启动 GUI，
-否则启动 TUI。macOS 的源码与冻结程序均使用 `~/.config/mdhelper/config.toml`，
-避免将可变配置写入签名包；其他平台使用同目录 `config.toml`。`MDHELPER_CONFIG` 可覆盖默认路径。
-
-`app/facade.py` 构造配置、Integration、分析注册表和输入加载器。表现层构造 Core request，
-再调用功能组。注册表和加载器支持注入。
+## 分析流程
 
 ```text
-AnalysisRequest
-  -> validation
-  -> complete backend resolution
-  -> input loading and static selection
-  -> provenance collection
-  -> backend execution
-  -> AnalysisResult validation
-  -> optional export or project commit
+request -> validation -> backend resolution -> input loading and static selection
+        -> provenance -> execution -> result validation -> export or project commit
 ```
 
-`analysis/pipeline/` 定义 Backend 契约和注册表。每个条目代表一个完整 Backend，并声明支持的
-分析、优先级、能力、加载和执行方式。Auto 只在完整尝试之间回退；显式 Backend 不回退。
+`app/facade.py` 是装配入口。`analysis/pipeline/` 的每个注册项负责一次完整 backend 尝试。自动回退不会混用不同 backend 的输入加载与计算；显式选择 backend 时不回退。
 
-MDAnalysis 对象不离开对应适配器。GROMACS 命令经过 `integrations` 和 `runtime`；进程对象
-不越过该边界。
+`core/analysis/` 定义 schema-1 请求和结果。`RadialRequest` 用于 RDF 与累计 RDF，`EnergyRequest` 用于 EDR 序列。结果包含请求、数组、单位、诊断、provenance 和方法版本。预览与导出共用 `core/plotting/` 模型。
 
-## 契约
-
-`core/analysis/` 定义 schema version 1 的 request 和 result。RDF 与累积 RDF 使用
-`RadialRequest`，energy 使用 `EnergyRequest`。Result 包含 request、数据、参数、单位、诊断、
-provenance、警告、身份、方法版本和创建时间，内嵌 request 是分析类型的唯一来源。解析器拒绝
-未知或缺失的字段。
-
-适配器输出零基原子索引和帧范围。径向计算存储 nm。分析期间原子成员不变。Project `.itp`
-文件提供物种角色参考证据；建议只存在于当前 session，确认后的角色存入 request 和 project
-manifest。角色不修改选择或参数。
-
-绘图契约位于 `core/plotting/`。GUI 预览和图片导出使用同一绘图模型和状态。
-
-## 持久化与进程
+## 存储与 Job
 
 ```text
 project/
@@ -139,22 +41,20 @@ project/
 `-- cache/
 ```
 
-Manifest 保存版本、输入身份、确认后的物种角色、结果索引和绘图状态。完整 result JSON 保存
-分析数据和 provenance。输入、结果和 Integration stream 使用 SHA-256 标识。派生路径必须位于
-项目根目录。Manifest 和 result 使用原子替换。`cache` 只保存可重建数据。
+Manifest 索引输入、已确认角色、结果及绘图状态；完整结果 JSON 保存数据和 provenance。派生路径必须位于项目内，加载时验证身份、哈希与 schema。写入采用同目录临时文件和原子替换；Manifest 提交失败时删除新写入但未索引的结果。缓存均可重建。
 
-`jobs` 管理 pending、running、completed、failed 和 cancelled 状态。帧处理、文件 hash 和
-进程轮询支持协作取消。GUI worker 把状态交回 Qt 线程。
+Job 从 pending 进入 running，最终为 completed、failed 或 cancelled。帧边界、哈希分块和进程轮询检查取消。GUI worker 向 Qt 线程报告状态；外部命令使用参数数组、超时、输出捕获和进程组终止。
 
-`runtime/process/` 使用参数向量、受限环境、输出捕获、超时和进程组终止。Run record 保存
-可执行文件身份、参数、时间、结果和 stream 指纹。
+## 开发检查
 
-## 相关文档
+```bash
+uv sync --frozen --extra gui --group dev
+uv run prek run --all-files
+uv run pytest -q --cov=mdhelper
+```
 
-- [使用说明](USAGE.zh-CN.md) 列出命令和流程。
-- [配置](CONFIGURATION.zh-CN.md) 定义设置。
-- [选择](SELECTIONS.zh-CN.md) 定义选择输入和物种角色。
-- [算法](ALGORITHM.zh-CN.md) 定义实现行为。
-- [方法](methods/README.zh-CN.md) 定义带版本的计算。
-- [验证](validation/) 记录检查和限制。
-- [打包](PACKAGING.zh-CN.md) 定义发布产物。
+Linux 可增加 `-n 4 --dist worksteal`；macOS 和 Windows 串行运行 Qt 测试。测试默认使用 offscreen Qt，`QT_QPA_PLATFORM=cocoa` 可启用 macOS 原生检查。优先保留行为回归和代表性边界，不穷举样式与字体组合，也不重复检查第三方绘制或构建命令文本。原生安装包 smoke test 由 Quality CI 执行；覆盖率门槛保持 80%。
+
+Linux/macOS 内存分析可安装 `--group profile`，再通过 `uv run --group profile memray run --native -m mdhelper` 运行代表性命令。
+
+算法、配置和发布契约分别见[算法说明](ALGORITHM.zh-CN.md)、[配置](CONFIGURATION.zh-CN.md)和[打包](PACKAGING.zh-CN.md)；用户流程见[使用说明](USAGE.zh-CN.md)。

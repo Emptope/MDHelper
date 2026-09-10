@@ -47,23 +47,7 @@ MDHelper is a local data post-processing application designed for molecular dyna
 
 ### macOS First Launch
 
-After verifying the DMG against `SHA256SUMS` and copying the trusted app to Applications,
-remove download quarantine and verify its signature:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/MDHelper.app
-codesign --verify --deep --strict --verbose=2 /Applications/MDHelper.app
-```
-
-`xattr` does not sign the app. The release is already ad-hoc signed; only re-sign an
-intentionally modified, trusted local copy when needed:
-
-```bash
-codesign --force --sign - /Applications/MDHelper.app
-codesign --verify --deep --strict --verbose=2 /Applications/MDHelper.app
-```
-
-Ad-hoc signing is not Developer ID signing or notarization. Do not disable Gatekeeper globally.
+Releases are ad-hoc signed, not notarized. If Gatekeeper blocks a trusted download, follow [macOS installation and signature verification](docs/PACKAGING.md#macos-arm64).
 
 For detailed instructions, see [Usage](docs/USAGE.md) and [Packaging and Release Validation](docs/PACKAGING.md).
 
@@ -71,22 +55,13 @@ For detailed instructions, see [Usage](docs/USAGE.md) and [Packaging and Release
 
 ## Project Management and Data Export
 
-When an analysis is run in a specified working directory, MDHelper automatically creates the `mdhelper-project.json` project configuration file and the corresponding data management directories:
-
-```text
-working-directory/
-|-- mdhelper-project.json   # Project state and configuration
-|-- results/                # Structured data files (JSON/CSV)
-|-- figures/                # Automatically generated figures (PNG/SVG/PDF)
-`-- cache/                  # Analysis cache
-```
+Analyses committed to a project are indexed by `mdhelper-project.json`, with results, figures, and rebuildable cache stored below the project directory. See [Projects and tools](docs/USAGE.md#projects-and-tools) for commands and [storage layout](docs/ARCHITECTURE.md#storage-and-jobs) for details.
 
 ## Workflow Design
 
 Workflows are stored in `config.toml` as named, ordered sequences of analysis types. Projects in a workflow retain separate parameters and plot queues. After review, MDHelper submits the queue items to the standard analysis queue in order for repeatable analysis and batch processing.
 
-For configuration and operation details, see [Configuration](docs/CONFIGURATION.md#workflows) and
-[Usage](docs/USAGE.md#gui-workflows).
+For configuration and operation details, see [Configuration](docs/CONFIGURATION.md#workflows) and [Usage](docs/USAGE.md#gui-workflows).
 
 ## Integrations
 

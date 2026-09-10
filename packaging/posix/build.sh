@@ -72,18 +72,24 @@ build_variant() {
     if [[ "$gui" == 1 ]]; then
         notices+=(--extra gui)
     fi
+    local application="$application_output/mdhelper"
     if [[ "$platform" == macos ]]; then
-        test "$(lipo -archs "$application_output/mdhelper")" = arm64
-        codesign --verify --strict "$application_output/mdhelper"
+        application="$application_output/MDHelper.app"
+        test "$(lipo -archs "$application/Contents/MacOS/mdhelper")" = arm64
+        codesign --verify --deep --strict "$application"
     fi
 
     "$python" "$project_root/packaging/frozen_audit.py" \
-        --application "$application_output/mdhelper" \
+        --application "$application" \
         --platform "$audit_platform" \
         --max-size-mb "$max_size_mb"
 
     mkdir -p "$root"
-    cp "$application_output/mdhelper" "$root/mdhelper"
+    if [[ "$platform" == macos ]]; then
+        ditto "$application" "$root/MDHelper.app"
+    else
+        cp "$application" "$root/mdhelper"
+    fi
     cp "$project_root/LICENSE" "$root/LICENSE"
     cp "$project_root/README.md" "$root/README.md"
     cp "$project_root/README.zh-CN.md" "$root/README.zh-CN.md"

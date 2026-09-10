@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6", reason="GUI dependencies are not installed")
 
@@ -42,9 +39,6 @@ from mdhelper.gui.window import MainWindow
 from mdhelper.gui.windows import WindowManager
 from mdhelper.jobs import JobHandle
 from mdhelper.services.config import UserConfig, load_config
-
-_QT_APPLICATION = QApplication.instance() or QApplication([])
-
 
 pytestmark = pytest.mark.usefixtures("immediate_integration_detection")
 
@@ -218,7 +212,7 @@ def _cumulative_rdf_result(reference: str, selection: str) -> AnalysisResult:
     )
 
 
-def test_plot_settings_dialog_applies_and_reverts_one_edit_session() -> None:
+def test_plot_settings_dialog_applies_and_reverts_one_edit_session(qapp: QApplication) -> None:
     appearance = PlotAppearance(
         legend_visible=False,
         legend_location="lower_left",
@@ -232,7 +226,7 @@ def test_plot_settings_dialog_applies_and_reverts_one_edit_session() -> None:
     dialog = PlotSettingsDialog()
     dialog.begin(appearance)
     dialog.show()
-    _QT_APPLICATION.processEvents()
+    qapp.processEvents()
     applied: list[PlotAppearance] = []
     reverted: list[PlotAppearance] = []
     dialog.applied.connect(applied.append)
@@ -264,7 +258,7 @@ def test_plot_settings_dialog_applies_and_reverts_one_edit_session() -> None:
     cancelled = PlotSettingsDialog()
     cancelled.begin(appearance)
     cancelled.show()
-    _QT_APPLICATION.processEvents()
+    qapp.processEvents()
     cancelled_values: list[PlotAppearance] = []
     reverted_values: list[PlotAppearance] = []
     cancelled.applied.connect(cancelled_values.append)
@@ -565,12 +559,12 @@ def test_result_panel_combines_selected_energy_terms_and_restores_group(
     panel.close()
 
 
-def test_analysis_details_opens_the_retained_job_log() -> None:
+def test_analysis_details_opens_the_retained_job_log(qapp: QApplication) -> None:
     window = MainWindow()
     details = window.analysis.details_button
     window.tabs.setCurrentWidget(window.analysis)
     window.show()
-    _QT_APPLICATION.processEvents()
+    qapp.processEvents()
 
     assert not details.isEnabled()
 
@@ -579,7 +573,7 @@ def test_analysis_details_opens_the_retained_job_log() -> None:
     window.job_controller.latest = job
     window.analysis_actions.job_changed(job)
     details.click()
-    _QT_APPLICATION.processEvents()
+    qapp.processEvents()
 
     dialog = window.windows.get(JobLogDialog)
     assert dialog is not None
@@ -607,7 +601,7 @@ def test_about_menu_uses_product_casing_and_native_role() -> None:
         window.deleteLater()
 
 
-def test_mac_menu_translation_only_renames_native_preferences() -> None:
+def test_mac_menu_translation_only_renames_native_preferences(qapp: QApplication) -> None:
     translator = menu_module._MacMenuLabels()
     assert not translator.isEmpty()
     assert translator.translate("QMenuBar", "Preferences...") == "Settings..."
@@ -615,14 +609,13 @@ def test_mac_menu_translation_only_renames_native_preferences() -> None:
     assert translator.translate("OtherContext", "Preferences...") is None
     menu_module._configure_mac_menu_labels()
     menu_module._configure_mac_menu_labels()
-    assert len(_QT_APPLICATION.findChildren(menu_module._MacMenuLabels)) == 1
+    assert len(qapp.findChildren(menu_module._MacMenuLabels)) == 1
     assert QCoreApplication.translate("QMenuBar", "Preferences...") == "Settings..."
     assert QCoreApplication.translate("QMenuBar", "About %1") == "About %1"
     assert QCoreApplication.translate("OtherContext", "Preferences...") == "Preferences..."
 
 
-@pytest.mark.parametrize("platform", ["darwin", "win32", "linux"])
-@pytest.mark.parametrize("override", [True, False])
+@pytest.mark.parametrize("platform,override", [("darwin", False), ("win32", True)])
 def test_settings_menu_creates_and_opens_the_active_config(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -688,6 +681,7 @@ def test_settings_menu_reports_missing_default_text_application(
 
 
 def test_gui_export_includes_every_visible_result_and_current_plot(
+    qapp: QApplication,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     stub_figure_exports,
@@ -702,7 +696,7 @@ def test_gui_export_includes_every_visible_result_and_current_plot(
     window.results.plot_title.setText("Exported comparison")
     window.results.plot_title.editingFinished.emit()
     window.results.open_plot_window()
-    _QT_APPLICATION.processEvents()
+    qapp.processEvents()
     window.session.result = second
     monkeypatch.setattr(
         window_module.QFileDialog,

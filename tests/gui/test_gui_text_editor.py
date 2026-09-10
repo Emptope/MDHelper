@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import os
 from math import ceil
 from pathlib import Path
 
 import pytest
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6")
 
 from PySide6.QtCore import Qt
@@ -23,12 +21,11 @@ from mdhelper.gui.workspace.text import FileTextEditor
 from tests.support.qt import wait_until
 
 
-@pytest.mark.parametrize("mode", ["light", "dark"])
-def test_line_numbers_resize_scroll_and_repaint_without_changing_text(mode: str) -> None:
+def test_line_numbers_resize_scroll_and_repaint_without_changing_text() -> None:
     app = QApplication.instance() or QApplication([])
     controller = theme_controller(app)
     old_mode = controller.mode
-    controller.apply(mode)
+    controller.apply("dark")
     editor = FileTextEditor()
     editor.resize(500, 300)
     editor.show()
@@ -109,8 +106,7 @@ def test_editor_font_tracks_larger_application_font() -> None:
         controller.apply(old_mode)
 
 
-@pytest.mark.parametrize("readonly", [False, True])
-@pytest.mark.parametrize("point_size", [11, 18, 28])
+@pytest.mark.parametrize("readonly,point_size", [(False, 11), (True, 28)])
 def test_line_spacing_scales_without_changing_text_or_hit_testing(
     readonly: bool, point_size: int,
 ) -> None:

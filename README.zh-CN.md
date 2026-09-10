@@ -47,23 +47,7 @@ MDHelper 是一款为分子动力学模拟设计的本地数据后处理应用�
 
 ### macOS 首次启动
 
-先核对 DMG 与发布的 `SHA256SUMS` 一致，将来源可信的应用复制到 Applications 后，
-移除下载隔离属性并验证签名：
-
-```bash
-xattr -dr com.apple.quarantine /Applications/MDHelper.app
-codesign --verify --deep --strict --verbose=2 /Applications/MDHelper.app
-```
-
-`xattr` 不负责签名。发布的应用已带 ad-hoc 签名；仅在有意修改了可信的本地副本、需要重新
-临时签名时执行：
-
-```bash
-codesign --force --sign - /Applications/MDHelper.app
-codesign --verify --deep --strict --verbose=2 /Applications/MDHelper.app
-```
-
-ad-hoc 签名不等于 Developer ID 签名或公证，不要全局关闭 Gatekeeper。
+发布包已带 ad-hoc 签名，但未公证。如果 Gatekeeper 阻止可信的下载，请按[macOS 安装与签名验证](docs/PACKAGING.zh-CN.md#macos-arm64)操作。
 
 详细操作请参阅 [使用说明](docs/USAGE.zh-CN.md) 与 [打包与发布验证](docs/PACKAGING.zh-CN.md)。
 
@@ -71,22 +55,13 @@ ad-hoc 签名不等于 Developer ID 签名或公证，不要全局关闭 Gatekee
 
 ## 项目管理与数据导出
 
-在指定工作目录下运行分析时，MDHelper 会自动创建项目配置文件 `mdhelper-project.json` 及对应的数据管理目录：
-
-```text
-working-directory/
-├── mdhelper-project.json   # 项目状态与配置信息
-├── results/                # 结构化数据文件 (JSON/CSV)
-├── figures/                # 自动生成图表 (PNG/SVG/PDF)
-└── cache/                  # 分析缓存
-```
+提交到项目的分析由 `mdhelper-project.json` 索引，结果、图表与可重建缓存在项目目录内保存。命令见[项目与工具](docs/USAGE.zh-CN.md#项目与工具)，目录职责见[存储与 Job](docs/ARCHITECTURE.zh-CN.md#存储与-job)。
 
 ## 工作流设计 (Workflow)
 
 Workflow 以命名、有序的分析类型序列保存在 `config.toml` 中。序列内的项目各自保留其参数和绘图设置；用户确认配置后，MDHelper 按顺序将它们提交到标准分析队列，适合重复分析与批处理。
 
-详细配置与操作请参阅 [配置说明](docs/CONFIGURATION.zh-CN.md#workflow) 和
-[使用说明](docs/USAGE.zh-CN.md#gui-workflow)。
+详细配置与操作请参阅 [配置说明](docs/CONFIGURATION.zh-CN.md#workflow) 和[使用说明](docs/USAGE.zh-CN.md#gui-workflow)。
 
 ## 生态集成 (Integrations)
 

@@ -171,6 +171,26 @@ def archive(application: Path) -> tuple[list[str], list[str]]:
     return pkg_archive_contents(str(application), recursive=True), list(reader.options)
 
 
+def bundle_archive(bundle: Path) -> tuple[list[str], list[str]]:
+    """Audit both embedded Python modules and the pre-expanded macOS runtime."""
+
+    from PyInstaller.archive.readers import CArchiveReader
+
+    contents = bundle / "Contents"
+    executable = contents / "MacOS" / "mdhelper"
+    reader = CArchiveReader(str(executable))
+    if any(entry[-1] in {"b", "x", "Z"} for entry in reader.toc.values()):
+        raise SystemExit("macOS bundle must not extract a onefile payload at startup")
+    entries, options = archive(executable)
+    for name in ("Frameworks", "Resources"):
+        root = contents / name
+        entries.extend(
+            path.relative_to(root).as_posix()
+            for path in root.rglob("*") if path.is_file()
+        )
+    return entries, options
+
+
 def windows_subsystem(application: Path) -> int:
     """Read the PE subsystem without adding a packaging dependency."""
 
@@ -230,9 +250,13 @@ def check_size(artifact: Path, max_size_mb: int) -> int:
 
 
 def audit(application: Path, platform: str, max_size_mb: int) -> None:
-    check_size(application, max_size_mb)
-    check_subsystem(application, platform)
-    entries, options = archive(application)
+    if platform == "macos" and application.is_dir():
+        check_size(application / "Contents" / "MacOS" / "mdhelper", max_size_mb)
+        entries, options = bundle_archive(application)
+    else:
+        check_size(application, max_size_mb)
+        check_subsystem(application, platform)
+        entries, options = archive(application)
     missing = missing_options(options, platform)
     if missing:
         raise SystemExit(f"Required frozen options are missing: {missing}")

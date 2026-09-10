@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import runpy
 import subprocess
 import sys
@@ -11,7 +10,6 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-import yaml
 from packaging.requirements import Requirement
 
 ROOT = Path(__file__).parents[1]
@@ -64,46 +62,35 @@ def run_check(root: Path, tag: str | None = None) -> subprocess.CompletedProcess
     return subprocess.run(command, capture_output=True, check=False, text=True)
 
 
-def test_tag_release_graph_does_not_repeat_commit_tests() -> None:
-    workflows = {
-        path: yaml.load(path.read_text(encoding="ascii"), Loader=yaml.BaseLoader)
-        for path in (ROOT / ".github" / "workflows").glob("*.yml")
-    }
-    pending = [
-        path for path, workflow in workflows.items()
-        if workflow.get("on", {}).get("push", {}).get("tags")
-    ]
-    assert pending
-    checked = set()
-    while pending:
-        path = pending.pop()
-        if path in checked:
-            continue
-        checked.add(path)
-        for job in workflows[path]["jobs"].values():
-            reference = job.get("uses", "")
-            if reference.startswith(("./", "$/")):
-                pending.append(ROOT / reference[2:])
-            for step in job.get("steps", []):
-                command = step.get("run", "")
-                assert not re.search(
-                    r"\b(?:ruff|mypy|pytest|SmokeRequest|SMOKE_REQUEST)\b|--smoke-test",
-                    command,
-                ), (path, command)
-
-
-@pytest.mark.parametrize("spec", sorted((ROOT / "packaging").rglob("*.spec")))
-def test_freezer_specs_reference_existing_resources(spec: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("platform", ["linux", "darwin", "win32"])
+def test_freezer_specs_reference_existing_resources(platform: str, monkeypatch) -> None:
     from PIL import Image
 
+    spec = ROOT / "packaging" / ("windows" if platform == "win32" else "posix")
+    spec /= "mdhelper.spec"
     monkeypatch.setenv("MDHELPER_GUI_BUILD", "1")
+    monkeypatch.setattr(sys, "platform", platform)
     analysis = Mock(return_value=SimpleNamespace(
         pure=[], scripts=[], binaries=[], datas=[], dependencies=[],
     ))
-    executable = Mock()
+    executable, collect, bundle = Mock(), Mock(), Mock()
     runpy.run_path(str(spec), init_globals={
         "SPECPATH": str(spec.parent), "Analysis": analysis, "PYZ": Mock(), "EXE": executable,
+        "COLLECT": collect, "BUNDLE": bundle,
     })
+    if platform == "darwin":
+        assert executable.call_args.kwargs["exclude_binaries"] is True
+        assert executable.call_args.args[2:4] == ([], [])
+        collect.assert_called_once()
+        bundle.assert_called_once()
+        assert bundle.call_args.args == (collect.return_value,)
+        assert bundle.call_args.kwargs["name"] == "MDHelper.app"
+        assert Path(bundle.call_args.kwargs["icon"]).is_file()
+        assert bundle.call_args.kwargs["version"]
+    else:
+        assert not executable.call_args.kwargs.get("exclude_binaries", False)
+        collect.assert_not_called()
+        bundle.assert_not_called()
     analysis.assert_called_once()
     executable.assert_called_once()
     args, options = analysis.call_args

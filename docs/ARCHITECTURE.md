@@ -2,139 +2,34 @@
 
 [English](ARCHITECTURE.md) | [简体中文](ARCHITECTURE.zh-CN.md)
 
-This document defines package ownership, dependency rules, and runtime flow for MDHelper.
-
-## Scope
-
-MDHelper is a local Python 3.12 application with CLI, TUI, and Qt GUI adapters. It supports RDF,
-Cumulative Number RDF, and EDR energy extraction through two complete backends:
-
-| Backend | RDF | Cumulative RDF | Energy | Execution |
-| --- | --- | --- | --- | --- |
-| MDAnalysis | yes | yes | yes | In-process |
-| GROMACS | yes | yes | yes | Local commands |
-
-One analysis attempt uses one backend for input loading, selection, frame handling, and
-calculation. GROMACS is optional.
-
-## Dependencies
-
-Arrows point to dependencies:
-
-```mermaid
-flowchart TB
-    Bootstrap[bootstrap] --> CLI
-    Bootstrap --> TUI
-    Bootstrap --> GUI
-    CLI --> App[app]
-    TUI --> App
-    GUI --> App
-    CLI --> Jobs[jobs]
-    TUI --> Jobs
-    GUI --> Jobs
-    Jobs --> App
-    App --> Analysis[analysis]
-    App --> Services[services]
-    App --> Project[project]
-    App --> IO[io]
-    App --> Integrations[integrations]
-    Analysis --> Services
-    Analysis --> Integrations
-    Services --> Backends[backends]
-    Services --> IO
-    Services --> Integrations
-    Project --> IO
-    Integrations --> Runtime[runtime]
-    App --> Core[core]
-    Jobs --> Core
-    Analysis --> Core
-    Services --> Core
-    Project --> Core
-    IO --> Core
-    Integrations --> Core
-    Backends --> Core
-    Runtime --> Core
-```
-
-The repository enforces these rules:
-
-- `core` has no dependency on another MDHelper package.
-- `cli`, `tui`, and `gui` do not import each other, `analysis`, or `backends`.
-- `bootstrap` composes presentation adapters.
-- Qt imports stay in `gui`; GUI state modules do not require Qt.
-- `analysis` and `backends` do not execute processes or import `runtime`.
-- Analysis code does not depend on plotting.
-- `io` and `project` do not depend on application orchestration.
-- Top-level and subpackage imports remain acyclic.
-
-`tests/test_architecture.py` checks these rules.
-
 ## Package ownership
 
-| Package | Owns |
+| Package | Responsibility |
 | --- | --- |
-| `bootstrap` | Entry-point dispatch and portable configuration activation |
-| `cli`, `tui`, `gui` | Input, presentation state, and rendering |
+| `bootstrap` | Unified CLI/TUI/GUI dispatch and portable configuration |
+| `cli`, `tui`, `gui` | Input and presentation; call application features, not backends |
 | `app` | Use-case orchestration, export plans, and reports |
-| `jobs` | Execution state, progress, and cancellation |
-| `core` | Domain records, contracts, protocols, errors, units, and plot models |
-| `analysis` | Backend pipelines and radial diagnostics |
-| `backends` | Input and selection adapters |
-| `services` | Configuration, inspection, selection, provenance, and templates |
-| `integrations` | External-tool adapters, detection, and command coordination |
-| `runtime` | Process lifecycle, environment filtering, and logging |
-| `project` | Manifest, input identity, result repository, and atomic storage |
-| `io` | Fingerprints, stream storage, NDX parsing, and export adapters |
-| `resources` | Packaged templates |
+| `jobs` | Progress, execution state, and cooperative cancellation |
+| `core` | Domain contracts, errors, units, and plot models; no adapter dependencies |
+| `analysis`, `backends` | Complete analysis pipelines, input loading, and selection |
+| `services` | Configuration, inspection, provenance, and templates |
+| `integrations`, `runtime` | External tools, filtered environments, process lifecycle, logging |
+| `project`, `io` | Manifests, fingerprints, storage, parsing, and exports |
 
-The package root contains entry points and version metadata only.
+Only bootstrap composes presentation adapters. Qt belongs in `gui`; its state models remain usable without Qt. Analysis code must not depend on presentation or plotting. Process objects stay behind integrations and runtime. Avoid cyclic imports and reverse orchestration dependencies.
 
-## Composition and flow
-
-`bootstrap/portable.py` selects GUI, TUI, or CLI. With no mode, it starts GUI when Qt and a display
-are available, then falls back to TUI. macOS uses `~/.config/mdhelper/config.toml` for both
-source and frozen launches, keeping mutable settings outside the signed bundle. Other platforms
-use the colocated `config.toml`. `MDHELPER_CONFIG` overrides these defaults.
-
-`app/facade.py` constructs configuration, integrations, the analysis registry, and input loaders.
-Presentation adapters build core requests and call its feature groups. Registries and loaders are
-injectable.
+## Analysis flow
 
 ```text
-AnalysisRequest
-  -> validation
-  -> complete backend resolution
-  -> input loading and static selection
-  -> provenance collection
-  -> backend execution
-  -> AnalysisResult validation
-  -> optional export or project commit
+request -> validation -> backend resolution -> input loading and static selection
+        -> provenance -> execution -> result validation -> export or project commit
 ```
 
-`analysis/pipeline/` defines the backend contract and registry. Each registry entry represents a
-complete backend and declares supported analyses, priority, capabilities, loading, and execution.
-Automatic fallback occurs between complete attempts. Explicit backend selection does not fall
-back.
+`app/facade.py` is the composition root. Each registry entry in `analysis/pipeline/` owns a complete backend attempt. Automatic fallback never mixes loading from one backend with calculation from another; explicit backend selection does not fall back.
 
-MDAnalysis objects stay inside its adapters. GROMACS commands pass through `integrations` and
-`runtime`; process objects do not cross that boundary.
+`core/analysis/` defines schema-1 requests and results. `RadialRequest` covers RDF and cumulative RDF; `EnergyRequest` covers EDR series. Results own their request, arrays, units, diagnostics, provenance, and method version. Preview and export share `core/plotting/` models.
 
-## Contracts
-
-`core/analysis/` defines schema-version-1 requests and results. RDF and cumulative RDF use
-`RadialRequest`; energy uses `EnergyRequest`. Results contain the request, data, parameters, units,
-diagnostics, provenance, warnings, identity, method version, and creation time. The embedded request
-is the single source of the analysis type. Parsers reject unknown or missing fields.
-
-Adapters expose zero-based atom indices and frame ranges. Radial calculations store nm. Atom
-membership remains fixed during a run. Project `.itp` files provide advisory species-role evidence;
-suggestions remain session-only, while confirmed roles are stored in requests and project manifests.
-Roles do not change selections or parameters.
-
-Plot contracts live in `core/plotting/`. GUI preview and figure export consume the same plot model
-and state.
-
-## Persistence and processes
+## Storage and jobs
 
 ```text
 project/
@@ -146,25 +41,20 @@ project/
 `-- cache/
 ```
 
-The manifest stores versions, input identities, confirmed species roles, result indexes, and plot
-state.
-Full result JSON files own analysis data and provenance. SHA-256 identifies inputs, results, and
-integration streams. Derived paths must remain under the project root. Manifest and result writes
-use atomic replacement. `cache` contains rebuildable data only.
+The manifest indexes inputs, confirmed roles, results, and plot state. Full result JSON owns data and provenance. Paths must remain inside the project; loading verifies identities, hashes, and schemas. Writes use same-directory temporary files and atomic replacement. Failed manifest commits remove newly written unindexed results. Cache data is rebuildable.
 
-`jobs` owns pending, running, completed, failed, and cancelled states. Cancellation is cooperative
-at frame processing, file hashing, and process polling. GUI workers report state to the Qt thread.
+Jobs move from pending to running, then completed, failed, or cancelled. Cancellation is checked at frame boundaries, hash chunks, and process polls. GUI workers report changes to the Qt thread; external commands use argument vectors, timeouts, captured streams, and process-group termination.
 
-`runtime/process/` runs argument vectors with filtered environments, captured streams, timeouts,
-and process-group termination. Each run records executable identity, arguments, timing, outcome,
-and stream fingerprints.
+## Development checks
 
-## Related documents
+```bash
+uv sync --frozen --extra gui --group dev
+uv run prek run --all-files
+uv run pytest -q --cov=mdhelper
+```
 
-- [Usage](USAGE.md) lists commands and workflows.
-- [Configuration](CONFIGURATION.md) defines settings.
-- [Selections](SELECTIONS.md) defines selection input and species roles.
-- [Algorithm](ALGORITHM.md) defines implemented behavior.
-- [Methods](methods/README.md) defines versioned calculations.
-- [Validation](validation/) records checks and limits.
-- [Packaging](PACKAGING.md) defines release artifacts.
+Linux may add `-n 4 --dist worksteal`; macOS and Windows run Qt tests serially. Tests use offscreen Qt by default; `QT_QPA_PLATFORM=cocoa` enables native macOS checks. Keep behavioral regressions and representative boundary cases, rather than exhaustive style/font products or assertions about third-party painting and build-command text. Native package smoke tests belong to Quality CI. The coverage gate remains 80%.
+
+For memory profiling on Linux/macOS, install `--group profile` and run a representative command under `uv run --group profile memray run --native -m mdhelper`.
+
+See [algorithms](ALGORITHM.md), [configuration](CONFIGURATION.md), and [packaging](PACKAGING.md) for their respective contracts; [usage](USAGE.md) covers user workflows.

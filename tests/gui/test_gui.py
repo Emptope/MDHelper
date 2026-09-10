@@ -10,9 +10,6 @@ from threading import Event, get_ident
 
 import pytest
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("MPLCONFIGDIR", "/tmp/mdhelper-test-matplotlib")
-
 pytest.importorskip("PySide6", reason="GUI dependencies are not installed")
 
 from PySide6.QtTest import QTest

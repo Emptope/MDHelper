@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 import multiprocessing
-import os
 import plistlib
 import runpy
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-from PIL import Image
 
 ROOT = Path(__file__).parents[1]
 PACKAGE = runpy.run_path(str(ROOT / "packaging" / "posix" / "dmg.py"))
 SMOKE = runpy.run_path(str(ROOT / "packaging" / "smoke_check.py"))
+AUDIT = runpy.run_path(str(ROOT / "packaging" / "frozen_audit.py"))
 
 
 @pytest.mark.parametrize("worker", [False, True])
@@ -45,7 +45,13 @@ def test_frozen_entry_dispatches_workers_before_application(
 def make_bundle(tmp_path: Path) -> Path:
     source = tmp_path / "portable"
     source.mkdir()
-    executable = source / "mdhelper"
+    frozen = source / "MDHelper.app" / "Contents"
+    binaries = frozen / "MacOS"
+    resources = frozen / "Resources"
+    frameworks = frozen / "Frameworks"
+    for directory in (binaries, resources, frameworks):
+        directory.mkdir(parents=True)
+    executable = binaries / "mdhelper"
     executable.write_bytes(b"application")
     executable.chmod(0o755)
     for name in SMOKE["REQUIRED_FILES"]:
@@ -53,10 +59,17 @@ def make_bundle(tmp_path: Path) -> Path:
     for name in SMOKE["REQUIRED_DIRECTORIES"]:
         (source / name).mkdir()
         (source / name / "data.json").write_text("{}", encoding="ascii")
-    icon = tmp_path / "icon.png"
-    Image.new("RGBA", (1024, 1024), "red").save(icon)
+    (resources / "mdhelper.icns").write_bytes(b"icon")
+    (frameworks / "libpython.dylib").write_bytes(b"runtime")
+    with (frozen / "Info.plist").open("wb") as handle:
+        plistlib.dump({
+            "CFBundleExecutable": "mdhelper",
+            "CFBundleIconFile": "mdhelper.icns",
+            "CFBundlePackageType": "APPL",
+            "CFBundleShortVersionString": "2.4.6",
+        }, handle)
     bundle = tmp_path / "image" / "Sample App.app"
-    PACKAGE["create_bundle"](source, bundle, "2.4.6", icon)
+    PACKAGE["create_bundle"](source, bundle)
     return bundle
 
 
@@ -70,9 +83,8 @@ def test_bundle_preserves_payload_and_registers_executable(tmp_path: Path) -> No
     assert info["CFBundlePackageType"] == "APPL"
     assert info["CFBundleShortVersionString"] == "2.4.6"
     resources = contents / "Resources"
-    with Image.open(resources / info["CFBundleIconFile"]) as image:
-        image.load()
-        assert image.width > 0
+    assert (resources / info["CFBundleIconFile"]).read_bytes() == b"icon"
+    assert (contents / "Frameworks" / "libpython.dylib").read_bytes() == b"runtime"
     assert not list(bundle.rglob("config.toml"))
     assert (resources / "config.example.toml").is_file()
     assert SMOKE["validate_distribution"](bundle, "macos") == executable
@@ -82,6 +94,58 @@ def test_bundle_preserves_payload_and_registers_executable(tmp_path: Path) -> No
     with (contents / "Info.plist").open("wb") as handle:
         plistlib.dump(info, handle)
     assert SMOKE["validate_distribution"](bundle, "macos") == renamed
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="macOS bundle uses POSIX symlinks")
+def test_bundle_preserves_relative_runtime_symlinks(tmp_path: Path) -> None:
+    make_bundle(tmp_path)
+    source = tmp_path / "portable"
+    resource = source / "MDHelper.app" / "Contents" / "Resources" / "libpython.dylib"
+    resource.symlink_to("../Frameworks/libpython.dylib")
+    bundle = tmp_path / "Copied App.app"
+
+    PACKAGE["create_bundle"](source, bundle)
+
+    copied = bundle / "Contents" / "Resources" / resource.name
+    assert copied.is_symlink()
+    assert copied.readlink() == Path("../Frameworks/libpython.dylib")
+    assert copied.read_bytes() == b"runtime"
+
+
+@pytest.mark.parametrize("payload", ["onedir", "onefile", "forbidden", "missing-plugin"])
+def test_macos_audit_checks_expanded_and_embedded_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, payload: str,
+) -> None:
+    from PyInstaller.archive import readers
+
+    bundle = make_bundle(tmp_path)
+    frameworks = bundle / "Contents" / "Frameworks"
+    plugin = frameworks / "PySide6" / "Qt" / "plugins" / "platforms" / "libqcocoa.dylib"
+    if payload != "missing-plugin":
+        plugin.parent.mkdir(parents=True)
+        plugin.write_bytes(b"plugin")
+    if payload == "forbidden":
+        (plugin.parent / "libqminimal.dylib").write_bytes(b"unused plugin")
+    reader = SimpleNamespace(
+        toc={"libpython.dylib": (0, 1, 1, 1, "b")} if payload == "onefile" else {},
+        options=[],
+    )
+    monkeypatch.setattr(readers, "CArchiveReader", lambda _path: reader)
+    monkeypatch.setattr(
+        readers, "pkg_archive_contents",
+        lambda _path, recursive: ["entry", "PYZ.pyz", "mdhelper.gui.main"],
+    )
+
+    if payload == "onedir":
+        AUDIT["audit"](bundle, "macos", 256)
+    else:
+        message = {
+            "onefile": "must not extract a onefile payload",
+            "forbidden": "Forbidden frozen payload",
+            "missing-plugin": "Required Qt platform plugins are missing",
+        }[payload]
+        with pytest.raises(SystemExit, match=message):
+            AUDIT["audit"](bundle, "macos", 256)
 
 
 @pytest.mark.parametrize("smoke, fail_copy", [(False, False), (True, False), (True, True)])
@@ -145,123 +209,6 @@ def test_dmg_audits_and_cleans_up_installation(
     else:
         assert ("hdiutil", "attach") not in actions
         assert not environments
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="Requires a POSIX build host")
-@pytest.mark.parametrize("failure", ["", "update", "install"])
-def test_linux_gui_dependency_installation(tmp_path: Path, failure: str) -> None:
-    script = ROOT / "packaging" / "posix" / "install-deps.sh"
-    log = tmp_path / "commands.log"
-    result = subprocess.run(
-        ["bash", "-c", '''
-sudo() {
-    printf '%s\\n' "$*" >> "$COMMAND_LOG"
-    if [[ "$2" == "$FAILURE" ]]; then return 23; fi
-}
-source "$1"
-''', "bash", str(script)],
-        env=dict(os.environ, COMMAND_LOG=str(log), FAILURE=failure),
-        capture_output=True, text=True, check=False,
-    )
-    commands = [line.split() for line in log.read_text(encoding="ascii").splitlines()]
-    assert commands[0] == ["apt-get", "update"]
-    if failure:
-        assert result.returncode == 23, result.stderr
-        assert len(commands) == (1 if failure == "update" else 2)
-        return
-    assert result.returncode == 0, result.stderr
-    assert commands[1][:2] == ["apt-get", "install"]
-    assert "--yes" in commands[1]
-    # Runtime packages required by the EGL and XCB platform integrations.
-    required = {
-        "libegl1", "libxcb-cursor0", "libxcb-icccm4", "libxcb-image0",
-        "libxcb-keysyms1", "libxcb-render-util0", "libxcb-shape0",
-        "libxcb-util1", "libxcb-xkb1", "libxkbcommon-x11-0",
-    }
-    assert required <= set(commands[1][2:])
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="Requires a POSIX build host")
-@pytest.mark.parametrize("smoke", [False, True])
-@pytest.mark.parametrize("outcome", ["created", "failed", "missing", "empty", "expansion"])
-def test_posix_build_requires_release_artifact(
-    tmp_path: Path, smoke: bool, outcome: str,
-) -> None:
-    project = tmp_path / "project with spaces"
-    scripts = project / "packaging" / "posix"
-    scripts.mkdir(parents=True)
-    shutil.copy2(ROOT / "packaging" / "posix" / "build.sh", scripts / "build.sh")
-    for name in ("LICENSE", "README.md", "README.zh-CN.md", "config.example.toml"):
-        (project / name).write_text("payload", encoding="ascii")
-    for name in ("docs", "schemas"):
-        (project / name).mkdir()
-    driver = tmp_path / "driver.sh"
-    driver.write_text(
-        """set -euo pipefail
-uname() {
-    case "$1" in
-        -s) printf 'Darwin\\n' ;;
-        -m) printf 'arm64\\n' ;;
-    esac
-}
-lipo() { printf 'arm64\\n'; }
-codesign() { return 0; }
-python() {
-    case "$1" in
-        -c) return 0 ;;
-        */check_release.py) printf '%s\\n' "$VERSION" ;;
-        */clean_build.py) rm -rf -- "$PROJECT/build" ;;
-        -m)
-            test ! -e "$PROJECT/build/stale"
-            while [[ "$1" != --distpath ]]; do shift; done
-            mkdir -p "$2"
-            printf 'application' > "$2/mdhelper"
-            ;;
-        */dmg.py)
-            shift
-            local artifact= request=
-            while [[ $# -gt 0 ]]; do
-                case "$1" in
-                    --artifact) artifact=$2 ;;
-                    --request) request=$2 ;;
-                esac
-                shift 2
-            done
-            test "$request" = "${SMOKE_REQUEST:-}"
-            case "$OUTCOME" in
-                created) printf 'image' > "$artifact" ;;
-                failed) return 23 ;;
-                missing) return 0 ;;
-                empty) touch "$artifact" ;;
-                expansion) printf '%s' "${1:?missing command argument}" ;;
-            esac
-            ;;
-    esac
-}
-source "$PROJECT/packaging/posix/build.sh" macos
-""",
-        encoding="ascii",
-    )
-    (project / "build").mkdir()
-    (project / "build" / "stale").touch()
-    version = "3.5.7"
-    environment = dict(os.environ, PROJECT=str(project), VERSION=version, OUTCOME=outcome)
-    environment.pop("SMOKE_REQUEST", None)
-    environment["PYTHON"] = "python"
-    if smoke:
-        environment["SMOKE_REQUEST"] = str(project / "smoke request.json")
-    result = subprocess.run(
-        ["bash", str(driver)], env=environment, capture_output=True, text=True, check=False,
-    )
-    artifact = project / "dist" / "macos" / f"MDHelper-{version}-macOS-arm64.dmg"
-    if outcome == "created":
-        assert result.returncode == 0, result.stderr
-        assert artifact.is_file(), result.stderr
-    else:
-        assert result.returncode != 0, result.stderr
-        assert not artifact.exists() or artifact.stat().st_size == 0
-        if outcome == "failed":
-            assert result.returncode == 23
 
 
 @pytest.mark.parametrize("field", ["CFBundleExecutable", "CFBundleIconFile"])

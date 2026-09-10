@@ -117,12 +117,14 @@ if gui_build:
         in binary_targets
     ]
 application_pyz = PYZ(application_analysis.pure)
+macos_bundle = sys.platform == "darwin"
 application = EXE(
     application_pyz,
     application_analysis.scripts,
-    application_analysis.binaries,
-    application_analysis.datas,
+    [] if macos_bundle else application_analysis.binaries,
+    [] if macos_bundle else application_analysis.datas,
     [],
+    exclude_binaries=macos_bundle,
     name="mdhelper",
     debug=False,
     bootloader_ignore_signals=False,
@@ -133,3 +135,26 @@ application = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
+if macos_bundle:
+    # Expand native dependencies at build time, not on every application launch.
+    collection = COLLECT(
+        application,
+        application_analysis.binaries,
+        application_analysis.datas,
+        strip=False,
+        upx=False,
+        name="mdhelper",
+    )
+    bundle = BUNDLE(
+        collection,
+        name="MDHelper.app",
+        icon=str(resource_root / "icons" / "mdhelper.png"),
+        bundle_identifier="org.mdhelper.desktop",
+        version=runpy.run_path(str(source_root / "mdhelper" / "version.py"))["__version__"],
+        info_plist={
+            "CFBundleDisplayName": "MDHelper",
+            "CFBundleName": "MDHelper",
+            "NSHighResolutionCapable": True,
+            "NSAppleEventsUsageDescription": "Open interactive tools in Terminal.",
+        },
+    )

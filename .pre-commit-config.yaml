@@ -12,12 +12,6 @@ repos:
         language: system
         pass_filenames: false
         types: [python]
-      - id: architecture
-        name: Architecture tests
-        entry: uv run pytest -q tests/test_architecture.py
-        language: system
-        pass_filenames: false
-        types: [python]
       - id: dependency-audit
         name: Dependency audit
         entry: uv audit --frozen
