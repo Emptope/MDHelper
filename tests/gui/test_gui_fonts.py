@@ -27,6 +27,7 @@ from mdhelper.services.config import GuiConfig, UserConfig, load_config, save_co
     ("darwin", "", ["Consolas"], "System Mono"),
     ("linux", "missing", ["Consolas"], "System Mono"),
     ("linux", "Custom Mono", ["Custom Mono"], "Custom Mono"),
+    ("linux", "monospace", ["Monospace"], "Monospace"),
 ])
 def test_workspace_font_fallback(
     qapp: QApplication, monkeypatch: pytest.MonkeyPatch,
@@ -46,12 +47,17 @@ def test_workspace_font_fallback(
 
 
 @pytest.mark.usefixtures("immediate_integration_detection")
+@pytest.mark.parametrize("swap_case", [False, True])
 def test_window_loads_workspace_font_and_retains_it_when_saving_theme(
-    qapp: QApplication, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, swap_case: bool,
 ) -> None:
     original = QFont(qapp.font())
     path = tmp_path / "config.toml"
     family = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont).family()
+    if swap_case:
+        family = family.swapcase()
+    # Qt's system alias and installed family can differ in capitalization.
+    expected_family = fonts.workspace_font(family, 21.5).family()
     save_config(UserConfig(gui=GuiConfig(
         font_size=12.5, workspace_font_family=family, workspace_font_size=21.5,
     )), path)
@@ -63,7 +69,7 @@ def test_window_loads_workspace_font_and_retains_it_when_saving_theme(
         for mode in ("dark", "light", "system"):
             window.menu_actions.themes[mode].trigger()
             QTest.qWait(20)
-            assert editor.font().family() == family
+            assert editor.font().family() == expected_family
             assert editor.font().pointSizeF() == 21.5
             assert editor.line_numbers.font() == editor.font()
             assert window.editor.cursor_position.font().pointSizeF() == 12.5
