@@ -8,9 +8,10 @@ import numpy as np
 import pytest
 
 from mdhelper.analysis.gromacs.backend import GromacsBackend
-from mdhelper.analysis.gromacs.curves import _parse_curve
+from mdhelper.analysis.gromacs.curves import _actual_bin_width, _parse_curve
 from mdhelper.analysis.pipeline import AnalysisInput
 from mdhelper.app.reports.base import number
+from mdhelper.app.reports.radial import CumulativeRdfReport, RdfReport
 from mdhelper.core.analysis import AnalysisResult, AnalysisType, RadialRequest
 from mdhelper.core.errors import ConfigurationError
 from mdhelper.core.integrations import IntegrationRunRecord
@@ -130,6 +131,7 @@ def test_radial_pipeline_uses_raw_extrema(
         assert result.data["cumulative_number"] == cumulative.tolist()
     else:
         assert result.data["g_r"] == rdf.tolist()
+    assert result.parameters["bin_width_nm"] == request.bin_width_nm
 
     assert all(not root.exists() for root in working_directories)
     record = result.provenance["integration_runs"][0]
@@ -151,8 +153,68 @@ def test_radial_pipeline_uses_raw_extrema(
     assert (tmp_path / "export" / "run.out").read_text() == record["stdout"]
     assert (tmp_path / "export" / "run.err").read_text() == record["stderr"]
     stored = json.loads((tmp_path / "export" / "result.json").read_text())
+    assert stored["parameters"]["bin_width_nm"] == request.bin_width_nm
     assert "output_texts" not in stored["provenance"]["integration_runs"][0]
     archived_output = next((project.root / "results" / "data").glob("*.xvg"))
     archived_output.write_bytes(b"changed")
     with pytest.raises(ConfigurationError, match="fingerprint"):
         Project.open(project.root).load_result(result.analysis_id)
+
+
+def test_actual_bin_width_recovers_requested_grid() -> None:
+    printed = np.array([float(f"{index * 0.002:.3f}") for index in range(501)])
+
+    assert _actual_bin_width(np.diff(printed), 0.002) == 0.002
+
+
+def test_actual_bin_width_keeps_adjusted_grid() -> None:
+    assert _actual_bin_width(np.full(4, 0.0025), 0.002) == 0.0025
+
+
+def test_actual_bin_width_without_spacings_uses_request() -> None:
+    assert _actual_bin_width(np.array([], dtype=np.float64), 0.004) == 0.004
+
+
+def _report_result(analysis_type: AnalysisType, shell: dict[str, object]) -> AnalysisResult:
+    request = RadialRequest(
+        analysis_type=analysis_type,
+        topology="topology",
+        trajectory="trajectory",
+        reference="A",
+        selection="B",
+        r_max_nm=1.0,
+        bin_width_nm=0.002,
+    )
+    return AnalysisResult(
+        data={"radius_nm": [0.002, 0.004], "g_r": [1.0, 2.0]},
+        parameters={"r_max_nm": 1.0, "bin_width_nm": 0.002},
+        units={},
+        diagnostics={"n_frames": 1, "first_shell_suggestion": shell},
+        provenance={},
+        request=request.to_dict(),
+    )
+
+
+def test_radial_report_labels_shell_features_without_resolved() -> None:
+    shell = {
+        "available": True,
+        "first_peak_nm": 0.004,
+        "first_peak_g_r": 2.0,
+        "first_minimum_nm": 0.02,
+        "first_minimum_g_r": 0.5,
+    }
+
+    text = RdfReport(_report_result("rdf", shell)).text()
+
+    assert "Bin width: 0.02" in text
+    assert "First peak: g(r) = 2.0 at 0.04" in text
+    assert "First minimum: g(r) = 0.5 at 0.2" in text
+    assert "resolved" not in text.split("Technical details")[0]
+
+
+def test_cumulative_report_names_missing_first_minimum() -> None:
+    text = CumulativeRdfReport(
+        _report_result("cumulative_rdf", {"available": False})
+    ).text()
+
+    assert "First-shell cutoff: No RDF first minimum" in text

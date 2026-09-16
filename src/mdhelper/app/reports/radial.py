@@ -86,8 +86,8 @@ def _shell_rows(value: object) -> list[tuple[str, str]]:
         return []
     rows: list[tuple[str, str]] = []
     for label, radius_key, value_key in (
-        ("First resolved peak", "first_peak_nm", "first_peak_g_r"),
-        ("First resolved minimum", "first_minimum_nm", "first_minimum_g_r"),
+        ("First peak", "first_peak_nm", "first_peak_g_r"),
+        ("First minimum", "first_minimum_nm", "first_minimum_g_r"),
     ):
         radius = scalar(value.get(radius_key))
         height = scalar(value.get(value_key))
@@ -102,7 +102,7 @@ def _coordination_rows(value: object) -> list[tuple[str, str]]:
     if not isinstance(value, dict) or not value.get("available"):
         return [
             ("First-shell coordination number", "Unavailable"),
-            ("First-shell cutoff", "No resolved RDF first minimum"),
+            ("First-shell cutoff", "No RDF first minimum"),
         ]
     radius = scalar(value.get("first_minimum_nm"))
     coordination = scalar(value.get("coordination_number"))

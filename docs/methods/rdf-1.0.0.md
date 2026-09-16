@@ -32,7 +32,7 @@ The request records selections, input source, `r_max_nm`, `bin_width_nm`, frame 
 
 With `analysis_backend = gromacs`, `gmx rdf` supplies the stored curve. MDHelper passes `-bin`, `-rmax`, `-ref`, `-sel`, `-o`, and optional `-n`, then maps XVG to `radius_nm,g_r`. It does not pass `-cn` or recompute the curve.
 
-The full frame range uses original inputs. Other ranges use `gmx check` and one exact subset from `gmx trjconv -fr`; `gmx rdf -dt` is not used. Provenance records commands, executable identity, version, outputs, and frames. XVG precision can produce small differences from in-process values. Original XVG text is retained before temporary-file cleanup and exported as `rdf.xvg` alongside, not inside, the stdout `.out` and stderr `.err` logs. Project reload verifies the archived outputs with SHA-256.
+The full frame range uses original inputs. Other ranges use `gmx check` and one exact subset from `gmx trjconv -fr`; `gmx rdf -dt` is not used. Provenance records commands, executable identity, version, outputs, and frames. XVG precision can produce small differences from in-process values. The reported bin width keeps the requested value unless the GROMACS grid spacing differs from it. Original XVG text is retained before temporary-file cleanup and exported as `rdf.xvg` alongside, not inside, the stdout `.out` and stderr `.err` logs. Project reload verifies the archived outputs with SHA-256.
 
 ## Diagnostic and output
 

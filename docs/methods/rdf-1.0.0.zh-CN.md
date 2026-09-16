@@ -32,7 +32,7 @@ Request 记录选择、输入来源、`r_max_nm`、`bin_width_nm`、帧范围和
 
 `analysis_backend = gromacs` 时，存储曲线来自 `gmx rdf`。MDHelper 传入 `-bin`、`-rmax`、`-ref`、`-sel`、`-o` 和可选 `-n`，再把 XVG 映射为 `radius_nm,g_r`。程序不传 `-cn`，也不重算曲线。
 
-完整帧范围使用原输入。其他范围使用 `gmx check` 和一次 `gmx trjconv -fr` 生成的精确子集，不用 `gmx rdf -dt`。Provenance 记录命令、executable identity、版本、输出和帧。XVG 精度可能使结果与进程内值存在小差异。原始 XVG 文本在临时目录清理前保存，导出为 `rdf.xvg`，与 stdout `.out` 和 stderr `.err` 日志并列，不混入日志。项目重载通过 SHA-256 验证归档输出。
+完整帧范围使用原输入。其他范围使用 `gmx check` 和一次 `gmx trjconv -fr` 生成的精确子集，不用 `gmx rdf -dt`。Provenance 记录命令、executable identity、版本、输出和帧。XVG 精度可能使结果与进程内值存在小差异。除非 GROMACS 网格间距不同，否则报告的 bin width 保持请求值。原始 XVG 文本在临时目录清理前保存，导出为 `rdf.xvg`，与 stdout `.out` 和 stderr `.err` 日志并列，不混入日志。项目重载通过 SHA-256 验证归档输出。
 
 ## 诊断与输出
 

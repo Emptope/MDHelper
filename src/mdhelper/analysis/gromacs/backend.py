@@ -97,7 +97,7 @@ class GromacsBackend:
         from mdhelper.core.integrations import unique_run_records
         from mdhelper.integrations.gromacs import error_message
 
-        from .curves import _parse_curve
+        from .curves import _actual_bin_width, _parse_curve
         from .inputs import (
             _request,
             _requested_indices,
@@ -251,9 +251,7 @@ class GromacsBackend:
             inputs.source, inputs
         )
         width_values = np.diff(rdf_radius)
-        actual_width = (
-            float(np.median(width_values)) if len(width_values) else request.bin_width_nm
-        )
+        actual_width = _actual_bin_width(width_values, request.bin_width_nm)
         provenance = dict(inputs.provenance)
         runs = provenance.get("integration_runs")
         integration_runs = list(runs) if isinstance(runs, list) else []

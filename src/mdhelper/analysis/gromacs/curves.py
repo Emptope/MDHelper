@@ -11,6 +11,24 @@ from numpy.typing import NDArray
 from mdhelper.core.errors import FormatError
 
 
+def _actual_bin_width(
+    spacings: NDArray[np.float64],
+    requested: float,
+) -> float:
+    """Recover the requested width unless GROMACS adjusted the bin grid.
+
+    Printed radii round to text, so their differences carry a few float steps
+    of noise. A comparable median means the grid still uses the requested width.
+    """
+
+    if not len(spacings):
+        return requested
+    spacing = float(np.median(spacings))
+    if math.isclose(spacing, requested, rel_tol=1e-6):
+        return requested
+    return spacing
+
+
 def _parse_curve(path: Path, label: str) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     rows: list[tuple[float, float]] = []
     try:
