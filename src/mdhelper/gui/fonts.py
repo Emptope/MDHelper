@@ -8,7 +8,7 @@ from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication
 
 
-def workspace_font(family: str = "", point_size: float = 14.0) -> QFont:
+def workspace_font(family: str = "", point_size: float = 12.0) -> QFont:
     """Resolve an installed editor font, falling back to a platform monospace font."""
 
     font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)

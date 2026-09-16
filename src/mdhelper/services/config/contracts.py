@@ -18,7 +18,7 @@ class GuiConfig:
     theme: ThemeMode = "system"
     font_size: float = 11.0
     workspace_font_family: str = ""
-    workspace_font_size: float = 14.0
+    workspace_font_size: float = 12.0
 
 
 @dataclass

@@ -42,11 +42,11 @@ def test_workspace_font_defaults_support_missing_and_legacy_config(
 ) -> None:
     path = tmp_path / "config.toml"
     assert load_config(path).gui.workspace_font_family == ""
-    assert load_config(path).gui.workspace_font_size == 14.0
+    assert load_config(path).gui.workspace_font_size == 12.0
     path.write_text(legacy, encoding="ascii")
     loaded = load_config(path)
     assert loaded.gui.workspace_font_family == ""
-    assert loaded.gui.workspace_font_size == 14.0
+    assert loaded.gui.workspace_font_size == 12.0
     save_config(loaded, path)
     assert load_config(path) == loaded
 

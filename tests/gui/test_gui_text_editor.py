@@ -31,7 +31,7 @@ def test_line_numbers_resize_scroll_and_repaint_without_changing_text() -> None:
     editor.resize(500, 300)
     editor.show()
     try:
-        assert editor.font().pointSizeF() >= 14
+        assert editor.font().pointSizeF() >= 12
         assert editor.blockCount() == 1
         small = editor.line_number_width()
         text = "\n".join(f"line {i}: " + "long text " * 30 for i in range(1, 1001))
