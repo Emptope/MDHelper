@@ -16,7 +16,7 @@ from mdhelper.core.progress import ProgressCallback
 def analysis_directory(cache_dir: Path | None, name: str) -> Iterator[Path]:
     if cache_dir is None:
         with tempfile.TemporaryDirectory(prefix=f"mdhelper-{name}-") as directory:
-            yield Path(directory)
+            yield Path(directory).resolve()
         return
     root = cache_dir.expanduser().resolve()
     try:
@@ -27,7 +27,7 @@ def analysis_directory(cache_dir: Path | None, name: str) -> Iterator[Path]:
             f"Could not prepare analysis cache directory: {root}",
             details={"exception": f"{type(exc).__name__}: {exc}"},
         ) from exc
-    yield Path(directory)
+    yield Path(directory).resolve()
 
 
 def report_progress(

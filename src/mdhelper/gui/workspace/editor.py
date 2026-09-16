@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSplitter,
     QStackedWidget,
-    QTreeView,
     QVBoxLayout,
     QWidget,
 )
@@ -26,6 +25,7 @@ from PySide6.QtWidgets import (
 from mdhelper.core.errors import JobCancelled
 from mdhelper.core.workspace import DataPage, ImagePixels, WorkspaceFile
 from mdhelper.gui.components.layout import page_layout
+from mdhelper.gui.components.tree import FolderTree
 from mdhelper.gui.workspace.data import DataView
 from mdhelper.gui.workspace.image import ImageView
 from mdhelper.gui.workspace.text import FileTextEditor
@@ -61,11 +61,11 @@ class WorkspaceEditor(QWidget):
         self.files.setFilter(
             QDir.Filter.AllEntries | QDir.Filter.NoDotAndDotDot | QDir.Filter.Hidden
         )
-        self.tree = QTreeView()
+        self.tree = FolderTree()
         self.tree.setModel(self.files)
         self.tree.setHeaderHidden(True)
         self.tree.setMinimumWidth(self.tree.fontMetrics().averageCharWidth() * 18)
-        self.tree.setEditTriggers(QTreeView.EditTrigger.NoEditTriggers)
+        self.tree.setEditTriggers(FolderTree.EditTrigger.NoEditTriggers)
         for column in range(1, self.files.columnCount()):
             self.tree.hideColumn(column)
         self.tree.setSortingEnabled(True)

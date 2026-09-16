@@ -69,6 +69,25 @@ def test_folder_tree_and_dirty_file_transitions(tmp_path: Path, monkeypatch) -> 
         editor.close()
 
 
+def test_folder_focus_does_not_open_a_file(tmp_path: Path) -> None:
+    QApplication.instance() or QApplication([])
+    path = tmp_path / "notes.txt"
+    path.write_text("notes", encoding="ascii")
+    editor = WorkspaceEditor()
+    try:
+        editor.set_root(tmp_path)
+        editor.show()
+        wait_until(lambda: editor.files.rowCount(editor.files.index(str(tmp_path))) == 1)
+        QTest.qWait(20)
+        assert editor.current_path is None
+        assert not editor.tree.currentIndex().isValid()
+        editor.tree.setCurrentIndex(editor.files.index(str(path)))
+        wait_until(lambda: editor.current_path == str(path))
+    finally:
+        editor.shutdown()
+        editor.close()
+
+
 def test_long_file_details_do_not_squeeze_the_folder_tree(tmp_path: Path) -> None:
     from PySide6.QtGui import QFont
 

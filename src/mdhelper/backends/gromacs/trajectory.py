@@ -43,7 +43,7 @@ class GromacsTrajectorySource:
         self._source: GroTrajectorySource | None = None
         if cache_dir is None:
             self._temporary = tempfile.TemporaryDirectory(prefix="mdhelper-gromacs-")
-            root = Path(self._temporary.name)
+            root = Path(self._temporary.name).resolve()
         else:
             root = Path(cache_dir).expanduser().resolve()
             root.mkdir(parents=True, exist_ok=True)
