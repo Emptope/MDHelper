@@ -32,12 +32,12 @@ The request records selections, input source, `r_max_nm`, `bin_width_nm`, frame 
 
 With `analysis_backend = gromacs`, `gmx rdf` supplies the stored curve. MDHelper passes `-bin`, `-rmax`, `-ref`, `-sel`, `-o`, and optional `-n`, then maps XVG to `radius_nm,g_r`. It does not pass `-cn` or recompute the curve.
 
-The full frame range uses original inputs. Other ranges use `gmx check` and one exact subset from `gmx trjconv -fr`; `gmx rdf -dt` is not used. Provenance records commands, executable identity, version, outputs, and frames. XVG precision can produce small differences from in-process values.
+The full frame range uses original inputs. Other ranges use `gmx check` and one exact subset from `gmx trjconv -fr`; `gmx rdf -dt` is not used. Provenance records commands, executable identity, version, outputs, and frames. XVG precision can produce small differences from in-process values. Original XVG text is retained before temporary-file cleanup and exported as `rdf.xvg` alongside, not inside, the stdout `.out` and stderr `.err` logs. Project reload verifies the archived outputs with SHA-256.
 
 ## Diagnostic and output
 
-The first-shell diagnostic smooths a copy of the RDF, finds the first prominent peak and following minimum, and reports the resolved boundary. An unresolved boundary is unavailable. Every available boundary requires user confirmation and never changes the curve or `r_max_nm`. [Algorithm](../ALGORITHM.md) defines the detection rules.
+First-shell diagnostic revision 2 uses a smoothed RDF copy to locate candidates, then resolves the first prominent peak and following minimum on the original samples. Filter artifacts without a matching raw extremum are rejected. An unresolved boundary is unavailable. Diagnostics never change the curve or `r_max_nm`. [Algorithm](../ALGORITHM.md) defines the detection rules.
 
-JSON and CSV use at most 15 significant digits. Base results contain no block size, standard error, or uncertainty band. The method does not estimate equilibration, autocorrelation, convergence, or effective sample size.
+JSON and CSV preserve the parsed floating-point values without additional rounding. Base results contain no block size, standard error, or uncertainty band. The method does not estimate equilibration, autocorrelation, convergence, or effective sample size.
 
 The [validation report](../validation/rdf-1.0.0.md) defines automated coverage and limits.

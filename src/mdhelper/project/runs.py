@@ -15,6 +15,7 @@ from mdhelper.io.integration_runs import (
     externalize_run_streams,
     hydrate_run_streams,
     remove_run_streams,
+    validate_output_texts,
 )
 from mdhelper.project.storage import atomic_json
 
@@ -50,6 +51,13 @@ def validate_run(record: object, stored: bool) -> dict[str, Any]:
     if not isinstance(record, dict):
         raise ConfigurationError("An integration run must be an object.")
     expected = _STORED_FIELDS if stored else _SOURCE_FIELDS
+    output_field = "output_texts_sha256" if stored else "output_texts"
+    if output_field in record:
+        expected = expected | {output_field}
+        outputs = validate_output_texts(record[output_field])
+        if stored:
+            for name, digest in outputs.items():
+                _sha256(digest, f"{output_field}.{name}")
     if set(record) != expected:
         raise ConfigurationError(
             "An integration run contains missing or unknown fields.",

@@ -12,6 +12,7 @@ from mdhelper.core.analysis import AnalysisResult, EnergyRequest
 from mdhelper.core.errors import BackendError, FormatError, InputFileError
 from mdhelper.integrations.gromacs import output_message
 from mdhelper.integrations.manager import IntegrationManager
+from mdhelper.io.integration_runs import read_output_texts
 
 METHOD_VERSION = "1.0.0"
 _TERM_PAIR = re.compile(r"(?:^|\s)(\d+)\s+([^\s]+)")
@@ -170,6 +171,7 @@ class EnergyAnalysis:
                     details={"integration_run": record.to_dict()},
                 )
             time_ps, series, y_label = _parse_xvg(output, request.energy_terms)
+            record.output_texts = read_output_texts([output])
         provenance = dict(inputs.provenance)
         provenance["integration_runs"] = [record.to_dict()]
         return AnalysisResult(

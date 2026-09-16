@@ -143,8 +143,9 @@ def test_project_result_commit_is_atomic_and_verified(
         reopened.load_result(result.analysis_id)
 
 
+@pytest.mark.parametrize("outputs", ({}, {"curve.xvg": "# Raw samples\r\n0 1\r\n"}))
 def test_project_result_externalizes_integration_output(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outputs: dict[str, str],
 ) -> None:
     topology = tmp_path / "topology"
     trajectory = tmp_path / "trajectory"
@@ -175,6 +176,8 @@ def test_project_result_externalizes_integration_output(
         "elapsed_seconds": 1.0,
         "status": "completed",
     }
+    if outputs:
+        run["output_texts"] = outputs
     result = AnalysisResult(
         data={"radius_nm": [0.1], "g_r": [1.0]},
         parameters={},
@@ -212,8 +215,14 @@ def test_project_result_externalizes_integration_output(
             content.encode("utf-8")
         ).hexdigest()
     loaded_run = project.load_result(result.analysis_id).provenance["integration_runs"][0]
-    assert loaded_run["stdout"] == run["stdout"]
-    assert loaded_run["stderr"] == run["stderr"]
+    assert loaded_run == run
+    assert "output_texts" not in stored_run
+    for name, content in outputs.items():
+        path = result_path.with_suffix(f".data-{name}")
+        assert path.read_bytes() == content.encode("utf-8")
+        assert stored_run["output_texts_sha256"][name] == (
+            hashlib.sha256(path.read_bytes()).hexdigest()
+        )
     _validate_schema(project.manifest, "project-v1.schema.json")
 
     existing_streams = set((project.root / "results" / "data").iterdir())
@@ -282,7 +291,7 @@ def test_direct_result_export_externalizes_run_streams(tmp_path: Path) -> None:
     assert (tmp_path / "run.err").read_text(encoding="utf-8") == run["stderr"]
 
 
-def test_export_removes_binary_float_noise(tmp_path: Path) -> None:
+def test_export_removes_float_noise_without_mutating_result(tmp_path: Path) -> None:
     request = RadialRequest(
         analysis_type="rdf",
         topology="topology",
@@ -308,10 +317,11 @@ def test_export_removes_binary_float_noise(tmp_path: Path) -> None:
 
     metadata = (tmp_path / "result.json").read_text(encoding="utf-8")
     table = (tmp_path / "rdf.csv").read_text(encoding="utf-8")
-    assert "0.009000000000000001" not in metadata
-    assert "1.2000000000000002" not in metadata
     assert json.loads(metadata)["data"] == {"radius_nm": [0.009], "g_r": [1.2]}
-    assert table.splitlines() == ["radius_nm,g_r", "0.009,1.2"]
+    assert table.splitlines()[1] == "0.009,1.2"
+    assert result.data == {
+        "radius_nm": [0.009000000000000001], "g_r": [1.2000000000000002],
+    }
 
 
 def test_figure_export_preserves_requested_plot_size(tmp_path: Path) -> None:

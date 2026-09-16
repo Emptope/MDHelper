@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, analysis_label
+from mdhelper.core.numbers import format_number
 
 ReportRows = tuple[tuple[str, str], ...]
 ReportSections = tuple[tuple[str, ReportRows], ...]
@@ -132,10 +133,8 @@ def local_time(value: object) -> str:
     return parsed.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def number(value: object, digits: int = 6) -> str:
-    if isinstance(value, float):
-        return f"{value:.{digits}g}"
-    return str(value)
+def number(value: object) -> str:
+    return format_number(value)
 
 
 def scalar(value: object) -> float | None:

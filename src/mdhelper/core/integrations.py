@@ -75,11 +75,15 @@ class IntegrationRunRecord:
     stderr: str
     started_at: str
     output_fingerprints: dict[str, str] = field(default_factory=dict)
+    output_texts: dict[str, str] = field(default_factory=dict)
     elapsed_seconds: float = 0.0
     status: Literal["completed", "failed", "cancelled", "timed_out"] = "completed"
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        value = asdict(self)
+        if not self.output_texts:
+            value.pop("output_texts")
+        return value
 
 
 def unique_run_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:

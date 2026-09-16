@@ -37,11 +37,11 @@ The terminology follows [`gmx rdf`](https://manual.gromacs.org/current/onlinehel
 
 The terminal cumulative value is not a shell coordination number. MDHelper derives RDF from the same in-process histogram or uses the GROMACS RDF output, finds the first peak and following minimum, then reports the first cumulative sample at or beyond that radius as `coordination_number`.
 
-If no minimum is resolved, coordination is unavailable and the curve remains valid. The diagnostic requires user confirmation and never changes the curve. The rule follows the first-minimum coordination convention used in electrolyte analysis; see DOI `10.3390/molecules30020230` and `10.1038/s41598-024-60063-0`.
+If no minimum is resolved, coordination is unavailable and the curve remains valid. First-shell diagnostic revision 2 resolves extrema on the original RDF samples and never changes the curve. The rule follows the first-minimum coordination convention used in electrolyte analysis; see DOI `10.3390/molecules30020230` and `10.1038/s41598-024-60063-0`.
 
 ## Output and statistics
 
-Standalone plots convert radius to angstrom and use Y label `number`. CSV output is `rdf_cn.csv` with `radius_nm,cumulative_number`. JSON and CSV use at most 15 significant digits.
+Standalone plots convert radius to angstrom and use Y label `number`. CSV output is `rdf_cn.csv` with `radius_nm,cumulative_number`. JSON and CSV preserve the parsed floating-point values without additional rounding. Both original RDF and cumulative XVG outputs are retained and exported as `rdf.xvg` and `cn.xvg` alongside the `.out`/`.err` logs, including after project reload.
 
 Base results contain no block size, standard error, or uncertainty band. The method does not estimate equilibration, autocorrelation, convergence, uncertainty, or effective sample size.
 

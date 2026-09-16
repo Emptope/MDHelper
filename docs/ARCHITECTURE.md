@@ -41,6 +41,8 @@ project/
 `-- cache/
 ```
 
+Integration records retain stdout/stderr separately from explicitly captured text outputs. GROMACS analyses capture original XVG contents before removing their working directory. Project commits write these as `<run>.data-<original-name>` alongside `<run>.out` and `<run>.err`; result exports keep `rdf.xvg` and `cn.xvg` for radial analyses and use the prefixed form otherwise, adding numeric suffixes to avoid collisions with exported metadata and tables. SHA-256 digests replace inline contents in stored metadata. Reload verifies all files and preserves original text bytes, including line endings.
+
 The manifest indexes inputs, confirmed roles, results, and plot state. Full result JSON owns data and provenance. Paths must remain inside the project; loading verifies identities, hashes, and schemas. Writes use same-directory temporary files and atomic replacement. Failed manifest commits remove newly written unindexed results. Cache data is rebuildable.
 
 Jobs move from pending to running, then completed, failed, or cancelled. Cancellation is checked at frame boundaries, hash chunks, and process polls. GUI workers report changes to the Qt thread; external commands use argument vectors, timeouts, captured streams, and process-group termination.

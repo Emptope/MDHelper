@@ -28,14 +28,14 @@ GROMACS supplies its own curves. Non-default frame ranges require `check` and `t
 
 ## First-shell diagnostics
 
-Detection consumes a copy of the completed RDF, never changing the curve. It requires 11 points and a Savitzky-Golay window of at most 11, then finds the first eligible peak and following minimum:
+First-shell diagnostic revision 2 consumes the completed RDF without changing it. It requires at least three finite points and uses an odd Savitzky-Golay window of at most 11 (bounded by half the sample count, with a minimum of three). The smoothed curve locates candidate features:
 
 ```text
 peak prominence floor = max(0.05, 0.05 * max(smoothed_rdf))
 minimum prominence floor = max(0.02, peak_floor / 2)
 ```
 
-Without both features, the boundary is unavailable and a warning is added. Available boundaries require user confirmation and never change `r_max`. Cumulative coordination uses the first sample at or beyond the boundary, as defined by the cumulative method.
+Each candidate must match a prominent local extremum of the original curve within half the filter window. The highest raw peak or deepest raw minimum in that neighborhood supplies the reported sample index, radius, and value; flat extrema use their middle sample. This rejects filter ringing and avoids reporting smoothed positions as raw extrema. The first resolved raw peak and following raw minimum define the shell. Without both features, the boundary is unavailable and a warning is added, but a resolved peak remains reportable. Boundaries never change `r_max`. Cumulative coordination uses the first sample at or beyond the boundary, as defined by the cumulative method. The underlying RDF and cumulative numerical methods are unchanged.
 
 ## Plotting and provenance
 

@@ -11,6 +11,7 @@ from mdhelper.core.analysis import AnalysisRequest, AnalysisResult, EnergyReques
 from mdhelper.core.errors import BackendError, FormatError
 from mdhelper.core.system import FrameRange
 from mdhelper.integrations.manager import IntegrationManager
+from mdhelper.io.integration_runs import read_output_texts
 
 if TYPE_CHECKING:
     import numpy as np
@@ -114,7 +115,7 @@ class GromacsBackend:
             subset = root / "selected.xtc"
             frame_index = root / "frames.ndx"
             rdf_output = root / "rdf.xvg"
-            cumulative_output = root / "rdf_cn.xvg"
+            cumulative_output = root / "cn.xvg"
             cumulative_radius: NDArray[np.float64] | None = None
             cumulative: NDArray[np.float64] | None = None
             metadata_record: IntegrationRunRecord | None = None
@@ -231,6 +232,7 @@ class GromacsBackend:
                 cumulative_radius, cumulative = _parse_curve(
                     cumulative_output, "cumulative RDF"
                 )
+            record.output_texts = read_output_texts(output_files)
         check_cancel(inputs.cancel_event)
         shell = first_shell(rdf_radius, rdf)
         if request.analysis_type == "cumulative_rdf" and shell.get("available"):

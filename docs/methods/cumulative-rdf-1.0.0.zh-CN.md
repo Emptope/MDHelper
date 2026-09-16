@@ -37,11 +37,11 @@ cumulative_number(r) =
 
 累计曲线终点不是壳层配位数。MDHelper 从相同的进程内 histogram 生成 RDF，或使用 GROMACS RDF 输出，查找第一峰和随后最小值，再将不小于该 radius 的第一个累计 sample 报告为 `coordination_number`。
 
-无法识别最小值时 coordination 不可用，累计曲线仍有效。该诊断需要用户确认且不修改曲线。该规则采用电解液分析中的第一最小值约定，参见 DOI `10.3390/molecules30020230` 和 `10.1038/s41598-024-60063-0`。
+无法识别最小值时 coordination 不可用，累计曲线仍有效。第一壳层诊断修订版 2 在原始 RDF 样本上解析极值，且不修改曲线。该规则采用电解液分析中的第一最小值约定，参见 DOI `10.3390/molecules30020230` 和 `10.1038/s41598-024-60063-0`。
 
 ## 输出与统计
 
-单结果图把 radius 转为埃，Y label 为 `number`。CSV 文件为 `rdf_cn.csv`，列为 `radius_nm,cumulative_number`。JSON 和 CSV 最多使用 15 位有效数字。
+单结果图把 radius 转为埃，Y label 为 `number`。CSV 文件为 `rdf_cn.csv`，列为 `radius_nm,cumulative_number`。JSON 和 CSV 保留解析后的浮点数值，不额外舍入。原始 RDF 和累计 XVG 输出均被保留，导出为 `rdf.xvg` 和 `cn.xvg`，与 `.out`/`.err` 日志并列；项目重新打开后也可导出。
 
 基础结果不含 block size、standard error 或 uncertainty band。本方法不估计平衡、自相关、收敛、不确定度或有效样本量。
 

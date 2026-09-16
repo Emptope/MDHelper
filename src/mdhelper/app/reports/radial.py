@@ -82,7 +82,7 @@ def _curve_value(
 
 
 def _shell_rows(value: object) -> list[tuple[str, str]]:
-    if not isinstance(value, dict) or not value.get("available"):
+    if not isinstance(value, dict):
         return []
     rows: list[tuple[str, str]] = []
     for label, radius_key, value_key in (

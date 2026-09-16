@@ -60,6 +60,53 @@ def test_unresolved_first_shell_reports_warning(
     assert first_shell_warnings(shell)
 
 
+@pytest.mark.parametrize("width", (0.025, 0.04, 0.06, 0.1))
+def test_shell_extrema_are_resolved_on_raw_curve(width: float) -> None:
+    radii = np.linspace(0.0, 2.0, 101)
+    rdf = (
+        1.0
+        + 3.0 * np.exp(-((radii - 0.43) / width) ** 2)
+        - 0.6 * np.exp(-((radii - 0.77) / 0.07) ** 2)
+    )
+    original = rdf.copy()
+
+    shell = first_shell(radii, rdf)
+
+    assert shell["available"] is True
+    assert shell["first_peak_index"] == int(np.argmax(rdf))
+    assert shell["first_minimum_index"] == int(np.argmin(rdf))
+    assert shell["first_peak_g_r"] == float(np.max(rdf))
+    assert shell["first_minimum_g_r"] == float(np.min(rdf))
+    np.testing.assert_array_equal(rdf, original)
+
+
+def test_narrow_peak_does_not_create_a_shell_minimum() -> None:
+    radii = np.linspace(0.0, 2.0, 101)
+    rdf = 1.0 + 3.0 * np.exp(-((radii - 0.43) / 0.025) ** 2)
+
+    shell = first_shell(radii, rdf)
+
+    assert shell["available"] is False
+    assert shell["first_peak_index"] == int(np.argmax(rdf))
+    assert shell["first_peak_g_r"] == float(np.max(rdf))
+    assert "first_minimum_index" not in shell
+
+
+@pytest.mark.parametrize(
+    "values",
+    ([0.0, 3.0, 0.5, 1.0, 1.0], [0.0, 3.0, 3.0, 0.5, 0.5, 1.0, 1.0]),
+)
+def test_short_curves_resolve_raw_extrema(values: list[float]) -> None:
+    rdf = np.array(values)
+    radii = np.arange(len(rdf), dtype=float) * 0.1
+
+    shell = first_shell(radii, rdf)
+
+    assert shell["available"] is True
+    assert shell["first_peak_g_r"] == max(values)
+    assert shell["first_minimum_g_r"] == min(values[1:])
+
+
 @given(
     st.lists(
         st.floats(

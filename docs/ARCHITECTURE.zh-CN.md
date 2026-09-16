@@ -41,6 +41,8 @@ project/
 `-- cache/
 ```
 
+集成记录将 stdout/stderr 与显式捕获的文本输出分开保存。GROMACS 分析在清理工作目录前保留原始 XVG。项目提交将其保存为 `<run>.data-<原文件名>`，与 `<run>.out`、`<run>.err` 并列；结果导出对径向分析保留 `rdf.xvg` 和 `cn.xvg`，其余使用前缀形式，在与导出元数据或表格重名时追加数字后缀。存储元数据以 SHA-256 指纹替代内联内容。重载验证文件完整性，并保留包括换行符在内的原始文本字节。
+
 Manifest 索引输入、已确认角色、结果及绘图状态；完整结果 JSON 保存数据和 provenance。派生路径必须位于项目内，加载时验证身份、哈希与 schema。写入采用同目录临时文件和原子替换；Manifest 提交失败时删除新写入但未索引的结果。缓存均可重建。
 
 Job 从 pending 进入 running，最终为 completed、failed 或 cancelled。帧边界、哈希分块和进程轮询检查取消。GUI worker 向 Qt 线程报告状态；外部命令使用参数数组、超时、输出捕获和进程组终止。

@@ -9,6 +9,7 @@ from numpy.typing import NDArray
 def _unavailable(reason: str, **evidence: object) -> dict[str, object]:
     return {
         "available": False,
+        "revision": 2,
         "reason": reason,
         **evidence,
     }
@@ -20,39 +21,61 @@ def first_shell(
 ) -> dict[str, object]:
     """Resolve the first RDF peak and its following minimum."""
 
-    if len(rdf) < 11 or not np.any(np.isfinite(rdf)):
+    if len(rdf) < 3:
         return _unavailable("insufficient_data")
-    finite = np.nan_to_num(rdf, nan=0.0, posinf=0.0, neginf=0.0)
-    window = min(11, len(finite) if len(finite) % 2 else len(finite) - 1)
-    window = max(window, 5)
-    smooth = _smooth(finite, window, min(3, window - 2))
+    if len(radii) != len(rdf) or not np.all(np.isfinite(rdf)):
+        return _unavailable("invalid_curve")
+    window = min(11, max(3, (len(rdf) // 2) | 1))
+    smooth = _smooth(rdf, window, min(3, window - 1))
     prominence_floor = max(0.05, float(np.max(smooth)) * 0.05)
-    peaks, prominences = _prominent_peaks(smooth, prominence_floor)
-    eligible = np.nonzero(peaks >= max(2, window // 2))[0]
-    if not len(eligible):
+    peaks, prominences = _resolved_peaks(rdf, smooth, prominence_floor, window // 2)
+    if not len(peaks):
         return _unavailable("no_resolved_first_peak")
-    peak_position = int(eligible[0])
-    peak_index = int(peaks[peak_position])
-    minima, _ = _prominent_peaks(-smooth, max(0.02, prominence_floor / 2.0))
-    minima = minima[minima > peak_index + 1]
-    if not len(minima):
-        return _unavailable(
-            "no_resolved_minimum_after_peak",
-            first_peak_index=peak_index,
-            first_peak_nm=float(radii[peak_index]),
-        )
-    minimum_index = int(minima[0])
-    return {
-        "available": True,
-        "method": "Savitzky-Golay smoothing + first prominent peak/minimum",
+    peak_index = int(peaks[0])
+    peak = {
         "first_peak_index": peak_index,
         "first_peak_nm": float(radii[peak_index]),
         "first_peak_g_r": float(rdf[peak_index]),
-        "first_peak_prominence": float(prominences[peak_position]),
+        "first_peak_prominence": float(prominences[0]),
+    }
+    minima, _ = _resolved_peaks(
+        -rdf, -smooth, max(0.02, prominence_floor / 2.0), window // 2
+    )
+    minima = minima[minima > peak_index]
+    if not len(minima):
+        return _unavailable("no_resolved_minimum_after_peak", **peak)
+    minimum_index = int(minima[0])
+    return {
+        "available": True,
+        "revision": 2,
+        "method": "Savitzky-Golay candidates + prominent raw extrema",
+        **peak,
         "first_minimum_index": minimum_index,
         "first_minimum_nm": float(radii[minimum_index]),
         "first_minimum_g_r": float(rdf[minimum_index]),
     }
+
+
+def _resolved_peaks(
+    raw: NDArray[np.float64],
+    smooth: NDArray[np.float64],
+    floor: float,
+    half_window: int,
+) -> tuple[NDArray[np.int64], NDArray[np.float64]]:
+    """Reject filter artifacts and locate each feature on the original samples."""
+
+    candidates, _ = _prominent_peaks(smooth, floor)
+    peaks, prominence = _prominent_peaks(raw, floor)
+    selected: set[int] = set()
+    for candidate in candidates:
+        start, stop = np.searchsorted(
+            peaks, (candidate - half_window, candidate + half_window + 1)
+        )
+        if start < stop:
+            position = int(start + np.argmax(raw[peaks[start:stop]]))
+            selected.add(position)
+    positions = np.asarray(sorted(selected), dtype=np.int64)
+    return peaks[positions], prominence[positions]
 
 
 def first_shell_warnings(shell: dict[str, object]) -> list[str]:

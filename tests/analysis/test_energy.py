@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -138,8 +140,9 @@ def _application(
     return application
 
 
+@pytest.mark.parametrize("use_cache", (False, True))
 def test_gromacs_energy_backend_standardizes_exports_and_project_data(
-    tmp_path: Path,
+    tmp_path: Path, use_cache: bool,
 ) -> None:
     energy = tmp_path / "energy.edr"
     energy.write_bytes(b"energy")
@@ -162,7 +165,7 @@ def test_gromacs_energy_backend_standardizes_exports_and_project_data(
     result = application.analyses.run(
         request,
         lambda current, total, message: progress.append((current, total, message)),
-        cache_dir=project.cache_dir,
+        cache_dir=project.cache_dir if use_cache else None,
     )
 
     assert result.data == {
@@ -176,12 +179,15 @@ def test_gromacs_energy_backend_standardizes_exports_and_project_data(
         "gromacs", run["arguments"]
     )
     working_directory = Path(run["working_directory"])
-    assert working_directory.parent == project.cache_dir
-    assert working_directory.name.startswith("gromacs-energy-")
-    assert Path(run["arguments"][run["arguments"].index("-o") + 1]).parent == (
-        working_directory
-    )
-    assert (working_directory / "energy.xvg").is_file()
+    if use_cache:
+        assert working_directory.parent == project.cache_dir
+        assert working_directory.name.startswith("gromacs-energy-")
+        shutil.rmtree(working_directory)
+    assert not working_directory.exists()
+    output_path = Path(run["arguments"][run["arguments"].index("-o") + 1])
+    assert output_path.parent == working_directory
+    raw_output = run["output_texts"][output_path.name].encode("utf-8")
+    assert hashlib.sha256(raw_output).hexdigest() == run["output_fingerprints"][str(output_path)]
     assert result.provenance["analysis_backend"] == {
         "name": "gromacs",
         "display_name": "GROMACS",
@@ -195,6 +201,7 @@ def test_gromacs_energy_backend_standardizes_exports_and_project_data(
         "energy.csv",
         "run.out",
         "run.err",
+        *(f"run.data-{name}" for name in run["output_texts"]),
     }
     assert (output / "run.out").read_text(encoding="utf-8") == run["stdout"]
     assert (output / "run.err").read_text(encoding="utf-8") == run["stderr"]
@@ -207,17 +214,31 @@ def test_gromacs_energy_backend_standardizes_exports_and_project_data(
     assert any("Energy output written" in message for _, _, message in progress)
     assert all(" -f " not in message and " -o " not in message for _, _, message in progress)
     with (output / "energy.csv").open(encoding="utf-8", newline="") as handle:
-        assert list(csv.reader(handle)) == [
-            ["time_ps", "Potential", "Temperature"],
-            ["0", "1", "10"],
-            ["1", "2", "20"],
-        ]
+        rows = list(csv.reader(handle))
+    assert rows[0] == ["time_ps", "Potential", "Temperature"]
+    assert [[float(value) for value in row] for row in rows[1:]] == [
+        [0.0, 1.0, 10.0], [1.0, 2.0, 20.0]
+    ]
 
     result_path = application.projects.commit_result(project, request, result)
     assert result_path.parent == project.root / "results" / "data"
     assert result_path.is_file()
     reopened = application.projects.open(project.root)
-    assert application.projects.load_result(reopened, result.analysis_id).data == result.data
+    restored = application.projects.load_result(reopened, result.analysis_id)
+    assert restored.data == result.data
+    assert restored.provenance["integration_runs"] == [run]
+    restored_paths = application.exports.export(
+        restored, tmp_path / "restored", include_figures=False
+    )
+    for exported in (paths, restored_paths):
+        archived = next(
+            path for path in exported if path.name.endswith(f".data-{output_path.name}")
+        )
+        assert archived.read_bytes() == raw_output
+    assert "output_texts" not in stored_run
+    assert stored_run["output_texts_sha256"][output_path.name] == (
+        hashlib.sha256(raw_output).hexdigest()
+    )
 
 
 def test_gromacs_energy_terms_are_discovered_from_the_selected_edr(
@@ -434,6 +455,7 @@ def test_gromacs_rdf_uses_native_commands_and_frame_range(
         "run-2.err",
         "run-3.out",
         "run-3.err",
+        *rdf_run["output_texts"],
     }
     stored = json.loads((output / "result.json").read_text(encoding="utf-8"))
     assert all(

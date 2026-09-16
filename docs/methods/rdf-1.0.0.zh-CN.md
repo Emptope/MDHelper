@@ -32,12 +32,12 @@ Request 记录选择、输入来源、`r_max_nm`、`bin_width_nm`、帧范围和
 
 `analysis_backend = gromacs` 时，存储曲线来自 `gmx rdf`。MDHelper 传入 `-bin`、`-rmax`、`-ref`、`-sel`、`-o` 和可选 `-n`，再把 XVG 映射为 `radius_nm,g_r`。程序不传 `-cn`，也不重算曲线。
 
-完整帧范围使用原输入。其他范围使用 `gmx check` 和一次 `gmx trjconv -fr` 生成的精确子集，不用 `gmx rdf -dt`。Provenance 记录命令、executable identity、版本、输出和帧。XVG 精度可能使结果与进程内值存在小差异。
+完整帧范围使用原输入。其他范围使用 `gmx check` 和一次 `gmx trjconv -fr` 生成的精确子集，不用 `gmx rdf -dt`。Provenance 记录命令、executable identity、版本、输出和帧。XVG 精度可能使结果与进程内值存在小差异。原始 XVG 文本在临时目录清理前保存，导出为 `rdf.xvg`，与 stdout `.out` 和 stderr `.err` 日志并列，不混入日志。项目重载通过 SHA-256 验证归档输出。
 
 ## 诊断与输出
 
-第一壳层诊断平滑 RDF 副本，查找第一个显著峰和随后最小值，并报告识别到的边界。无法识别边界时结果不可用。每个可用边界都需要用户确认，且不修改曲线或 `r_max_nm`。检测规则见[算法说明](../ALGORITHM.zh-CN.md)。
+第一壳层诊断修订版 2 使用平滑 RDF 副本定位候选特征，再在原始样本上解析首个显著峰及其后的谷，排除没有匹配原始极值的滤波伪影。无法识别边界时结果不可用。诊断不修改曲线或 `r_max_nm`。检测规则见[算法说明](../ALGORITHM.zh-CN.md)。
 
-JSON 和 CSV 最多使用 15 位有效数字。基础结果不含 block size、standard error 或 uncertainty band。本方法不估计平衡、自相关、收敛或有效样本量。
+JSON 和 CSV 保留解析后的浮点数值，不额外舍入。基础结果不含 block size、standard error 或 uncertainty band。本方法不估计平衡、自相关、收敛或有效样本量。
 
 [验证报告](../validation/rdf-1.0.0.zh-CN.md)定义自动检查范围和限制。

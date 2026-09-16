@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import json
-import math
 import os
 from pathlib import Path
 from typing import Any
@@ -12,11 +11,13 @@ from typing import Any
 from mdhelper.core.analysis import AnalysisResult
 from mdhelper.core.errors import BackendError
 from mdhelper.core.integrations import unique_run_records
+from mdhelper.core.numbers import clean_float
 from mdhelper.io.integration_runs import externalize_run_streams, remove_run_streams
 
 from .paths import output_directory
 
-EXPORT_SIGNIFICANT_DIGITS = 15
+_CSV_FILES = {"rdf": "rdf.csv", "cumulative_rdf": "rdf_cn.csv", "energy": "energy.csv"}
+_ORIGINAL_NAME_TYPES = frozenset({"rdf", "cumulative_rdf"})
 
 
 def export_result(
@@ -40,7 +41,11 @@ def export_result(
                 raise BackendError("Integration runs must be objects before export.")
             if records:
                 records = unique_run_records(records)
-                stored, stream_paths = externalize_run_streams(records, output, "run")
+                stored, stream_paths = externalize_run_streams(
+                    records, output, "run",
+                    original_names=result.analysis_type in _ORIGINAL_NAME_TYPES,
+                    reserved_names=(metadata.name, *_CSV_FILES.values()),
+                )
                 provenance["integration_runs"] = stored
     try:
         _atomic_json(metadata, value)
@@ -50,30 +55,14 @@ def export_result(
     return [metadata, *_export_csv(result, output), *stream_paths]
 
 
-def _clean_number(value: float) -> float:
-    if value == 0.0:
-        return 0.0
-    return float(f"{value:.{EXPORT_SIGNIFICANT_DIGITS}g}")
-
-
-def _clean_json(value: Any) -> Any:
+def _clean_numbers(value: Any) -> Any:
     if isinstance(value, float):
-        return _clean_number(value)
+        return clean_float(value)
     if isinstance(value, dict):
-        return {key: _clean_json(item) for key, item in value.items()}
+        return {key: _clean_numbers(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
-        return [_clean_json(item) for item in value]
+        return [_clean_numbers(item) for item in value]
     return value
-
-
-def _csv_value(value: Any) -> Any:
-    if not isinstance(value, float):
-        return value
-    if not math.isfinite(value):
-        return value
-    if value == 0.0:
-        return "0"
-    return f"{value:.{EXPORT_SIGNIFICANT_DIGITS}g}"
 
 
 def _atomic_json(path: Path, value: dict[str, Any]) -> None:
@@ -81,7 +70,7 @@ def _atomic_json(path: Path, value: dict[str, Any]) -> None:
     temporary = path.with_name(f".{path.name}.tmp")
     try:
         temporary.write_text(
-            json.dumps(_clean_json(value), indent=2, ensure_ascii=False, allow_nan=False)
+            json.dumps(_clean_numbers(value), indent=2, ensure_ascii=False, allow_nan=False)
             + "\n",
             encoding="utf-8",
         )
@@ -101,7 +90,7 @@ def _atomic_csv(path: Path, header: list[str], rows: list[list[Any]]) -> None:
         with temporary.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(header)
-            writer.writerows([[_csv_value(value) for value in row] for row in rows])
+            writer.writerows(_clean_numbers(rows))
         os.replace(temporary, path)
     except OSError as exc:
         temporary.unlink(missing_ok=True)
@@ -115,12 +104,8 @@ def _export_csv(result: AnalysisResult, output: Path) -> list[Path]:
     data = result.data
     paths: list[Path] = []
     if result.analysis_type in {"rdf", "cumulative_rdf"}:
-        filename, column = (
-            ("rdf.csv", "g_r")
-            if result.analysis_type == "rdf"
-            else ("rdf_cn.csv", "cumulative_number")
-        )
-        path = output / filename
+        column = "g_r" if result.analysis_type == "rdf" else "cumulative_number"
+        path = output / _CSV_FILES[result.analysis_type]
         _atomic_csv(
             path,
             ["radius_nm", column],
@@ -131,7 +116,7 @@ def _export_csv(result: AnalysisResult, output: Path) -> list[Path]:
         series = data.get("series")
         if not isinstance(series, dict) or not series:
             raise BackendError("Energy export requires at least one numeric series.")
-        path = output / "energy.csv"
+        path = output / _CSV_FILES[result.analysis_type]
         labels = list(series)
         _atomic_csv(
             path,
