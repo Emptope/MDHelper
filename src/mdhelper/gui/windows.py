@@ -73,13 +73,12 @@ class WindowManager:
             window.close()
 
     def close_all(self) -> None:
-        windows = tuple(
-            window
-            for group in tuple(self._windows.values())
-            for window in tuple(group)
-        )
-        for window in windows:
-            window.close()
+        for kind in tuple(self._windows):
+            self.close(kind)
+
+    def clear(self) -> None:
+        for kind in tuple(self._windows):
+            self.resize(kind, 0)
 
     @staticmethod
     def present(window: QDialog, activate: bool = True) -> None:

@@ -659,7 +659,7 @@ def test_load_selection_failure_keeps_current_binding(tmp_path: Path, monkeypatc
         window.close()
 
 
-def test_running_analysis_allows_browsing_but_not_input_replacement(
+def test_running_analysis_blocks_project_and_input_replacement(
     tmp_path: Path, monkeypatch,
 ) -> None:
     QApplication.instance() or QApplication([])
@@ -676,10 +676,12 @@ def test_running_analysis_allows_browsing_but_not_input_replacement(
         before = window.load.inputs.topology.edit.text()
         window.analysis_actions.controller.running_changed.emit(True)
         assert not window.load.inputs.isEnabled()
+        window.editor.set_root(tmp_path)
+        before_root = window.editor.root
         window.project_actions.open()
-        assert window.editor.root == tmp_path
+        assert window.editor.root == before_root
         assert window.editor.isEnabled()
-        assert not notices
+        assert notices
         window.tabs.setCurrentWidget(window.load)
         window.project_actions.select_inputs()
         assert notices and not dialogs

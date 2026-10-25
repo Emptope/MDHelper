@@ -15,7 +15,7 @@ Run `uv run mdhelper` for automatic GUI/TUI selection. Use `gui`, `tui`, or `cli
 
 ## Workspace files
 
-Open a folder to browse independently of analysis inputs. File names appear above the content; size, modification time, and format or read status appear below it.
+Opening a different folder starts a new project session: Workspace content, inputs, results, queues, and project dialogs are refreshed together. An existing MDHelper project restores its saved inputs and results; a new folder starts empty. Cancel an active analysis before switching projects. File names appear above the content; size, modification time, and format or read status appear below it.
 
 - Binary tables load additional rows when you scroll. Only visited rows are cached on disk, with a bounded GUI page cache. The scrollbar covers loaded rows and grows as more data arrives; there is no frame selector or manual next-page button.
 - XTC/TRR stream without an up-front frame-index scan. EDR uses a read-only memory map and parses requested frames rather than allocating every energy series. Other parsers may need format metadata or a complete first frame before displaying data; opening does not export all rows.
@@ -54,6 +54,8 @@ uv run mdhelper analyze cumulative-rdf \
 ```
 
 Radial commands accept `--start`, `--stop`, `--stride`, `--analysis-backend`, and `--figures false`. `stride` counts frames relative to `start`. In-process format support follows the bundled MDAnalysis version; TNG is unsupported.
+
+GROMACS radial results retain the original XVG outputs. CSV and JSON exports preserve the parsed floating-point values without display rounding. To compare against native `gmx_mpi rdf`, use the same selections, frame range, bin width, and maximum radius; MDHelper records the actual command in each result.
 
 Extract EDR series:
 

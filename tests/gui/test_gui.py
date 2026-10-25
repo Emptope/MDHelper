@@ -631,6 +631,7 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
     window.load.inputs.topology.edit.setText(str(trajectory))
     window.load.inputs.trajectory.edit.setText(str(trajectory))
     window.results.show_message("old workspace")
+    monkeypatch.setattr(window.project_actions, "show_error", lambda error: pytest.fail(str(error)))
 
     monkeypatch.setattr(
         window_module.QFileDialog,
@@ -664,14 +665,14 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
 
     assert window.tabs.currentWidget() is window.editor
     assert window.editor.root == tmp_path.resolve()
-    assert window.load.inputs.topology.edit.text() == str(trajectory)
-    assert window.results.text.toPlainText() == "old workspace"
+    assert not window.load.inputs.topology.edit.text()
+    assert not window.results.text.toPlainText()
     window.tabs.setCurrentWidget(window.load)
     window.project_actions.select_inputs()
     assert window.tabs.currentWidget() is window.load
     assert window.session.project is None
-    assert window.load.inputs.topology.edit.text() == str(trajectory)
-    assert window.results.text.toPlainText() == "old workspace"
+    assert not window.load.inputs.topology.edit.text()
+    assert not window.results.text.toPlainText()
 
     class AcceptedDialog:
         def __init__(self, candidates: InputCandidates, _parent: object):
@@ -691,6 +692,7 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
         def exec(self) -> QDialog.DialogCode:
             return QDialog.DialogCode.Accepted
 
+    window.load.inputs.topology.set_path(str(trajectory))
     window.load.inputs.trajectory.set_path(str(trajectory_input))
     window.load.inputs.index_file.set_path(str(index_input))
     monkeypatch.setattr(window_module, "NewProjectDialog", AcceptedDialog)
@@ -741,17 +743,18 @@ def test_gui_project_directory_open_handles_new_and_existing_projects(
         lambda *_args, **_kwargs: str(project.root),
     )
 
-    previous = window.session.project
     window._open_project()
-    assert window.session.project is previous
+    assert window.session.project is not None
+    assert window.session.project.root == project.root
     assert window.tabs.currentWidget() is window.editor
-    assert window.load.inputs.trajectory.edit.text() == str(trajectory_input.resolve())
+    assert window.load.inputs.trajectory.edit.text() == str(trajectory.resolve())
+    previous = window.session.project
     monkeypatch.setattr(window_module, "NewProjectDialog", RejectedDialog)
     window.tabs.setCurrentWidget(window.load)
     window.project_actions.select_inputs()
     assert window.tabs.currentWidget() is window.load
     assert window.session.project is previous
-    assert window.load.inputs.trajectory.edit.text() == str(trajectory_input.resolve())
+    assert window.load.inputs.trajectory.edit.text() == str(trajectory.resolve())
     assert window.results.project_available
     monkeypatch.setattr(window_module, "NewProjectDialog", AcceptedDialog)
     window.project_actions.select_inputs()
