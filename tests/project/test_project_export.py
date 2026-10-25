@@ -291,7 +291,7 @@ def test_direct_result_export_externalizes_run_streams(tmp_path: Path) -> None:
     assert (tmp_path / "run.err").read_text(encoding="utf-8") == run["stderr"]
 
 
-def test_export_removes_float_noise_without_mutating_result(tmp_path: Path) -> None:
+def test_export_preserves_float_values_without_mutating_result(tmp_path: Path) -> None:
     request = RadialRequest(
         analysis_type="rdf",
         topology="topology",
@@ -317,8 +317,10 @@ def test_export_removes_float_noise_without_mutating_result(tmp_path: Path) -> N
 
     metadata = (tmp_path / "result.json").read_text(encoding="utf-8")
     table = (tmp_path / "rdf.csv").read_text(encoding="utf-8")
-    assert json.loads(metadata)["data"] == {"radius_nm": [0.009], "g_r": [1.2]}
-    assert table.splitlines()[1] == "0.009,1.2"
+    assert json.loads(metadata)["data"] == result.data
+    assert [float(value) for value in table.splitlines()[1].split(",")] == [
+        result.data["radius_nm"][0], result.data["g_r"][0],
+    ]
     assert result.data == {
         "radius_nm": [0.009000000000000001], "g_r": [1.2000000000000002],
     }

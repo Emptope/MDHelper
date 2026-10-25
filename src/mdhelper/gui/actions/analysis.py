@@ -135,6 +135,12 @@ class AnalysisActions:
         self.results.open_plot_window()
         self.parent.statusBar().showMessage("Analysis completed", 10000)
 
+    def reset(self) -> None:
+        self.controller.state.reset()
+        self.jobs.latest = None
+        self.analysis.set_details_available(False)
+        self.windows.clear()
+
     def shutdown(self) -> None:
         self.controller.shutdown()
 

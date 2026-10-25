@@ -11,7 +11,6 @@ from typing import Any
 from mdhelper.core.analysis import AnalysisResult
 from mdhelper.core.errors import BackendError
 from mdhelper.core.integrations import unique_run_records
-from mdhelper.core.numbers import clean_float
 from mdhelper.io.integration_runs import externalize_run_streams, remove_run_streams
 
 from .paths import output_directory
@@ -55,22 +54,12 @@ def export_result(
     return [metadata, *_export_csv(result, output), *stream_paths]
 
 
-def _clean_numbers(value: Any) -> Any:
-    if isinstance(value, float):
-        return clean_float(value)
-    if isinstance(value, dict):
-        return {key: _clean_numbers(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_clean_numbers(item) for item in value]
-    return value
-
-
 def _atomic_json(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.tmp")
     try:
         temporary.write_text(
-            json.dumps(_clean_numbers(value), indent=2, ensure_ascii=False, allow_nan=False)
+            json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False)
             + "\n",
             encoding="utf-8",
         )
@@ -90,7 +79,7 @@ def _atomic_csv(path: Path, header: list[str], rows: list[list[Any]]) -> None:
         with temporary.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(header)
-            writer.writerows(_clean_numbers(rows))
+            writer.writerows(rows)
         os.replace(temporary, path)
     except OSError as exc:
         temporary.unlink(missing_ok=True)

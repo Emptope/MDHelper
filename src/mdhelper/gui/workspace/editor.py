@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
-from PySide6.QtCore import QDir, QModelIndex, Qt, Signal
+from PySide6.QtCore import QDir, QModelIndex, QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QAction, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -161,8 +161,12 @@ class WorkspaceEditor(QWidget):
         self.clear()
         self.root = root
         self.stack.setCurrentWidget(self.empty if root is None else self.splitter)
-        if root is not None:
-            self.tree.setRootIndex(self.files.setRootPath(str(root)))
+        with QSignalBlocker(self.tree.selectionModel()):
+            self.tree.clearSelection()
+            self.tree.setCurrentIndex(QModelIndex())
+            self.tree.setRootIndex(
+                self.files.setRootPath(str(root)) if root is not None else QModelIndex()
+            )
         return True
 
     def clear(self) -> None:
@@ -188,24 +192,26 @@ class WorkspaceEditor(QWidget):
     def _selected(self, current: QModelIndex, previous: QModelIndex) -> None:
         if not current.isValid() or self.files.isDir(current):
             return
-        if not self.open_path(self.files.filePath(current)):
-            selection = self.tree.selectionModel()
-            selection.blockSignals(True)
-            self.tree.setCurrentIndex(previous)
-            selection.blockSignals(False)
+        path = self.files.filePath(current)
+        source = Path(path).resolve()
+        if any(
+            source == Path(active).resolve()
+            for active in (self.current_path, self._loading_path)
+            if active is not None
+        ):
+            return
+        if not self.open_path(path):
+            with QSignalBlocker(self.tree.selectionModel()):
+                self.tree.setCurrentIndex(previous)
 
     def open_path(self, path: str) -> bool:
         if not self.confirm_discard():
             return False
         self.clear()
         source = Path(path).expanduser().resolve()
-        selection = self.tree.selectionModel()
-        blocked = selection.blockSignals(True)
-        try:
+        with QSignalBlocker(self.tree.selectionModel()):
             # Keep delayed focus events from selecting a different file.
             self.tree.setCurrentIndex(self.files.index(str(source)))
-        finally:
-            selection.blockSignals(blocked)
         self.info.setText(Path(path).name)
         self.info.setToolTip(str(source))
         self.status.setText("Reading file...")

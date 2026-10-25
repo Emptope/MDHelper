@@ -95,6 +95,10 @@ class FileWatchingActions(SystemInspectionActions):
         else:
             self.load.inputs.index_file.set_path(value)
 
+    def reset(self) -> None:
+        super().reset()
+        self.cancel_index_watch()
+
     def shutdown(self) -> None:
         super().shutdown()
         self.cancel_index_watch()

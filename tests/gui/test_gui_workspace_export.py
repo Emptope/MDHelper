@@ -61,6 +61,7 @@ def test_export_action_writes_all_rows_and_preserves_preview(
     editor.export_button.click()
     assert not editor.export_button.isEnabled()
     wait_until(lambda: not editor._exporting)
+    assert target.is_file(), (editor.current_path, editor._loading_path, editor.status.text())
     with target.open(encoding="utf-8", newline="") as handle:
         rows = list(csv.reader(handle, delimiter=delimiter))
     assert len(rows) == 301
@@ -183,6 +184,34 @@ def test_edr_export_requires_a_checked_term(parsed_editor, monkeypatch):
     assert not editor._exporting
     editor.data.items.item(1).setCheckState(Qt.CheckState.Checked)
     assert editor.export_button.isEnabled()
+
+
+def test_current_file_selection_does_not_cancel_export(parsed_editor, tmp_path: Path, monkeypatch):
+    editor, source = parsed_editor
+    started = Event()
+    release = Event()
+    target = tmp_path / "result.csv"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_: (str(target), ""))
+
+    def export(_source, destination, cancel, _columns):
+        started.set()
+        assert release.wait(5)
+        if cancel.is_set():
+            raise JobCancelled("Export cancelled")
+        Path(destination).write_text("completed", encoding="ascii")
+        return Path(destination)
+
+    monkeypatch.setattr("mdhelper.gui.workspace.worker.export_workspace_data", export)
+    try:
+        editor.export_text()
+        wait_until(started.is_set)
+        index = editor.files.index(str(source))
+        editor._selected(index, index)
+        assert editor._exporting
+    finally:
+        release.set()
+    wait_until(lambda: not editor._exporting)
+    assert target.is_file()
 
 
 def test_export_dialog_cancel_does_not_start_work(parsed_editor, monkeypatch):

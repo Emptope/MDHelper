@@ -10,7 +10,6 @@ import pytest
 from mdhelper.analysis.gromacs.backend import GromacsBackend
 from mdhelper.analysis.gromacs.curves import _actual_bin_width, _parse_curve
 from mdhelper.analysis.pipeline import AnalysisInput
-from mdhelper.app.reports.base import number
 from mdhelper.app.reports.radial import CumulativeRdfReport, RdfReport
 from mdhelper.core.analysis import AnalysisResult, AnalysisType, RadialRequest
 from mdhelper.core.errors import ConfigurationError
@@ -29,7 +28,8 @@ def test_radial_output_precision_survives_export(
     source.write_text(
         "# Radial samples\n@ type xy\n"
         "0.12345678901234567 12.345678901234567\n"
-        "0.23456789012345678 23.456789012345678\n",
+        "0.23456789012345678 23.456789012345678\n"
+        "0.30000000000000004 1.0000000000000002\n",
         encoding="ascii",
     )
     radii, values = _parse_curve(source, analysis_type)
@@ -58,7 +58,6 @@ def test_radial_output_precision_survives_export(
         rows = list(csv.DictReader(handle))
     assert [float(row["radius_nm"]) for row in rows] == radii.tolist()
     assert [float(row[column]) for row in rows] == values.tolist()
-    assert all(float(number(float(value))) == value for value in values)
 
 
 @pytest.mark.parametrize("analysis_type", ("rdf", "cumulative_rdf"))

@@ -15,6 +15,7 @@ from mdhelper.gui.actions.results import ResultActions
 from mdhelper.gui.actions.system import SystemActions
 from mdhelper.gui.assets import application_icon
 from mdhelper.gui.controllers.analysis_jobs import AnalysisJobController
+from mdhelper.gui.controllers.analysis_state import AnalysisPhase
 from mdhelper.gui.controllers.session import ProjectSession
 from mdhelper.gui.dialogs.integrations import IntegrationsDialog
 from mdhelper.gui.dialogs.projects import NewProjectDialog
@@ -120,8 +121,8 @@ class MainWindow(QMainWindow):
             self.system_actions,
             lambda candidates, parent: NewProjectDialog(candidates, parent),
             lambda: self._inspect(),
-            lambda: self.job_controller.running,
-            self.analysis_actions.controller.state.reset,
+            lambda: self.analysis_actions.controller.state.phase is not AnalysisPhase.IDLE,
+            self.analysis_actions.reset,
             self._show_error,
         )
         self.result_actions = ResultActions(

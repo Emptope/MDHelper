@@ -57,14 +57,42 @@ class ProjectActions:
         tabs.editor.open_requested.connect(self.open)
 
     def open(self) -> None:
+        if self.analysis_running():
+            QMessageBox.information(
+                self.parent, "Project", "Cancel the running analysis before opening a project."
+            )
+            return
         directory = QFileDialog.getExistingDirectory(self.parent, "Open MDHelper Project")
         if not directory:
             return
         try:
-            if not self.tabs.editor.set_root(directory):
+            root = Path(directory).expanduser().resolve()
+            current = self.session.project
+            switching = self.tabs.editor.root != root or (
+                current is not None and current.root != root
+            )
+            project = None
+            inputs: dict[str, Path] = {}
+            if switching and self.application.projects.exists(root):
+                project = self.application.projects.open(root, verify_inputs=False)
+                inputs = project.resolve_inputs(verify_fingerprints=False)
+            if not self.tabs.editor.set_root(root):
                 return
+            if switching:
+                self._reset_session()
+                if project is not None:
+                    self.session.project = project
+                    self.session.state.ready()
+                    self._set_inputs(
+                        str(inputs["topology"]), str(inputs["trajectory"]),
+                        str(inputs["index"]) if "index" in inputs else "",
+                    )
+                    self.inspect_system()
+                    self.ready("opened")
+                else:
+                    self.parent.setWindowTitle(f"MDHelper {__version__} - {root.name}")
+                    self.parent.statusBar().showMessage(f"Folder opened: {root}", 10000)
             self.tabs.setCurrentWidget(self.tabs.editor)
-            self.parent.statusBar().showMessage(f"Folder opened: {directory}", 10000)
         except Exception as exc:
             self.show_error(exc)
 
