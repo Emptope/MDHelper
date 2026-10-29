@@ -25,7 +25,7 @@ dependencies = [
   "MDAnalysis>=2.8,<3",
   "matplotlib>=3.11.2,<4",
   "numpy>=2.5.4,<3",
-  "platformdirs>=4.13.4,<5",
+  "platformdirs>=4.13.5,<5",
   "Pillow>=13,<14",
   "pyedr>=0.8,<1",
   "tomli-w>=1.1,<2",
@@ -37,11 +37,11 @@ gui = ["PySide6>=6.7,<7"]
 
 [dependency-groups]
 dev = [
-  "hypothesis>=6.170.1,<7",
+  "hypothesis>=6.170.5,<7",
   "jsonschema>=4.23,<5",
   "mypy>=2.4.0,<3",
   "packaging>=24,<27",
-  "prek>=0.5.5,<1",
+  "prek>=0.5.7,<1",
   "pytest>=9.0.3,<10",
   "pytest-cov>=7.0,<8",
   "pytest-xdist>=3.8,<4",
